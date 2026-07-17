@@ -4,8 +4,8 @@ import Carbon.HIToolbox
 import Foundation
 
 final class TypingService {
-    private static let directTerminalSubmissionDelayMicros: useconds_t = 120_000
-    private static let pasteTerminalSubmissionDelayMicros: useconds_t = 200_000
+    private static let directTerminalSubmissionDelayMicros: useconds_t = 300_000
+    private static let pasteTerminalSubmissionDelayMicros: useconds_t = 300_000
 
     // Logging toggle (off by default). Enable by setting env FLUID_TYPING_LOGS=1
     // or UserDefaults bool for key "enableTypingLogs".
