@@ -230,6 +230,31 @@ testing a change:
 pgrep -alf FluidVoice-Debug
 ```
 
+### Build cache troubleshooting
+
+Run only one `xcodebuild` process at a time for a given DerivedData directory.
+Concurrent builds can leave Xcode's build database locked or corrupt its
+intermediate state.
+
+If Swift Package Manager reports stale dependency state or a framework symlink
+is malformed, retry the build with a new temporary DerivedData directory before
+removing any existing cache:
+
+```bash
+build_cache="$(mktemp -d /tmp/fluidvoice-derived-data.XXXXXX)"
+xcodebuild build \
+  -project Fluid.xcodeproj \
+  -scheme Fluid \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  -derivedDataPath "$build_cache"
+```
+
+The Debug app product is `FluidVoice-Debug.app`. Keep any custom `TEST_HOST`
+or `BUNDLE_LOADER` settings pointed at that bundle. When testing without a
+local development certificate, add `CODE_SIGNING_ALLOWED=NO
+CODE_SIGNING_REQUIRED=NO` to the `xcodebuild` command.
+
 ---
 
 ## Contributing
