@@ -4,6 +4,9 @@ import Carbon.HIToolbox
 import Foundation
 
 final class TypingService {
+    private static let directTerminalSubmissionDelayMicros: useconds_t = 120_000
+    private static let pasteTerminalSubmissionDelayMicros: useconds_t = 200_000
+
     // Logging toggle (off by default). Enable by setting env FLUID_TYPING_LOGS=1
     // or UserDefaults bool for key "enableTypingLogs".
     private static var isLoggingEnabled: Bool {
@@ -329,9 +332,17 @@ final class TypingService {
             self.insertTextInstantly(text, preferredTargetPID: preferredTargetPID)
             for step in plan.steps {
                 guard case .pressReturn = step else { continue }
-                // Give paste-based insertion a moment to reach the target before submitting it.
-                usleep(20_000)
-                self.pressReturn(preferredTargetPID: preferredTargetPID)
+                // Text injection is asynchronous from the terminal's perspective. Give the
+                // destination enough time to finish accepting it before pressing Return.
+                let submissionDelay = Self.terminalSubmissionDelayMicros(for: mode)
+                self.bench(
+                    "terminal_submit_settle_start delayMs=\(submissionDelay / 1_000) mode=\(mode.rawValue) preferredPID=\(preferredTargetPID.map { String($0) } ?? "nil")"
+                )
+                usleep(submissionDelay)
+                let returnPosted = self.pressReturn(preferredTargetPID: preferredTargetPID)
+                self.bench(
+                    "terminal_submit_result posted=\(returnPosted) delayMs=\(submissionDelay / 1_000) preferredPID=\(preferredTargetPID.map { String($0) } ?? "nil")"
+                )
             }
             self.bench(
                 "insert_return elapsedMs=\(Self.elapsedMs(since: insertStartedAt)) totalMs=\(Self.elapsedMs(since: requestedAt))"
@@ -449,12 +460,22 @@ final class TypingService {
         self.log("[TypingService] Character-by-character typing completed")
     }
 
-    private func pressReturn(preferredTargetPID: pid_t?) {
+    private static func terminalSubmissionDelayMicros(for mode: SettingsStore.TextInsertionMode) -> useconds_t {
+        switch mode {
+        case .standard:
+            Self.directTerminalSubmissionDelayMicros
+        case .reliablePaste:
+            Self.pasteTerminalSubmissionDelayMicros
+        }
+    }
+
+    @discardableResult
+    private func pressReturn(preferredTargetPID: pid_t?) -> Bool {
         guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_Return), keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_Return), keyDown: false)
         else {
             self.log("[TypingService] ERROR: Failed to create Return key events")
-            return
+            return false
         }
 
         if let preferredTargetPID, preferredTargetPID > 0 {
@@ -466,6 +487,7 @@ final class TypingService {
             keyUp.post(tap: .cghidEventTap)
             self.log("[TypingService] Return posted via HID tap")
         }
+        return true
     }
 
     private func tryReliablePasteInsertion(_ text: String, preferredTargetPID: pid_t?) -> Bool {
