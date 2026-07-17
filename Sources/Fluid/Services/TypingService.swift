@@ -327,6 +327,12 @@ final class TypingService {
             let insertStartedAt = ProcessInfo.processInfo.systemUptime
             self.bench("insert_call")
             self.insertTextInstantly(text, preferredTargetPID: preferredTargetPID)
+            for step in plan.steps {
+                guard case .pressReturn = step else { continue }
+                // Give paste-based insertion a moment to reach the target before submitting it.
+                usleep(20_000)
+                self.pressReturn(preferredTargetPID: preferredTargetPID)
+            }
             self.bench(
                 "insert_return elapsedMs=\(Self.elapsedMs(since: insertStartedAt)) totalMs=\(Self.elapsedMs(since: requestedAt))"
             )
@@ -441,6 +447,25 @@ final class TypingService {
             usleep(1000)
         }
         self.log("[TypingService] Character-by-character typing completed")
+    }
+
+    private func pressReturn(preferredTargetPID: pid_t?) {
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_Return), keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_Return), keyDown: false)
+        else {
+            self.log("[TypingService] ERROR: Failed to create Return key events")
+            return
+        }
+
+        if let preferredTargetPID, preferredTargetPID > 0 {
+            keyDown.postToPid(preferredTargetPID)
+            keyUp.postToPid(preferredTargetPID)
+            self.log("[TypingService] Return posted to PID \(preferredTargetPID)")
+        } else {
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+            self.log("[TypingService] Return posted via HID tap")
+        }
     }
 
     private func tryReliablePasteInsertion(_ text: String, preferredTargetPID: pid_t?) -> Bool {

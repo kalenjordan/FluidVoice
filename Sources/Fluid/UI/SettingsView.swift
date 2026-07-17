@@ -952,6 +952,16 @@ struct SettingsView: View {
                                     Divider().opacity(0.2)
 
                                     self.optionToggleRow(
+                                        title: "Submit Terminal Dictation",
+                                        description: "Press Return after a finalized dictation in supported terminal apps. This can execute shell commands.",
+                                        isOn: Binding(
+                                            get: { SettingsStore.shared.submitTerminalDictationEnabled },
+                                            set: { SettingsStore.shared.submitTerminalDictationEnabled = $0 }
+                                        )
+                                    )
+                                    Divider().opacity(0.2)
+
+                                    self.optionToggleRow(
                                         title: "Space Between Dictations",
                                         description: "Add spacing so consecutive dictations chain without manually pressing the spacebar.",
                                         isOn: Binding(

@@ -2997,6 +2997,7 @@ final class SettingsStore: ObservableObject {
             removeFillerWordsEnabled: self.removeFillerWordsEnabled,
             autoConvertPunctuationEnabled: self.autoConvertPunctuationEnabled,
             literalDictationFormattingEnabled: self.literalDictationFormattingEnabled,
+            submitTerminalDictationEnabled: self.submitTerminalDictationEnabled,
             punctuationDictionaryPrefix: self.punctuationDictionaryPrefix,
             punctuationDictionaryRules: self.punctuationDictionaryRules,
             gaavModeEnabled: self.gaavModeEnabled,
@@ -3119,6 +3120,9 @@ final class SettingsStore: ObservableObject {
         }
         if let literalDictationFormattingEnabled = payload.literalDictationFormattingEnabled {
             self.literalDictationFormattingEnabled = literalDictationFormattingEnabled
+        }
+        if let submitTerminalDictationEnabled = payload.submitTerminalDictationEnabled {
+            self.submitTerminalDictationEnabled = submitTerminalDictationEnabled
         }
         if let punctuationDictionaryPrefix = payload.punctuationDictionaryPrefix {
             self.punctuationDictionaryPrefix = punctuationDictionaryPrefix
@@ -3741,6 +3745,16 @@ final class SettingsStore: ObservableObject {
         set {
             objectWillChange.send()
             self.defaults.set(newValue, forKey: Keys.literalDictationFormattingEnabled)
+        }
+    }
+
+    /// When enabled, finalized dictation in supported terminal apps is followed by Return.
+    /// Disabled by default because Return can execute a shell command.
+    var submitTerminalDictationEnabled: Bool {
+        get { self.defaults.object(forKey: Keys.submitTerminalDictationEnabled) as? Bool ?? false }
+        set {
+            objectWillChange.send()
+            self.defaults.set(newValue, forKey: Keys.submitTerminalDictationEnabled)
         }
     }
 
@@ -4902,6 +4916,7 @@ private extension SettingsStore {
         static let removeFillerWordsEnabled = "RemoveFillerWordsEnabled"
         static let autoConvertPunctuationEnabled = "AutoConvertPunctuationEnabled"
         static let literalDictationFormattingEnabled = "LiteralDictationFormattingEnabled"
+        static let submitTerminalDictationEnabled = "SubmitTerminalDictationEnabled"
         static let punctuationDictionaryPrefix = "PunctuationDictionaryPrefix"
         static let punctuationDictionaryRules = "PunctuationDictionaryRules"
 

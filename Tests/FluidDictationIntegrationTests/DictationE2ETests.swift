@@ -645,6 +645,31 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
+    func testTerminalOutputPlanSubmitsOnlyWhenExplicitlyEnabled() {
+        let terminalPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "git status",
+            appName: "Terminal",
+            bundleID: "com.apple.Terminal",
+            submitTerminalCommand: true
+        )
+        XCTAssertEqual(terminalPlan.steps, [.text("git status"), .pressReturn])
+
+        let disabledPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "git status",
+            appName: "Terminal",
+            bundleID: "com.apple.Terminal"
+        )
+        XCTAssertEqual(disabledPlan.steps, [.text("git status")])
+
+        let editorPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "git status",
+            appName: "Visual Studio Code",
+            bundleID: "com.microsoft.VSCode",
+            submitTerminalCommand: true
+        )
+        XCTAssertEqual(editorPlan.steps, [.text("git status")])
+    }
+
     func testDictionaryTrainingNormalizesSamplesAndIgnoresIntendedText() {
         let triggers = CustomDictionaryTrainingMerge.normalizedTriggers(
             from: [" Fluid Voice. ", "FluidVoice", "fluid voice", " "],

@@ -3,6 +3,7 @@ import Foundation
 struct DictationLiteralOutputPlan: Equatable {
     enum Step: Equatable {
         case text(String)
+        case pressReturn
     }
 
     let steps: [Step]
@@ -57,13 +58,15 @@ extension ASRService {
         for text: String,
         appName: String? = nil,
         bundleID: String? = nil,
-        windowTitle: String? = nil
+        windowTitle: String? = nil,
+        submitTerminalCommand: Bool = false
     ) -> DictationLiteralOutputPlan {
         DictationLiteralFormatter.makeOutputPlan(
             for: text,
             appName: appName,
             bundleID: bundleID,
-            windowTitle: windowTitle
+            windowTitle: windowTitle,
+            submitTerminalCommand: submitTerminalCommand
         )
     }
 
@@ -221,16 +224,23 @@ private enum DictationLiteralFormatter {
         for text: String,
         appName: String? = nil,
         bundleID: String? = nil,
-        windowTitle: String? = nil
+        windowTitle: String? = nil,
+        submitTerminalCommand: Bool = false
     ) -> DictationLiteralOutputPlan {
-        .plain(
-            self.applyTerminalLiteralAutocompleteSpacing(
-                text,
-                appName: appName,
-                bundleID: bundleID,
-                windowTitle: windowTitle
-            )
+        let formattedText = self.applyTerminalLiteralAutocompleteSpacing(
+            text,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
         )
+        var steps: [DictationLiteralOutputPlan.Step] = [.text(formattedText)]
+        if submitTerminalCommand,
+           !formattedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           self.isTerminalApp(appName: appName, bundleID: bundleID)
+        {
+            steps.append(.pressReturn)
+        }
+        return DictationLiteralOutputPlan(steps: steps)
     }
 
     static func applyTerminalLiteralAutocompleteSpacing(
@@ -414,6 +424,23 @@ private enum DictationLiteralFormatter {
             haystack.contains("claude") ||
             haystack.contains("cursor") ||
             haystack.contains("windsurf")
+    }
+
+    private static func isTerminalApp(appName: String?, bundleID: String?) -> Bool {
+        let bundleID = bundleID?.lowercased() ?? ""
+        let appName = appName?.lowercased() ?? ""
+        let terminalBundleIDs: Set<String> = [
+            "com.apple.terminal",
+            "com.googlecode.iterm2",
+            "dev.warp.warp-stable",
+            "com.mitchellh.ghostty",
+            "net.kovidgoyal.kitty",
+            "org.alacritty",
+            "co.zeit.hyper",
+            "com.github.wez.wezterm",
+        ]
+        let terminalAppNames: Set<String> = ["terminal", "iterm2", "warp", "ghostty", "kitty", "alacritty", "hyper", "wezterm"]
+        return terminalBundleIDs.contains(bundleID) || terminalAppNames.contains(appName)
     }
 
     private static func matchesWholeString(_ text: String, regex: NSRegularExpression?) -> Bool {

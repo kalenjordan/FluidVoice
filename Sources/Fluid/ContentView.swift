@@ -2303,7 +2303,8 @@ struct ContentView: View {
             for: finalText,
             appName: appInfo.name,
             bundleID: appInfo.bundleId,
-            windowTitle: appInfo.windowTitle
+            windowTitle: appInfo.windowTitle,
+            submitTerminalCommand: self.settings.submitTerminalDictationEnabled
         )
         self.appBench("transcription_finalized chars=\(finalText.count)")
         self.appBench("text_ready chars=\(finalText.count)")
