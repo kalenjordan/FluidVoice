@@ -201,6 +201,35 @@ Run the build using the script: `./build.sh`
 ./build.sh
 ```
 
+### Rebuilding the local Debug app
+
+When testing a locally running Debug build, rebuild into this repository's
+`DerivedData` directory. Xcode's default DerivedData location produces a
+separate app bundle, so restarting the repo-local app would otherwise run old
+code.
+
+```bash
+xcodebuild build \
+  -project Fluid.xcodeproj \
+  -scheme Fluid \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  -derivedDataPath "$PWD/DerivedData"
+```
+
+Then quit and relaunch:
+
+```text
+DerivedData/Build/Products/Debug/FluidVoice-Debug.app
+```
+
+Confirm that the running executable comes from that same location before
+testing a change:
+
+```bash
+pgrep -alf FluidVoice-Debug
+```
+
 ---
 
 ## Contributing

@@ -670,6 +670,27 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertEqual(editorPlan.steps, [.text("git status")])
     }
 
+    func testTerminalOutputPlanUsesDeliveryAppRatherThanRecordingApp() {
+        // A user can start dictation in one app, then focus a terminal before
+        // FluidVoice delivers the result. The terminal destination controls
+        // submission, not the app that was focused at recording start.
+        let recordingAppPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "git status",
+            appName: "Notes",
+            bundleID: "com.apple.Notes",
+            submitTerminalCommand: true
+        )
+        let deliveryAppPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "git status",
+            appName: "ghostty",
+            bundleID: "com.mitchellh.ghostty",
+            submitTerminalCommand: true
+        )
+
+        XCTAssertEqual(recordingAppPlan.steps, [.text("git status")])
+        XCTAssertEqual(deliveryAppPlan.steps, [.text("git status"), .pressReturn])
+    }
+
     func testDictionaryTrainingNormalizesSamplesAndIgnoresIntendedText() {
         let triggers = CustomDictionaryTrainingMerge.normalizedTriggers(
             from: [" Fluid Voice. ", "FluidVoice", "fluid voice", " "],

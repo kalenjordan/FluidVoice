@@ -2196,6 +2196,18 @@ final class SettingsStore: ObservableObject {
         set { self.showInDock = !newValue }
     }
 
+    /// When enabled, keep FluidVoice in the Dock and Command-Tab only while its
+    /// main window is open. The always-hidden Dock/App Switcher preference wins.
+    var hideFromAppSwitcherWhenMainWindowClosed: Bool {
+        get { self.defaults.object(forKey: Keys.hideFromAppSwitcherWhenMainWindowClosed) as? Bool ?? true }
+        set {
+            self.defaults.set(newValue, forKey: Keys.hideFromAppSwitcherWhenMainWindowClosed)
+            DispatchQueue.main.async {
+                AppActivationPolicyController.applyCurrentPolicy()
+            }
+        }
+    }
+
     var autoUpdateCheckEnabled: Bool {
         get {
             let value = self.defaults.object(forKey: Keys.autoUpdateCheckEnabled)
@@ -3676,9 +3688,9 @@ final class SettingsStore: ObservableObject {
         // Method 2: Try to notify the system of the change
         // This may help with some system caches
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApp.setActivationPolicy(visible ? .regular : .accessory)
+            AppActivationPolicyController.applyCurrentPolicy()
             DebugLogger.shared.info(
-                "✓ Activation policy updated to: \(visible ? "regular" : "accessory")",
+                "✓ Activation policy updated for Dock visibility preference",
                 source: "SettingsStore"
             )
         }
@@ -4843,6 +4855,7 @@ private extension SettingsStore {
         static let visualizerNoiseThreshold = "VisualizerNoiseThreshold"
         static let launchAtStartup = "LaunchAtStartup"
         static let showInDock = "ShowInDock"
+        static let hideFromAppSwitcherWhenMainWindowClosed = "HideFromAppSwitcherWhenMainWindowClosed"
         static let accentColorOption = "AccentColorOption"
         static let themePreference = "ThemePreference"
         static let enableTranscriptionSounds = "EnableTranscriptionSounds"

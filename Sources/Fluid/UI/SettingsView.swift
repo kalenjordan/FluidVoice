@@ -254,6 +254,17 @@ struct SettingsView: View {
                             )
                             Divider().opacity(0.2)
 
+                            self.settingsToggleRow(
+                                title: "Hide when window is closed",
+                                description: "Hide FluidVoice from the Dock and Cmd+Tab while its main window is closed. Dictation and the menu bar keep running.",
+                                footnote: "macOS controls Dock and Cmd+Tab visibility together.",
+                                isOn: Binding(
+                                    get: { SettingsStore.shared.hideFromAppSwitcherWhenMainWindowClosed },
+                                    set: { SettingsStore.shared.hideFromAppSwitcherWhenMainWindowClosed = $0 }
+                                )
+                            )
+                            Divider().opacity(0.2)
+
                             // Accent Color
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(alignment: .center) {

@@ -11,6 +11,55 @@ import PromiseKit
 import SwiftUI
 import UserNotifications
 
+/// Keeps the process in the normal app switcher only while its main window is open,
+/// when the user has opted into that behavior. macOS uses one activation policy for
+/// both the Dock and Command-Tab, so they cannot be controlled independently.
+@MainActor
+enum AppActivationPolicyController {
+    static func showForMainWindow() {
+        guard SettingsStore.shared.showInDock,
+              SettingsStore.shared.hideFromAppSwitcherWhenMainWindowClosed
+        else {
+            self.applyCurrentPolicy()
+            return
+        }
+
+        NSApp.setActivationPolicy(.regular)
+    }
+
+    static func applyCurrentPolicy() {
+        let settings = SettingsStore.shared
+        let policy: NSApplication.ActivationPolicy
+
+        if !settings.showInDock {
+            policy = .accessory
+        } else if settings.hideFromAppSwitcherWhenMainWindowClosed,
+                  !self.hasVisibleMainWindow
+        {
+            policy = .accessory
+        } else {
+            policy = .regular
+        }
+
+        NSApp.setActivationPolicy(policy)
+    }
+
+    private static var hasVisibleMainWindow: Bool {
+        NSApp.windows.contains { window in
+            guard window.level == .normal,
+                  window.styleMask.contains(.titled),
+                  window.canBecomeKey,
+                  window.isVisible,
+                  !window.isMiniaturized
+            else {
+                return false
+            }
+
+            return window.title == "FluidVoice" || window.title.contains("FluidVoice")
+        }
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var updateCheckTimer: Timer?
     private var didRevealMainWindowOnLaunch = false
@@ -30,6 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             source: "AppDelegate"
         )
         UNUserNotificationCenter.current().delegate = self
+        self.observeMainWindowLifecycle()
 
         // Initialize app settings (dock visibility, etc.)
         SettingsStore.shared.initializeAppSettings()
@@ -183,7 +233,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     /// LaunchServices reopen below, which restores the bundle default (.regular) even when the
     /// app is reopened without activation, so hide-from-dock is honored on login launches (#396).
     private func applyDockVisibilityPolicy() {
-        NSApp.setActivationPolicy(SettingsStore.shared.showInDock ? .regular : .accessory)
+        AppActivationPolicyController.applyCurrentPolicy()
+    }
+
+    private func observeMainWindowLifecycle() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.mainWindowDidBecomeKey(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.mainWindowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
+    }
+
+    @objc private func mainWindowDidBecomeKey(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              self.isMainWindow(window)
+        else {
+            return
+        }
+
+        AppActivationPolicyController.showForMainWindow()
+    }
+
+    @objc private func mainWindowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              self.isMainWindow(window)
+        else {
+            return
+        }
+
+        // A closing SwiftUI window remains in NSApp.windows until the current event
+        // finishes, so wait until its visibility has been updated before deciding.
+        DispatchQueue.main.async {
+            AppActivationPolicyController.applyCurrentPolicy()
+        }
     }
 
     private func openMainWindowOnLaunch() {

@@ -1593,10 +1593,19 @@ struct ContentView: View {
     // MARK: - App Detection and Context-Aware Prompts
 
     private func getCurrentAppInfo() -> (name: String, bundleId: String, windowTitle: String) {
-        if let frontmostApp = NSWorkspace.shared.frontmostApplication {
-            let name = frontmostApp.localizedName ?? "Unknown"
-            let bundleId = frontmostApp.bundleIdentifier ?? "unknown"
-            let title = self.getFrontmostWindowTitle(ownerPid: frontmostApp.processIdentifier) ?? ""
+        guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
+            return (name: "Unknown", bundleId: "unknown", windowTitle: "")
+        }
+        return self.getAppInfo(processIdentifier: frontmostApp.processIdentifier)
+    }
+
+    /// Returns app context for the process that will receive dictation output.
+    /// This differs from recordingAppInfo when the user changes focus while dictating.
+    private func getAppInfo(processIdentifier: pid_t) -> (name: String, bundleId: String, windowTitle: String) {
+        if let app = NSRunningApplication(processIdentifier: processIdentifier) {
+            let name = app.localizedName ?? "Unknown"
+            let bundleId = app.bundleIdentifier ?? "unknown"
+            let title = self.getFrontmostWindowTitle(ownerPid: processIdentifier) ?? ""
             return (name: name, bundleId: bundleId, windowTitle: title)
         }
         return (name: "Unknown", bundleId: "unknown", windowTitle: "")
@@ -2299,13 +2308,6 @@ struct ContentView: View {
 
         DebugLogger.shared.info("Transcription finalized (chars: \(finalText.count))", source: "ContentView")
         let finalTextReadyAt = ProcessInfo.processInfo.systemUptime
-        let finalOutputPlan = ASRService.makeDictationLiteralOutputPlan(
-            for: finalText,
-            appName: appInfo.name,
-            bundleID: appInfo.bundleId,
-            windowTitle: appInfo.windowTitle,
-            submitTerminalCommand: self.settings.submitTerminalDictationEnabled
-        )
         self.appBench("transcription_finalized chars=\(finalText.count)")
         self.appBench("text_ready chars=\(finalText.count)")
 
@@ -2391,6 +2393,17 @@ struct ContentView: View {
 
         if shouldTypeExternally {
             let typingTarget = self.resolveTypingTargetPID()
+            // Submission is an action in the destination, so determine whether to
+            // press Return from the app that will receive the text rather than the
+            // app that happened to be focused when recording began.
+            let outputAppInfo = typingTarget.pid.map { self.getAppInfo(processIdentifier: $0) } ?? appInfo
+            let finalOutputPlan = ASRService.makeDictationLiteralOutputPlan(
+                for: finalText,
+                appName: outputAppInfo.name,
+                bundleID: outputAppInfo.bundleId,
+                windowTitle: outputAppInfo.windowTitle,
+                submitTerminalCommand: self.settings.submitTerminalDictationEnabled
+            )
             // Dispatch insertion as soon as the destination app is ready; the
             // overlay hides asynchronously after output so it cannot delay paste.
             if typingTarget.shouldRestoreOriginalFocus {

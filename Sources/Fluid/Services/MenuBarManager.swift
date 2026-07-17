@@ -803,6 +803,10 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     }
 
     @objc private func openMainWindow() {
+        // Restore the normal activation policy before presenting the window so it
+        // immediately reappears in the Dock and Command-Tab when configured to do so.
+        AppActivationPolicyController.showForMainWindow()
+
         // First, unhide the app if it's hidden
         if NSApp.isHidden {
             NSApp.unhide(nil)
