@@ -251,7 +251,7 @@ struct ContentView: View {
     @State private var visualizerNoiseThreshold: Double = SettingsStore.shared.visualizerNoiseThreshold
     @State private var inputDevices: [AudioDevice.Device] = []
     @State private var outputDevices: [AudioDevice.Device] = []
-    @State private var selectedInputUID: String = AudioDevice.getDefaultInputDevice()?.uid ?? ""
+    @State private var selectedInputUID: String = SettingsStore.shared.preferredInputDeviceUID ?? ""
     @State private var selectedOutputUID: String = SettingsStore.shared.preferredOutputDeviceUID ?? ""
 
     // AI Prompts Tab State
@@ -382,12 +382,21 @@ struct ContentView: View {
                 // Hardware change detected → refresh device lists
                 self.refreshDevices()
 
-                // Only sync UI with system defaults when sync is enabled
-                // When sync is disabled, keep the user's preferred device selection
+                // Keep the explicitly selected microphone as the durable preference. If it was
+                // temporarily disconnected, restore it as soon as it becomes available again.
                 if SettingsStore.shared.syncAudioDevicesWithSystem {
-                    // Sync mode: Update UI to match current system defaults
-                    if let sysIn = AudioDevice.getDefaultInputDevice()?.uid {
+                    if let prefIn = SettingsStore.shared.preferredInputDeviceUID,
+                       self.inputDevices.contains(where: { $0.uid == prefIn })
+                    {
+                        self.selectedInputUID = prefIn
+                        if AudioDevice.getDefaultInputDevice()?.uid != prefIn {
+                            _ = AudioDevice.setDefaultInputDevice(uid: prefIn)
+                        }
+                    } else if SettingsStore.shared.preferredInputDeviceUID == nil,
+                              let sysIn = AudioDevice.getDefaultInputDevice()?.uid
+                    {
                         self.selectedInputUID = sysIn
+                        SettingsStore.shared.preferredInputDeviceUID = sysIn
                     }
                     if let sysOut = AudioDevice.getDefaultOutputDevice()?.uid {
                         self.selectedOutputUID = sysOut
@@ -399,9 +408,8 @@ struct ContentView: View {
                     {
                         self.selectedInputUID = prefIn
                     } else if let sysIn = AudioDevice.getDefaultInputDevice()?.uid {
-                        // Fallback to system default if preferred device disconnected
+                        // Use the system default temporarily without replacing the saved preference.
                         self.selectedInputUID = sysIn
-                        SettingsStore.shared.preferredInputDeviceUID = sysIn
                     }
 
                     if let prefOut = SettingsStore.shared.preferredOutputDeviceUID,
@@ -621,17 +629,21 @@ struct ContentView: View {
             self.menuBarManager.configure(asrService: self.appServices.asr)
             self.refreshDevices()
 
-            if self.selectedInputUID.isEmpty, let defIn = AudioDevice.getDefaultInputDevice()?.uid {
-                self.selectedInputUID = defIn
+            if let preferredInputUID = SettingsStore.shared.preferredInputDeviceUID,
+               self.inputDevices.contains(where: { $0.uid == preferredInputUID })
+            {
+                self.selectedInputUID = preferredInputUID
+                if AudioDevice.getDefaultInputDevice()?.uid != preferredInputUID {
+                    _ = AudioDevice.setDefaultInputDevice(uid: preferredInputUID)
+                }
+            } else if SettingsStore.shared.preferredInputDeviceUID == nil,
+                      let defaultInputUID = AudioDevice.getDefaultInputDevice()?.uid
+            {
+                self.selectedInputUID = defaultInputUID
+                SettingsStore.shared.preferredInputDeviceUID = defaultInputUID
             }
             if self.selectedOutputUID.isEmpty, let defOut = AudioDevice.getDefaultOutputDevice()?.uid {
                 self.selectedOutputUID = defOut
-            }
-
-            if let systemInputUID = AudioDevice.getDefaultInputDevice()?.uid,
-               self.inputDevices.contains(where: { $0.uid == systemInputUID })
-            {
-                self.selectedInputUID = systemInputUID
             }
 
             if let prefOut = SettingsStore.shared.preferredOutputDeviceUID,
@@ -4341,7 +4353,7 @@ private extension ContentView {
         self.isRewriteModeShortcutEnabled = SettingsStore.shared.rewriteModeShortcutEnabled
         self.playgroundUsed = SettingsStore.shared.playgroundUsed
         self.visualizerNoiseThreshold = SettingsStore.shared.visualizerNoiseThreshold
-        self.selectedInputUID = AudioDevice.getDefaultInputDevice()?.uid ?? ""
+        self.selectedInputUID = SettingsStore.shared.preferredInputDeviceUID ?? ""
         self.selectedOutputUID = SettingsStore.shared.preferredOutputDeviceUID ?? ""
         self.enableDebugLogs = SettingsStore.shared.enableDebugLogs
         self.hotkeyMode = SettingsStore.shared.hotkeyMode

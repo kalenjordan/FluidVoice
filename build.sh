@@ -18,7 +18,13 @@ case "${PROFILE}" in
     public|oss|incremental|fast)
         echo "Running public FluidVoice build without Fluid Intelligence..."
         cd "${PROJECT_DIR}"
-        exec xcodebuild -project Fluid.xcodeproj -scheme Fluid -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+        exec xcodebuild \
+            -project Fluid.xcodeproj \
+            -scheme Fluid \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath "${PROJECT_DIR}/DerivedData" \
+            build
         ;;
     fi|private|dev|full)
         if [ ! -x "${PRIVATE_FI_BUILD_SCRIPT}" ]; then

@@ -2655,8 +2655,6 @@ final class ASRService: ObservableObject {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                let cachedUIDs = self.cachedDeviceUIDs
-
                 DebugLogger.shared.debug("Current input devices: \(currentDevices.map { $0.name }.joined(separator: ", "))", source: "ASRService")
 
                 // Check if preferred device is now available (for auto-switch)
@@ -2685,33 +2683,6 @@ final class ASRService: ObservableObject {
                                 deviceUID: preferredDevice.uid,
                                 deviceName: preferredDevice.name
                             )
-                        }
-                    }
-                }
-
-                // Check for newly connected Bluetooth devices (auto-switch)
-                for device in currentDevices {
-                    if device.name.localizedCaseInsensitiveContains("airpods") ||
-                        device.name.localizedCaseInsensitiveContains("bluetooth")
-                    {
-                        if !cachedUIDs.contains(device.uid) {
-                            DebugLogger.shared.info(
-                                "🎧 New Bluetooth device detected: '\(device.name)'. Auto-switching...",
-                                source: "ASRService"
-                            )
-
-                            SettingsStore.shared.preferredInputDeviceUID = device.uid
-                            DebugLogger.shared.debug("Updated preferred input device to: \(device.uid)", source: "ASRService")
-
-                            if self.isRunning {
-                                DebugLogger.shared.info(
-                                    "Recording in progress - deferring Bluetooth switch until audio route recovery",
-                                    source: "ASRService"
-                                )
-                                self.scheduleAudioRouteRecovery(reason: "bluetooth input connected")
-                            } else {
-                                DebugLogger.shared.info("Not recording - Bluetooth device will be used on next recording", source: "ASRService")
-                            }
                         }
                     }
                 }

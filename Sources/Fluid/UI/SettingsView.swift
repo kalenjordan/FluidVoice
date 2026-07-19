@@ -1125,6 +1125,12 @@ struct SettingsView: View {
                                     if self.inputDevices.isEmpty {
                                         Text("Loading...").tag("")
                                     } else {
+                                        if let preferredUID = SettingsStore.shared.preferredInputDeviceUID,
+                                           !preferredUID.isEmpty,
+                                           !self.inputDevices.contains(where: { $0.uid == preferredUID })
+                                        {
+                                            Text("Preferred microphone (Disconnected)").tag(preferredUID)
+                                        }
                                         ForEach(self.inputDevices, id: \.uid) { dev in
                                             // Add "(System Default)" tag using cached name to avoid CoreAudio calls during layout
                                             let isSystemDefault = !self.cachedDefaultInputName.isEmpty && dev.name == self.cachedDefaultInputName
@@ -1157,10 +1163,11 @@ struct SettingsView: View {
                                     // Update cached default device name when device list changes
                                     self.cachedDefaultInputName = AudioDevice.getDefaultInputDevice()?.name ?? ""
 
-                                    // If selection is empty or not found in new list, select first available
+                                    // Preserve a disconnected preference so it can be restored on reconnect.
                                     if !newDevices.isEmpty {
                                         let currentValid = newDevices.contains { $0.uid == self.selectedInputUID }
-                                        if !currentValid {
+                                        let hasSavedPreference = SettingsStore.shared.preferredInputDeviceUID?.isEmpty == false
+                                        if !currentValid && !hasSavedPreference {
                                             if let defaultUID = AudioDevice.getDefaultInputDevice()?.uid,
                                                newDevices.contains(where: { $0.uid == defaultUID })
                                             {
@@ -1575,7 +1582,11 @@ struct SettingsView: View {
                 if !self.inputDevices.isEmpty {
                     let inputValid = self.inputDevices.contains { $0.uid == self.selectedInputUID }
                     if !inputValid || self.selectedInputUID.isEmpty {
-                        if let defaultUID = AudioDevice.getDefaultInputDevice()?.uid,
+                        if let preferredUID = SettingsStore.shared.preferredInputDeviceUID,
+                           !preferredUID.isEmpty
+                        {
+                            self.selectedInputUID = preferredUID
+                        } else if let defaultUID = AudioDevice.getDefaultInputDevice()?.uid,
                            self.inputDevices.contains(where: { $0.uid == defaultUID })
                         {
                             self.selectedInputUID = defaultUID

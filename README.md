@@ -217,6 +217,10 @@ xcodebuild build \
   -derivedDataPath "$PWD/DerivedData"
 ```
 
+Keep code signing enabled for local builds. The project uses an Apple
+Development identity so macOS can preserve Accessibility permission across
+rebuilds.
+
 Then quit and relaunch:
 
 ```text

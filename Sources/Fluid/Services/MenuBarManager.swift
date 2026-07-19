@@ -625,7 +625,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     }
 
     private func currentPreferredInputUID(defaultInputUID: String?) -> String? {
-        return defaultInputUID
+        return SettingsStore.shared.preferredInputDeviceUID ?? defaultInputUID
     }
 
     private var canCopyLastTranscript: Bool {
