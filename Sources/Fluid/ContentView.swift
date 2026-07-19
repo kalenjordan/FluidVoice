@@ -3430,6 +3430,15 @@ struct ContentView: View {
                 handled = true
             }
 
+            // The event tap is the authoritative Escape path. Hide recording UI here
+            // immediately instead of waiting for the secondary NSEvent monitor, which
+            // can be delayed behind streaming transcription work on the main actor.
+            if NotchOverlayManager.shared.isBottomOverlayVisible || NotchOverlayManager.shared.isOverlayVisible {
+                DebugLogger.shared.debug("Cancel callback: hiding recording overlay immediately", source: "ContentView")
+                NotchOverlayManager.shared.hide()
+                handled = true
+            }
+
             // Reset recording mode flags
             if self.activeRecordingMode != .none {
                 self.cancelPrewarmDictationIfNeeded()
@@ -3715,6 +3724,15 @@ extension ContentView {
             return
         }
         self.advanceOverlayLifecycle()
+
+        // Capture the target before presenting any UI, then acknowledge the shortcut
+        // immediately instead of waiting for the audio device to finish starting.
+        self.captureRecordingContext()
+        self.appBench("overlay_mode_request mode=Dictation phase=pre_audio_start")
+        self.menuBarManager.setOverlayMode(.dictation)
+        self.menuBarManager.showRecordingOverlayImmediately()
+        self.appBench("overlay_mode_requested mode=Dictation phase=pre_audio_start")
+
         Task {
             let asrStartStartedAt = ProcessInfo.processInfo.systemUptime
             DebugLogger.shared.benchmark("APP_BENCH", message: "asr_start_call", source: "AppBenchmark")
@@ -3722,11 +3740,6 @@ extension ContentView {
                 TranscriptionSoundPlayer.shared.playStartSound()
             }
             await self.asr.start(onCaptureStarted: {
-                self.captureRecordingContext()
-                self.appBench("overlay_mode_request mode=Dictation")
-                self.menuBarManager.setOverlayMode(.dictation)
-                self.menuBarManager.showRecordingOverlayImmediately()
-                self.appBench("overlay_mode_requested mode=Dictation")
                 self.prewarmPrivateAIDictationIfNeeded(for: slot)
             })
             if !self.asr.isRunning {

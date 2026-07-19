@@ -38,8 +38,6 @@ final class BottomOverlayWindowController {
     private var releaseTransitionActiveUntil: Date?
     private var deferredResizePending = false
     private var presentationGeneration: UInt64 = 0
-    private let presentationDuration: TimeInterval = 0.05
-    private let dismissalDuration: TimeInterval = 0.02
     private var isHideInProgress = false
     private var hideWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -98,20 +96,12 @@ final class BottomOverlayWindowController {
         self.targetScreen = OverlayScreenResolver.screenForCurrentPointer()
         self.positionWindow()
 
-        // Order the panel immediately, then use a very short fade so the first
-        // response is instant without the overlay visually popping into place.
-        self.window?.alphaValue = 0
+        // Recording feedback should appear immediately when the shortcut is pressed.
+        self.window?.alphaValue = 1
         self.window?.orderFrontRegardless()
         Self.overlayBench("bottom_order_front elapsedMs=\(Self.elapsedMs(since: startedAt))")
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = self.presentationDuration
-            context.allowsImplicitAnimation = true
-            self.window?.animator().alphaValue = 1
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + self.presentationDuration) { [weak self] in
-            guard let self, self.presentationGeneration == currentGeneration else { return }
-            Self.overlayBench("bottom_fade_complete elapsedMs=\(Self.elapsedMs(since: startedAt))")
-        }
+        guard self.presentationGeneration == currentGeneration else { return }
+        Self.overlayBench("bottom_show_complete elapsedMs=\(Self.elapsedMs(since: startedAt))")
     }
 
     func hide() {
@@ -167,38 +157,13 @@ final class BottomOverlayWindowController {
             return
         }
 
-        NotchContentState.shared.setBottomOverlayReleaseTransitioning(true)
-        NotchContentState.shared.setBottomOverlayDismissOffsetY(8)
-        NotchContentState.shared.setBottomOverlayDismissing(true)
-
-        // Start the visual response first. Resource cleanup then happens inside
-        // this same short budget instead of delaying the beginning of the fade.
-        let animationStartedAt = ProcessInfo.processInfo.systemUptime
-        Self.overlayBench("bottom_hide_animation_start")
-        await NSAnimationContext.runAnimationGroup { context in
-            context.duration = self.dismissalDuration
-            context.allowsImplicitAnimation = true
-            window.animator().alphaValue = 0
-        }
-        await Task.yield()
+        Self.overlayBench("bottom_hide_immediate_start")
+        window.orderOut(nil)
         guard self.presentationGeneration == currentGeneration else {
             Self.overlayBench("bottom_hide_return reason=stale_generation")
             return
         }
         self.clearPresentationResources()
-
-        let elapsed = ProcessInfo.processInfo.systemUptime - animationStartedAt
-        let remainingDuration = max(0, self.dismissalDuration - elapsed)
-        if remainingDuration > 0 {
-            try? await Task.sleep(nanoseconds: UInt64(remainingDuration * 1_000_000_000))
-        }
-
-        guard self.presentationGeneration == currentGeneration else {
-            Self.overlayBench("bottom_hide_return reason=stale_generation")
-            return
-        }
-
-        window.orderOut(nil)
         window.alphaValue = 1
         self.endReleaseTransition(flushDeferredUpdate: false)
         NotchContentState.shared.setBottomOverlayDismissing(false)

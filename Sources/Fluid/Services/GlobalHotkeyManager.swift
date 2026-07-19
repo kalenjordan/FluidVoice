@@ -1274,6 +1274,18 @@ final class GlobalHotkeyManager: NSObject {
     }
 
     private func scheduleModifierOnlyStart(for behavior: ModifierOnlyShortcutBehavior) {
+        let startsPrimaryFunctionToggleOnPress = self.hotkeyMode == .toggle
+            && behavior.holdModeType == .transcription
+            && behavior.shortcut.normalizedModifierKeyCodes == [63]
+
+        if startsPrimaryFunctionToggleOnPress {
+            guard !behavior.isModeKeyPressed() else { return }
+            behavior.setModeKeyPressed(true)
+            DebugLogger.shared.info("Transcription Function modifier pressed (toggle) - triggering immediately", source: "GlobalHotkeyManager")
+            behavior.onToggleRelease()
+            return
+        }
+
         guard self.hotkeyMode != .toggle, !behavior.isModeKeyPressed() else { return }
 
         self.cancelPendingReleaseStop(for: behavior.holdModeType)
@@ -1330,6 +1342,16 @@ final class GlobalHotkeyManager: NSObject {
                 }
             }
         case .toggle:
+            let startedOnPress = behavior.holdModeType == .transcription
+                && behavior.shortcut.normalizedModifierKeyCodes == [63]
+                && behavior.isModeKeyPressed()
+            if startedOnPress {
+                behavior.setModeKeyPressed(false)
+                if !wasCleanPress {
+                    DebugLogger.shared.debug(behavior.toggleIgnoredMessage, source: "GlobalHotkeyManager")
+                }
+                return
+            }
             if wasCleanPress {
                 behavior.onToggleRelease()
             } else {

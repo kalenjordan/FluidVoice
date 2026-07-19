@@ -268,6 +268,12 @@ final class NotchOverlayManager {
         } compactBottom: {
             NotchCompactBottomView()
         }
+        newNotch.transitionConfiguration = .init(
+            openingAnimation: .linear(duration: 0),
+            closingAnimation: .linear(duration: 0),
+            conversionAnimation: .linear(duration: 0),
+            skipIntermediateHides: true
+        )
 
         self.notch = newNotch
         let shouldUseCompactPresentation = self.currentNotchPresentationPolicy.usesCompactPresentation
@@ -277,11 +283,35 @@ final class NotchOverlayManager {
         // Resolve presentation from policy so future notch modes don't require call-site changes.
         Task { [weak self] in
             Self.overlayBench("notch_animation_start presentation=\(presentation)")
-            if shouldUseCompactPresentation {
-                await newNotch.compact(on: targetScreen)
-            } else {
-                await newNotch.expand(on: targetScreen)
+            let presentationTask = Task { @MainActor in
+                if shouldUseCompactPresentation {
+                    await newNotch.compact(on: targetScreen)
+                } else {
+                    await newNotch.expand(on: targetScreen)
+                }
             }
+
+            // DynamicNotchKit applies a separate hard-coded window fade after its
+            // SwiftUI transition. Wait here until presentation creates the window,
+            // then force it opaque before allowing the presentation task to finish.
+            for _ in 0 ..< 16 {
+                await Task.yield()
+                guard self?.generation == currentGeneration else {
+                    presentationTask.cancel()
+                    return
+                }
+                if let window = newNotch.windowController?.window {
+                    window.animationBehavior = .none
+                    await NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0
+                        context.allowsImplicitAnimation = false
+                        window.alphaValue = 1
+                    }
+                    Self.overlayBench("notch_window_fade_bypassed presentation=\(presentation)")
+                    break
+                }
+            }
+            await presentationTask.value
             Self.overlayBench("notch_animation_complete presentation=\(presentation) elapsedMs=\(Self.elapsedMs(since: startedAt))")
             // Only update state if we're still the active generation
             guard let self = self, self.generation == currentGeneration else {
@@ -356,7 +386,8 @@ final class NotchOverlayManager {
             // any inconsistent notch state without scheduling another task.
             Self.overlayBench("hide_return reason=not_visible state=\(self.state) notchExists=\(self.notch != nil)")
             if let existingNotch = self.notch {
-                await existingNotch.hide()
+                existingNotch.windowController?.window?.orderOut(nil)
+                Task { await existingNotch.hide() }
             }
             guard self.generation == currentGeneration else { return }
             self.notch = nil
@@ -366,9 +397,10 @@ final class NotchOverlayManager {
         }
 
         self.state = .hiding
-        Self.overlayBench("hide_animation_start")
-        await currentNotch.hide()
-        Self.overlayBench("hide_animation_complete elapsedMs=\(Self.elapsedMs(since: startedAt))")
+        Self.overlayBench("hide_immediate_start")
+        currentNotch.windowController?.window?.orderOut(nil)
+        Task { await currentNotch.hide() }
+        Self.overlayBench("hide_immediate_complete elapsedMs=\(Self.elapsedMs(since: startedAt))")
         // Only clear if we're still the active operation
         guard self.generation == currentGeneration else { return }
         self.notch = nil
