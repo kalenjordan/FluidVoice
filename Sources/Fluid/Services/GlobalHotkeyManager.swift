@@ -266,7 +266,10 @@ final class GlobalHotkeyManager: NSObject {
     private var healthCheckTask: Task<Void, Never>?
     private var maxRetryAttempts = 5
     private var retryDelay: TimeInterval = 0.5
-    private var healthCheckInterval: TimeInterval = 30.0
+    /// Event taps can be disabled without delivering a tap-disabled callback. Keep this
+    /// fallback frequent so global shortcuts recover quickly when that happens.
+    private let healthCheckInterval: TimeInterval = 2.0
+    private var lastHealthyEventTapCheck = Date()
 
     init(
         asrService: ASRService,
@@ -996,7 +999,11 @@ final class GlobalHotkeyManager: NSObject {
         }
 
         let reason = (type == .tapDisabledByTimeout) ? "timeout" : "user input"
-        DebugLogger.shared.warning("Event tap disabled by \(reason) — attempting immediate re-enable", source: "GlobalHotkeyManager")
+        let detectedAfterMilliseconds = Int(Date().timeIntervalSince(self.lastHealthyEventTapCheck) * 1_000)
+        DebugLogger.shared.warning(
+            "Event tap disabled by \(reason); detectedAfterMs=\(detectedAfterMilliseconds); attempting immediate re-enable",
+            source: "GlobalHotkeyManager"
+        )
         self.resetModifierOnlyShortcutTracking(reason: .tapDisabled)
 
         if let tap = self.eventTap {
@@ -1006,6 +1013,8 @@ final class GlobalHotkeyManager: NSObject {
         if !self.isEventTapEnabled() {
             DebugLogger.shared.warning("Event tap re-enable failed — recreating tap", source: "GlobalHotkeyManager")
             self.setupGlobalHotkeyWithRetry()
+        } else {
+            self.lastHealthyEventTapCheck = Date()
         }
 
         return Unmanaged.passUnretained(event)
@@ -1853,6 +1862,9 @@ final class GlobalHotkeyManager: NSObject {
         if enabled && !self.isInitialized {
             self.isInitialized = true
         }
+        if enabled {
+            self.lastHealthyEventTapCheck = Date()
+        }
         return enabled
     }
 
@@ -1876,11 +1888,21 @@ final class GlobalHotkeyManager: NSObject {
 
                 await MainActor.run {
                     if !self.validateEventTapHealth() {
-                        DebugLogger.shared.warning("Health check failed, attempting to recover", source: "GlobalHotkeyManager")
+                        let detectedAfterMilliseconds = Int(Date().timeIntervalSince(self.lastHealthyEventTapCheck) * 1_000)
+                        let recoveryStartedAt = Date()
+                        DebugLogger.shared.warning(
+                            "Health check found event tap disabled; detectedAfterMs=\(detectedAfterMilliseconds); attempting recovery",
+                            source: "GlobalHotkeyManager"
+                        )
 
                         if self.setupGlobalHotkey() {
                             self.isInitialized = true
-                            DebugLogger.shared.info("Health check recovery successful", source: "GlobalHotkeyManager")
+                            self.lastHealthyEventTapCheck = Date()
+                            let recoveryMilliseconds = Int(Date().timeIntervalSince(recoveryStartedAt) * 1_000)
+                            DebugLogger.shared.info(
+                                "Health check recovery successful; recoveryMs=\(recoveryMilliseconds)",
+                                source: "GlobalHotkeyManager"
+                            )
                         } else {
                             DebugLogger.shared.error("Health check recovery failed", source: "GlobalHotkeyManager")
                             self.isInitialized = false
