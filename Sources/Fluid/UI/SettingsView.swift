@@ -54,6 +54,7 @@ struct SettingsView: View {
     // which races with SwiftUI's AttributeGraph metadata processing and causes EXC_BAD_ACCESS crashes.
     @State private var cachedDefaultInputName: String = ""
     @State private var cachedDefaultOutputName: String = ""
+    @State private var fallbackInputUID: String = SettingsStore.shared.fallbackInputDeviceUID ?? ""
 
     // Analytics consent UI state (default ON; user can opt-out)
     @State private var shareAnonymousAnalytics: Bool = SettingsStore.shared.shareAnonymousAnalytics
@@ -1176,6 +1177,36 @@ struct SettingsView: View {
                                                 self.selectedInputUID = newDevices.first?.uid ?? ""
                                             }
                                         }
+                                    }
+                                }
+                            }
+
+                            HStack {
+                                Text("Fallback Input")
+                                    .font(self.theme.typography.bodyStrong)
+                                    .foregroundStyle(self.settingsTitleText)
+                                Spacer()
+                                Picker("", selection: self.$fallbackInputUID) {
+                                    Text("System Default").tag("")
+                                    if let fallbackUID = SettingsStore.shared.fallbackInputDeviceUID,
+                                       !fallbackUID.isEmpty,
+                                       !self.inputDevices.contains(where: { $0.uid == fallbackUID })
+                                    {
+                                        Text("Fallback microphone (Disconnected)").tag(fallbackUID)
+                                    }
+                                    ForEach(self.inputDevices.filter { $0.uid != self.selectedInputUID }, id: \.uid) { dev in
+                                        Text(dev.name).tag(dev.uid)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 240)
+                                .disabled(self.asr.isRunning)
+                                .onChange(of: self.fallbackInputUID) { _, newUID in
+                                    SettingsStore.shared.fallbackInputDeviceUID = newUID.isEmpty ? nil : newUID
+
+                                    let primaryAvailable = self.inputDevices.contains { $0.uid == self.selectedInputUID }
+                                    if !primaryAvailable, !newUID.isEmpty {
+                                        _ = AudioDevice.setDefaultInputDevice(uid: newUID)
                                     }
                                 }
                             }

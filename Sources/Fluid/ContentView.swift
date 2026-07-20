@@ -392,6 +392,12 @@ struct ContentView: View {
                         if AudioDevice.getDefaultInputDevice()?.uid != prefIn {
                             _ = AudioDevice.setDefaultInputDevice(uid: prefIn)
                         }
+                    } else if let fallbackIn = SettingsStore.shared.fallbackInputDeviceUID,
+                              self.inputDevices.contains(where: { $0.uid == fallbackIn })
+                    {
+                        if AudioDevice.getDefaultInputDevice()?.uid != fallbackIn {
+                            _ = AudioDevice.setDefaultInputDevice(uid: fallbackIn)
+                        }
                     } else if SettingsStore.shared.preferredInputDeviceUID == nil,
                               let sysIn = AudioDevice.getDefaultInputDevice()?.uid
                     {
@@ -635,6 +641,12 @@ struct ContentView: View {
                 self.selectedInputUID = preferredInputUID
                 if AudioDevice.getDefaultInputDevice()?.uid != preferredInputUID {
                     _ = AudioDevice.setDefaultInputDevice(uid: preferredInputUID)
+                }
+            } else if let fallbackInputUID = SettingsStore.shared.fallbackInputDeviceUID,
+                      self.inputDevices.contains(where: { $0.uid == fallbackInputUID })
+            {
+                if AudioDevice.getDefaultInputDevice()?.uid != fallbackInputUID {
+                    _ = AudioDevice.setDefaultInputDevice(uid: fallbackInputUID)
                 }
             } else if SettingsStore.shared.preferredInputDeviceUID == nil,
                       let defaultInputUID = AudioDevice.getDefaultInputDevice()?.uid

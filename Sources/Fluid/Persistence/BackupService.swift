@@ -61,6 +61,7 @@ struct SettingsBackupPayload: Codable, Equatable {
     let copyTranscriptionToClipboard: Bool
     let textInsertionMode: SettingsStore.TextInsertionMode
     let preferredInputDeviceUID: String?
+    let fallbackInputDeviceUID: String?
     let preferredOutputDeviceUID: String?
     let visualizerNoiseThreshold: Double
     let overlayPosition: SettingsStore.OverlayPosition

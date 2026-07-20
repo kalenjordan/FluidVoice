@@ -1780,6 +1780,11 @@ final class SettingsStore: ObservableObject {
         set { self.defaults.set(newValue, forKey: Keys.preferredInputDeviceUID) }
     }
 
+    var fallbackInputDeviceUID: String? {
+        get { self.defaults.string(forKey: Keys.fallbackInputDeviceUID) }
+        set { self.defaults.set(newValue, forKey: Keys.fallbackInputDeviceUID) }
+    }
+
     var preferredOutputDeviceUID: String? {
         get { self.defaults.string(forKey: Keys.preferredOutputDeviceUID) }
         set { self.defaults.set(newValue, forKey: Keys.preferredOutputDeviceUID) }
@@ -2993,6 +2998,7 @@ final class SettingsStore: ObservableObject {
             copyTranscriptionToClipboard: self.copyTranscriptionToClipboard,
             textInsertionMode: self.textInsertionMode,
             preferredInputDeviceUID: self.preferredInputDeviceUID,
+            fallbackInputDeviceUID: self.fallbackInputDeviceUID,
             preferredOutputDeviceUID: self.preferredOutputDeviceUID,
             visualizerNoiseThreshold: self.visualizerNoiseThreshold,
             overlayPosition: self.overlayPosition,
@@ -3107,6 +3113,7 @@ final class SettingsStore: ObservableObject {
         self.copyTranscriptionToClipboard = payload.copyTranscriptionToClipboard
         self.textInsertionMode = payload.textInsertionMode
         self.preferredInputDeviceUID = payload.preferredInputDeviceUID
+        self.fallbackInputDeviceUID = payload.fallbackInputDeviceUID
         self.preferredOutputDeviceUID = payload.preferredOutputDeviceUID
         self.visualizerNoiseThreshold = payload.visualizerNoiseThreshold
         self.overlayPosition = payload.overlayPosition
@@ -4850,6 +4857,7 @@ private extension SettingsStore {
         static let hotkeyShortcutKey = "HotkeyShortcutKey"
         static let primaryDictationShortcutsKey = "PrimaryDictationShortcuts"
         static let preferredInputDeviceUID = "PreferredInputDeviceUID"
+        static let fallbackInputDeviceUID = "FallbackInputDeviceUID"
         static let preferredOutputDeviceUID = "PreferredOutputDeviceUID"
         static let syncAudioDevicesWithSystem = "SyncAudioDevicesWithSystem"
         static let visualizerNoiseThreshold = "VisualizerNoiseThreshold"
