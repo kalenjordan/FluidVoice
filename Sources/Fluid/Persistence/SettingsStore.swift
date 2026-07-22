@@ -1785,6 +1785,14 @@ final class SettingsStore: ObservableObject {
         set { self.defaults.set(newValue, forKey: Keys.fallbackInputDeviceUID) }
     }
 
+    var neverUseAirPodsAsInput: Bool {
+        get { self.defaults.bool(forKey: Keys.neverUseAirPodsAsInput) }
+        set {
+            self.objectWillChange.send()
+            self.defaults.set(newValue, forKey: Keys.neverUseAirPodsAsInput)
+        }
+    }
+
     var preferredOutputDeviceUID: String? {
         get { self.defaults.string(forKey: Keys.preferredOutputDeviceUID) }
         set { self.defaults.set(newValue, forKey: Keys.preferredOutputDeviceUID) }
@@ -4858,6 +4866,7 @@ private extension SettingsStore {
         static let primaryDictationShortcutsKey = "PrimaryDictationShortcuts"
         static let preferredInputDeviceUID = "PreferredInputDeviceUID"
         static let fallbackInputDeviceUID = "FallbackInputDeviceUID"
+        static let neverUseAirPodsAsInput = "NeverUseAirPodsAsInput"
         static let preferredOutputDeviceUID = "PreferredOutputDeviceUID"
         static let syncAudioDevicesWithSystem = "SyncAudioDevicesWithSystem"
         static let visualizerNoiseThreshold = "VisualizerNoiseThreshold"

@@ -78,6 +78,14 @@ enum AudioDevice {
         return self.listAllDevices().filter { $0.hasOutput }
     }
 
+    static func isAirPods(_ device: Device) -> Bool {
+        self.isAirPodsDeviceName(device.name)
+    }
+
+    static func isAirPodsDeviceName(_ name: String) -> Bool {
+        name.localizedCaseInsensitiveContains("airpods")
+    }
+
     static func getDefaultInputDevice() -> Device? {
         guard let devId: AudioObjectID = getDefaultDeviceId(selector: kAudioHardwarePropertyDefaultInputDevice) else { return nil }
         return self.listAllDevices().first { $0.id == devId }

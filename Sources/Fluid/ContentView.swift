@@ -2068,9 +2068,13 @@ struct ContentView: View {
         let activeDictationSlot = self.currentDictationShortcutSlot(for: modeAtStop)
         let promptOverride = self.promptModeOverrideText
         let promptTest = DictationPromptTestCoordinator.shared
+        let stopTypingTarget = self.resolveTypingTargetPID()
+        let stopAppInfo = stopTypingTarget.pid.map { self.getAppInfo(processIdentifier: $0) }
+            ?? self.recordingAppInfo
+            ?? self.getCurrentAppInfo()
         let shouldUseAIOnStop = activeDictationSlot.map {
-            DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: self.recordingAppInfo?.bundleId)
-        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: self.recordingAppInfo?.bundleId)
+            DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: stopAppInfo.bundleId)
+        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: stopAppInfo.bundleId)
         let shouldHideOverlayOnStop = route == .normal &&
             !wasRewriteMode &&
             !wasCommandMode &&
@@ -2204,7 +2208,17 @@ struct ContentView: View {
         var finalText: String
         var aiFallbackReason: String?
         var postProcessingModel: String?
-        let appInfo = self.recordingAppInfo ?? self.getCurrentAppInfo()
+        // Route app-specific formatting and AI enhancement according to the app
+        // that will receive the finished dictation. This can differ from the app
+        // where recording began when focus changes while dictating.
+        let typingTarget = self.resolveTypingTargetPID()
+        let appInfo = typingTarget.pid.map { self.getAppInfo(processIdentifier: $0) }
+            ?? self.recordingAppInfo
+            ?? self.getCurrentAppInfo()
+        DebugLogger.shared.debug(
+            "Resolved dictation output context: app=\(appInfo.name), bundleId=\(appInfo.bundleId)",
+            source: "ContentView"
+        )
         let normalizedTranscribedText = ASRService.applySpokenPunctuationFormatting(
             transcribedText,
             appName: appInfo.name,
@@ -2416,7 +2430,6 @@ struct ContentView: View {
         )
 
         if shouldTypeExternally {
-            let typingTarget = self.resolveTypingTargetPID()
             // Submission is an action in the destination, so determine whether to
             // press Return from the app that will receive the text rather than the
             // app that happened to be focused when recording began.

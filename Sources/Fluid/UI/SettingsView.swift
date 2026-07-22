@@ -1158,6 +1158,7 @@ struct SettingsView: View {
                                     if SettingsStore.shared.syncAudioDevicesWithSystem {
                                         _ = AudioDevice.setDefaultInputDevice(uid: newUID)
                                     }
+                                    self.asr.refreshInputDevicePreference()
                                 }
                                 // Sync selection when devices load or change
                                 .onChange(of: self.inputDevices) { _, newDevices in
@@ -1208,8 +1209,32 @@ struct SettingsView: View {
                                     if !primaryAvailable, !newUID.isEmpty {
                                         _ = AudioDevice.setDefaultInputDevice(uid: newUID)
                                     }
+                                    self.asr.refreshInputDevicePreference()
                                 }
                             }
+
+                            self.settingsToggleRow(
+                                title: "Never Use AirPods as Microphone",
+                                description: "Keep AirPods available for listening, but prevent FluidVoice from recording through them.",
+                                footnote: "FluidVoice will use your preferred microphone, fallback microphone, or the Mac microphone instead.",
+                                isOn: Binding(
+                                    get: { self.settings.neverUseAirPodsAsInput },
+                                    set: { enabled in
+                                        self.settings.neverUseAirPodsAsInput = enabled
+                                        if enabled,
+                                           let current = AudioDevice.getDefaultInputDevice(),
+                                           AudioDevice.isAirPods(current),
+                                           let preferredUID = self.inputDevices.first(where: {
+                                               $0.uid == self.selectedInputUID && !AudioDevice.isAirPods($0)
+                                           })?.uid
+                                        {
+                                            _ = AudioDevice.setDefaultInputDevice(uid: preferredUID)
+                                        }
+                                        self.asr.refreshInputDevicePreference()
+                                    }
+                                )
+                            )
+                            .disabled(self.asr.isRunning)
 
                             HStack {
                                 Text("Output Device")

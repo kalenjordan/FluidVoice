@@ -728,14 +728,31 @@ final class ASRService: ObservableObject {
     }
 
     private func resolvedInputDeviceForCapture() -> AudioDevice.Device? {
-        if SettingsStore.shared.syncAudioDevicesWithSystem == false,
-           let preferredUID = SettingsStore.shared.preferredInputDeviceUID,
-           preferredUID.isEmpty == false,
-           let preferredDevice = AudioDevice.getInputDevice(byUID: preferredUID)
+        let settings = SettingsStore.shared
+        let devices = AudioDevice.listInputDevices()
+        let isAllowed: (AudioDevice.Device) -> Bool = { device in
+            settings.neverUseAirPodsAsInput == false || AudioDevice.isAirPods(device) == false
+        }
+
+        if let preferredUID = settings.preferredInputDeviceUID,
+           let preferredDevice = devices.first(where: { $0.uid == preferredUID && isAllowed($0) })
         {
             return preferredDevice
         }
-        return AudioDevice.getDefaultInputDevice()
+        if let fallbackUID = settings.fallbackInputDeviceUID,
+           let fallbackDevice = devices.first(where: { $0.uid == fallbackUID && isAllowed($0) })
+        {
+            return fallbackDevice
+        }
+        if let systemDefault = AudioDevice.getDefaultInputDevice(), isAllowed(systemDefault) {
+            return systemDefault
+        }
+        if let builtIn = devices.first(where: {
+            isAllowed($0) && $0.name.localizedCaseInsensitiveContains("MacBook")
+        }) {
+            return builtIn
+        }
+        return devices.first(where: isAllowed)
     }
 
     /// Prepares the direct device callback without starting hardware IO. This
@@ -825,6 +842,17 @@ final class ASRService: ObservableObject {
     }
 
     private func startCompatibilityAudioCapture(reason: String) throws {
+        if SettingsStore.shared.neverUseAirPodsAsInput,
+           let systemDefault = AudioDevice.getDefaultInputDevice(),
+           AudioDevice.isAirPods(systemDefault),
+           let safeDevice = self.resolvedInputDeviceForCapture()
+        {
+            _ = AudioDevice.setDefaultInputDevice(uid: safeDevice.uid)
+            DebugLogger.shared.info(
+                "Excluded AirPods input; switched system input to '\(safeDevice.name)' for compatibility capture",
+                source: "ASRService"
+            )
+        }
         self.benchmarkLog("audio_backend kind=av_audio_engine_fallback reason=\(reason)")
         try self.configureSession()
         try self.startEngine()
@@ -954,6 +982,19 @@ final class ASRService: ObservableObject {
 
         self.retireAudioEngine(reason: "capture_preference_changed")
         self.prewarmAudioEngineIfPossible(reason: "capture_preference_changed")
+    }
+
+    func refreshInputDevicePreference() {
+        guard self.isRunning == false, self.isStarting == false else {
+            DebugLogger.shared.debug(
+                "Input device preference changed during a recording transition; deferring capture refresh",
+                source: "ASRService"
+            )
+            return
+        }
+
+        self.retireAudioEngine(reason: "input_device_preference_changed")
+        self.prewarmAudioEngineIfPossible(reason: "input_device_preference_changed")
     }
 
     private var inputFormat: AVAudioFormat?
