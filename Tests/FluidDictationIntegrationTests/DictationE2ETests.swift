@@ -346,6 +346,22 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testCustomDictionaryDoesNotReprocessReplacementOutput() {
+        defer { ASRService.invalidateDictionaryCache() }
+        let entry = SettingsStore.CustomDictionaryEntry(
+            triggers: ["compact", "compact."],
+            replacement: "/compact"
+        )
+
+        self.withRestoredDefaults(keys: [self.customDictionaryEntriesKey]) {
+            SettingsStore.shared.customDictionaryEntries = [entry]
+            ASRService.invalidateDictionaryCache()
+
+            XCTAssertEqual(ASRService.applyCustomDictionary("compact"), "/compact")
+            XCTAssertEqual(ASRService.applyCustomDictionary("/compact"), "/compact")
+        }
+    }
+
     func testSlashCommandFormattingLeavesNonCommandSlashUsageAlone() {
         let text = "Use 1/2 and and/or. Open src slash services. Go to https slash slash example dot com. Slash and burn."
 

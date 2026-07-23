@@ -3518,16 +3518,16 @@ final class ASRService: ObservableObject {
     // MARK: - Custom Dictionary (Cached Regex)
 
     /// Cache for compiled custom dictionary regexes.
-    /// Key: trigger word, Value: (compiled regex, escaped replacement template)
+    /// Key: trigger word, Value: (compiled regex, literal replacement)
     /// Cleared when dictionary entries change.
-    private static var cachedDictionaryPatterns: [(regex: NSRegularExpression, template: String)] = []
+    private static var cachedDictionaryPatterns: [(regex: NSRegularExpression, replacement: String)] = []
     private static var dictionaryCacheNeedsRebuild: Bool = true
 
     /// Rebuilds the regex cache if dictionary has changed.
     /// Called lazily on first apply after settings change.
     private static func rebuildDictionaryCache() {
         let entries = SettingsStore.shared.customDictionaryEntries
-        var patterns: [(regex: NSRegularExpression, template: String)] = []
+        var patterns: [(regex: NSRegularExpression, replacement: String)] = []
 
         for entry in entries {
             for trigger in entry.triggers {
@@ -3539,7 +3539,7 @@ final class ASRService: ObservableObject {
                     options: .caseInsensitive
                 ) else { continue }
 
-                patterns.append((regex: regex, template: NSRegularExpression.escapedTemplate(for: entry.replacement)))
+                patterns.append((regex: regex, replacement: entry.replacement))
             }
         }
 
@@ -3593,18 +3593,79 @@ final class ASRService: ObservableObject {
             return text
         }
 
-        var result = text
-
-        // Apply cached regexes - O(n) where n = number of patterns
+        var matches: [(range: NSRange, replacement: String)] = []
         for pattern in self.cachedDictionaryPatterns {
-            result = pattern.regex.stringByReplacingMatches(
-                in: result,
-                range: NSRange(result.startIndex..., in: result),
-                withTemplate: pattern.template
-            )
+            let textRange = NSRange(text.startIndex..., in: text)
+            matches.append(contentsOf: pattern.regex.matches(in: text, range: textRange).compactMap {
+                self.isAlreadyDictionaryReplacement(
+                    in: text,
+                    matchRange: $0.range,
+                    replacement: pattern.replacement
+                ) ? nil : (range: $0.range, replacement: pattern.replacement)
+            })
         }
 
-        return result
+        // Select non-overlapping matches from the original transcription. This
+        // prevents replacement output from triggering another dictionary rule.
+        matches.sort {
+            if $0.range.location != $1.range.location {
+                return $0.range.location < $1.range.location
+            }
+            return $0.range.length > $1.range.length
+        }
+
+        var selected: [(range: NSRange, replacement: String)] = []
+        var nextAvailableLocation = 0
+        for match in matches where match.range.location >= nextAvailableLocation {
+            selected.append(match)
+            nextAvailableLocation = NSMaxRange(match.range)
+        }
+
+        let result = NSMutableString(string: text)
+        for match in selected.reversed() {
+            result.replaceCharacters(in: match.range, with: match.replacement)
+        }
+
+        return result as String
+    }
+
+    private static func isAlreadyDictionaryReplacement(
+        in text: String,
+        matchRange: NSRange,
+        replacement: String
+    ) -> Bool {
+        let source = text as NSString
+        let matchedText = source.substring(with: matchRange)
+        let replacementNSString = replacement as NSString
+        var searchRange = NSRange(location: 0, length: replacementNSString.length)
+
+        while searchRange.length > 0 {
+            let occurrence = replacementNSString.range(
+                of: matchedText,
+                options: .caseInsensitive,
+                range: searchRange
+            )
+            guard occurrence.location != NSNotFound else { break }
+
+            let candidateLocation = matchRange.location - occurrence.location
+            if candidateLocation >= 0 {
+                let candidateRange = NSRange(location: candidateLocation, length: replacementNSString.length)
+                if NSMaxRange(candidateRange) <= source.length,
+                   source.compare(
+                       replacement,
+                       options: .caseInsensitive,
+                       range: candidateRange
+                   ) == .orderedSame
+                {
+                    return true
+                }
+            }
+
+            let nextLocation = NSMaxRange(occurrence)
+            searchRange = NSRange(location: nextLocation, length: replacementNSString.length - nextLocation)
+        }
+
+        return false
     }
 
     // MARK: - GAAV Mode Formatting
