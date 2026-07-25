@@ -2236,6 +2236,59 @@ struct ContentView: View {
 
         if route == .normal,
            let targetPID = typingTarget.pid,
+           VoiceMacroService.isFinderDeleteCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running Finder delete voice command",
+                source: "ContentView"
+            )
+            if typingTarget.shouldRestoreOriginalFocus {
+                await self.restoreFocusToRecordingTarget()
+            }
+            let succeeded = VoiceMacroService.deleteFinderSelection(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Finder delete voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           let url = VoiceMacroService.chromeURL(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running Chrome URL voice command: \(url)",
+                source: "ContentView"
+            )
+            if typingTarget.shouldRestoreOriginalFocus {
+                await self.restoreFocusToRecordingTarget()
+            }
+            let succeeded = await VoiceMacroService.openChromeURL(
+                url,
+                targetPID: targetPID
+            )
+            DebugLogger.shared.info(
+                "Chrome URL voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
            let findQuery = VoiceMacroService.chromeFindQuery(
                transcript: transcribedText,
                bundleID: appInfo.bundleId

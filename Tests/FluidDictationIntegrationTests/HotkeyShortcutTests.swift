@@ -70,6 +70,53 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testChromeURLCommandResolvesClientDashboardAndIsAppScoped() {
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "Open layers dash.",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash.localhost:8764/clients/layers"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "open matchbook dash",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash.localhost:8764/clients/matchbook"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "open commerce land dash",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash.localhost:8764/clients/commerce-land"
+        )
+        XCTAssertNil(VoiceMacroService.chromeURL(
+            transcript: "open layers dash",
+            bundleID: "com.apple.Safari"
+        ))
+        XCTAssertNil(VoiceMacroService.chromeURL(
+            transcript: "open another dashboard",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
+    func testFinderDeleteCommandIsExactAndAppScoped() {
+        XCTAssertTrue(VoiceMacroService.isFinderDeleteCommand(
+            transcript: "Delete.",
+            bundleID: "com.apple.finder"
+        ))
+        XCTAssertFalse(VoiceMacroService.isFinderDeleteCommand(
+            transcript: "delete this",
+            bundleID: "com.apple.finder"
+        ))
+        XCTAssertFalse(VoiceMacroService.isFinderDeleteCommand(
+            transcript: "delete",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
     func testCoreAudioFrameCountUsesActualBufferChannelLayout() {
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 4, 4, 1), 512)
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 8, 4, 2), 512)

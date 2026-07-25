@@ -24,6 +24,7 @@ enum VoiceMacroService {
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
     private static let herdrAppNames = ["ghostty", "herdr"]
     private static let chromeBundleIDs = ["com.google.chrome"]
+    private static let finderBundleIDs = ["com.apple.finder"]
 
     // Add observed speech-to-text variants here when fuzzy matching is not sufficient.
     private static let workspaceAliases: [String: [String]] = [
@@ -48,6 +49,30 @@ enum VoiceMacroService {
     static func chromeFindQuery(transcript: String, bundleID: String) -> String? {
         guard self.chromeBundleIDs.contains(bundleID.lowercased()) else { return nil }
         return self.commandArgument(transcript, command: "find")
+    }
+
+    static func chromeURL(transcript: String, bundleID: String) -> String? {
+        guard self.chromeBundleIDs.contains(bundleID.lowercased()) else { return nil }
+        let phrase = self.normalizedPhrase(transcript)
+        guard phrase.hasPrefix("open "),
+              phrase.hasSuffix(" dash")
+        else {
+            return nil
+        }
+
+        let clientName = phrase
+            .dropFirst("open ".count)
+            .dropLast(" dash".count)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clientName.isEmpty else { return nil }
+
+        let slug = clientName.replacingOccurrences(of: " ", with: "-")
+        return "http://outbound-dash.localhost:8764/clients/\(slug)"
+    }
+
+    static func isFinderDeleteCommand(transcript: String, bundleID: String) -> Bool {
+        self.finderBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "delete"
     }
 
     static func resolveWorkspace(query: String, workspaces: [HerdrWorkspace]) -> HerdrWorkspace? {
@@ -110,6 +135,31 @@ enum VoiceMacroService {
         try? await Task.sleep(nanoseconds: 150_000_000)
         guard self.isTargetFrontmost(targetPID) else { return false }
         return self.postText(query, to: targetPID)
+    }
+
+    @MainActor
+    static func openChromeURL(_ url: String, targetPID: pid_t) async -> Bool {
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        guard self.postKey(CGKeyCode(kVK_ANSI_L), flags: .maskCommand, to: targetPID) else {
+            return false
+        }
+
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        guard self.isTargetFrontmost(targetPID),
+              self.postText(url, to: targetPID)
+        else {
+            return false
+        }
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        return self.postKey(CGKeyCode(kVK_Return), to: targetPID)
+    }
+
+    @MainActor
+    static func deleteFinderSelection(targetPID: pid_t) -> Bool {
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        return self.postKey(CGKeyCode(kVK_Delete), flags: .maskCommand, to: targetPID)
     }
 
     private static func isHerdr(appName: String, bundleID: String, windowTitle: String) -> Bool {
