@@ -2205,16 +2205,42 @@ struct ContentView: View {
             return
         }
 
+        // Resolve the actual dictation destination before checking app-scoped voice macros.
+        let typingTarget = self.resolveTypingTargetPID()
+        let appInfo = typingTarget.pid.map { self.getAppInfo(processIdentifier: $0) }
+            ?? self.recordingAppInfo
+            ?? self.getCurrentAppInfo()
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.matchesOpenComms(
+               transcript: transcribedText,
+               appName: appInfo.name,
+               bundleID: appInfo.bundleId,
+               windowTitle: appInfo.windowTitle
+           )
+        {
+            DebugLogger.shared.info("Running voice macro: open comms", source: "ContentView")
+            if typingTarget.shouldRestoreOriginalFocus {
+                await self.restoreFocusToRecordingTarget()
+            }
+            let succeeded = await VoiceMacroService.runOpenComms(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Voice macro finished: open comms success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
         var finalText: String
         var aiFallbackReason: String?
         var postProcessingModel: String?
         // Route app-specific formatting and AI enhancement according to the app
         // that will receive the finished dictation. This can differ from the app
         // where recording began when focus changes while dictating.
-        let typingTarget = self.resolveTypingTargetPID()
-        let appInfo = typingTarget.pid.map { self.getAppInfo(processIdentifier: $0) }
-            ?? self.recordingAppInfo
-            ?? self.getCurrentAppInfo()
         DebugLogger.shared.debug(
             "Resolved dictation output context: app=\(appInfo.name), bundleId=\(appInfo.bundleId)",
             source: "ContentView"

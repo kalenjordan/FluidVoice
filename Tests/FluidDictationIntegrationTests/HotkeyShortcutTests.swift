@@ -9,6 +9,36 @@ final class HotkeyShortcutTests: XCTestCase {
     private let pasteLastTranscriptionShortcutKey = "PasteLastTranscriptionHotkeyShortcut"
     private let pasteLastTranscriptionEnabledKey = "PasteLastTranscriptionShortcutEnabled"
 
+    func testOpenCommsVoiceMacroMatchesExactPhraseInGhostty() {
+        XCTAssertTrue(VoiceMacroService.matchesOpenComms(
+            transcript: "Open comms.",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty",
+            windowTitle: "COMMS"
+        ))
+        XCTAssertTrue(VoiceMacroService.matchesOpenComms(
+            transcript: "  OPEN   COMMS! ",
+            appName: "Herdr",
+            bundleID: "unknown",
+            windowTitle: ""
+        ))
+    }
+
+    func testOpenCommsVoiceMacroRejectsOtherPhrasesAndApps() {
+        XCTAssertFalse(VoiceMacroService.matchesOpenComms(
+            transcript: "open communications",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty",
+            windowTitle: ""
+        ))
+        XCTAssertFalse(VoiceMacroService.matchesOpenComms(
+            transcript: "open comms",
+            appName: "Notes",
+            bundleID: "com.apple.Notes",
+            windowTitle: "Notes"
+        ))
+    }
+
     func testCoreAudioFrameCountUsesActualBufferChannelLayout() {
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 4, 4, 1), 512)
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 8, 4, 2), 512)
