@@ -2219,6 +2219,27 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
+           VoiceMacroService.isCodexStatusCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running Codex status voice command", source: "ContentView")
+            let status = await VoiceMacroService.codexWeeklyStatus()
+            VoiceMacroService.showStatusToast(
+                status?.summary() ?? "Could not read Codex weekly usage."
+            )
+            DebugLogger.shared.info(
+                "Codex status voice command finished: success=\(status != nil)",
+                source: "ContentView"
+            )
+            if status == nil {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let applicationName = VoiceMacroService.applicationLaunchQuery(
                transcript: transcribedText
            )
@@ -2252,6 +2273,10 @@ struct ContentView: View {
                 "Herdr workspace voice command finished: success=\(succeeded)",
                 source: "ContentView"
             )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not find or open that Herder workspace.")
+            }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
             }
@@ -2730,6 +2755,21 @@ struct ContentView: View {
 
     private func hideOverlayAfterOutput() {
         self.hideOverlayAsync(reason: "after_output")
+    }
+
+    private func persistFailedVoiceCommand(
+        _ text: String,
+        appInfo: (name: String, bundleId: String, windowTitle: String)
+    ) {
+        guard SettingsStore.shared.saveTranscriptionHistory else { return }
+        TranscriptionHistoryStore.shared.addEntry(
+            rawText: text,
+            processedText: text,
+            appName: appInfo.name,
+            windowTitle: appInfo.windowTitle,
+            wasAIProcessed: false,
+            aiProcessingError: "Voice command could not be completed."
+        )
     }
 
     private func advanceOverlayLifecycle() {

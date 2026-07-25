@@ -13,6 +13,36 @@ enum VoiceMacroService {
         }
     }
 
+    struct HerdrWorkspaceInvocation: Equatable {
+        let workspace: HerdrWorkspace
+        let trailingText: String?
+    }
+
+    struct CodexWeeklyStatus: Equatable {
+        let usedPercent: Double
+        let windowDurationMinutes: Double
+        let resetsAt: Date
+
+        func summary(now: Date = Date()) -> String {
+            let windowStart = self.resetsAt.addingTimeInterval(-self.windowDurationMinutes * 60)
+            let windowDays = max(1, Int(ceil(self.windowDurationMinutes / (24 * 60))))
+            let elapsedDays = max(
+                1,
+                min(windowDays, Int(ceil(now.timeIntervalSince(windowStart) / (24 * 60 * 60))))
+            )
+            let allowedPercent = Double(elapsedDays) / Double(windowDays) * 100
+            let pace = self.usedPercent <= allowedPercent ? "On pace" : "Behind pace"
+            let remainingPercent = max(0, 100 - self.usedPercent)
+
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "EEE 'at' h:mm a"
+            return "Codex weekly: \(Int(remainingPercent.rounded()))% remaining\n"
+                + "\(pace) · day \(elapsedDays) of \(windowDays)\n"
+                + "Resets \(formatter.string(from: self.resetsAt))"
+        }
+    }
+
     private struct HerdrWorkspaceListResponse: Decodable {
         struct Result: Decodable {
             let workspaces: [HerdrWorkspace]
@@ -61,14 +91,16 @@ enum VoiceMacroService {
         "fluidvoice": ["fluid voice", "fluid boys"],
         "commerce-land": ["commerce land"],
         "commerce-leak": ["commerce leak"],
+        "ordellan": ["or dell in", "or dallin", "or dall in"],
     ]
     private static let applicationAliases: [String: String] = [
         "chatgpt": "chatgptclassic",
     ]
 
     static func herdrWorkspaceQuery(transcript: String) -> String? {
-        self.commandArgument(transcript, command: "herder")
-            ?? self.commandArgument(transcript, command: "herdr")
+        self.commandArgument(transcript, command: "herder", preserveTerminalPunctuation: true)
+            ?? self.commandArgument(transcript, command: "herdr", preserveTerminalPunctuation: true)
+            ?? self.commandArgument(transcript, command: "herter", preserveTerminalPunctuation: true)
     }
 
     static func applicationLaunchQuery(transcript: String) -> String? {
@@ -147,6 +179,52 @@ enum VoiceMacroService {
         return phrase == "clear line" || phrase == "slash clear line"
     }
 
+    static func isCodexStatusCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "codex status"
+            || self.normalizedPhrase(transcript) == "codec status"
+    }
+
+    static func codexWeeklyStatus() async -> CodexWeeklyStatus? {
+        guard let executable = self.codexExecutableURL() else { return nil }
+        let input = [
+            #"{"id":1,"method":"initialize","params":{"clientInfo":{"name":"fluidvoice","title":"FluidVoice","version":"1.0"},"capabilities":{"experimentalApi":true}}}"#,
+            #"{"method":"initialized","params":{}}"#,
+            #"{"id":2,"method":"account/rateLimits/read","params":{}}"#,
+        ].joined(separator: "\n") + "\n"
+        let result = await self.runProcess(
+            executable,
+            arguments: ["app-server", "--stdio"],
+            standardInput: Data(input.utf8),
+            standardInputCloseDelay: 1
+        )
+        guard result.status == 0 else { return nil }
+
+        for line in result.output.split(separator: 0x0A) {
+            guard let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+                  (object["id"] as? NSNumber)?.intValue == 2,
+                  let response = object["result"] as? [String: Any],
+                  let rateLimits = response["rateLimits"] as? [String: Any],
+                  let primary = rateLimits["primary"] as? [String: Any],
+                  let usedPercent = (primary["usedPercent"] as? NSNumber)?.doubleValue,
+                  let windowMinutes = (primary["windowDurationMins"] as? NSNumber)?.doubleValue,
+                  let resetsAt = (primary["resetsAt"] as? NSNumber)?.doubleValue
+            else {
+                continue
+            }
+            return CodexWeeklyStatus(
+                usedPercent: usedPercent,
+                windowDurationMinutes: windowMinutes,
+                resetsAt: Date(timeIntervalSince1970: resetsAt)
+            )
+        }
+        return nil
+    }
+
+    @MainActor
+    static func showStatusToast(_ text: String) {
+        VoiceMacroStatusToast.shared.show(text)
+    }
+
     static func resolveWorkspace(query: String, workspaces: [HerdrWorkspace]) -> HerdrWorkspace? {
         let normalizedQuery = self.normalizedPhrase(query)
         guard !normalizedQuery.isEmpty else { return nil }
@@ -174,6 +252,45 @@ enum VoiceMacroService {
         return best.0
     }
 
+    static func resolveWorkspaceInvocation(
+        query: String,
+        workspaces: [HerdrWorkspace]
+    ) -> HerdrWorkspaceInvocation? {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty,
+              let expression = try? NSRegularExpression(pattern: #"\S+"#)
+        else {
+            return nil
+        }
+
+        let queryRange = NSRange(query.startIndex..., in: query)
+        let words = expression.matches(in: query, range: queryRange)
+        for wordCount in stride(from: words.count, through: 1, by: -1) {
+            let prefixRange = NSRange(
+                location: 0,
+                length: words[wordCount - 1].range.location + words[wordCount - 1].range.length
+            )
+            guard let swiftPrefixRange = Range(prefixRange, in: query),
+                  let workspace = self.resolveWorkspace(
+                      query: String(query[swiftPrefixRange]),
+                      workspaces: workspaces
+                  )
+            else {
+                continue
+            }
+
+            let trailingText = query[swiftPrefixRange.upperBound...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return HerdrWorkspaceInvocation(
+                workspace: workspace,
+                trailingText: trailingText.isEmpty ? nil : trailingText
+            )
+        }
+        return nil
+    }
+
     @MainActor
     static func openHerdrWorkspace(query: String) async -> Bool {
         guard let executable = self.herdrExecutableURL() else { return false }
@@ -183,7 +300,7 @@ enum VoiceMacroService {
                   HerdrWorkspaceListResponse.self,
                   from: listResult.output
               ),
-              let workspace = self.resolveWorkspace(
+              let invocation = self.resolveWorkspaceInvocation(
                   query: query,
                   workspaces: response.result.workspaces
               )
@@ -193,15 +310,25 @@ enum VoiceMacroService {
 
         let focusResult = await self.runProcess(
             executable,
-            arguments: ["workspace", "focus", workspace.workspaceID]
+            arguments: ["workspace", "focus", invocation.workspace.workspaceID]
         )
         guard focusResult.status == 0 else { return false }
 
-        return NSRunningApplication.runningApplications(
+        guard let herdrApplication = NSRunningApplication.runningApplications(
             withBundleIdentifier: self.herdrBundleIDs[0]
-        ).contains {
-            $0.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        ).first else {
+            return false
         }
+        guard herdrApplication.activate(
+            options: [.activateAllWindows, .activateIgnoringOtherApps]
+        ) else {
+            return false
+        }
+
+        guard let trailingText = invocation.trailingText else { return true }
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        guard self.isTargetFrontmost(herdrApplication.processIdentifier) else { return false }
+        return self.postText(trailingText, to: herdrApplication.processIdentifier)
     }
 
     @MainActor
@@ -371,19 +498,26 @@ enum VoiceMacroService {
         return true
     }
 
-    private static func commandArgument(_ transcript: String, command: String) -> String? {
+    private static func commandArgument(
+        _ transcript: String,
+        command: String,
+        preserveTerminalPunctuation: Bool = false
+    ) -> String? {
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let commandRange = trimmed.range(
-            of: #"^\#(command)\s+"#,
+            of: #"^\#(command)[\s\p{P}]+"#,
             options: [.regularExpression, .caseInsensitive]
         ) else {
             return nil
         }
 
-        let argument = trimmed[commandRange.upperBound...]
-            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
+        var argument = String(trimmed[commandRange.upperBound...])
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !preserveTerminalPunctuation {
+            argument = argument
+                .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         return argument.isEmpty ? nil : argument
     }
 
@@ -427,20 +561,43 @@ enum VoiceMacroService {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
+    private static func codexExecutableURL() -> URL? {
+        let candidates = [
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".local/bin/codex"),
+            URL(fileURLWithPath: "/opt/homebrew/bin/codex"),
+            URL(fileURLWithPath: "/usr/local/bin/codex"),
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+
     private static func runProcess(
         _ executable: URL,
-        arguments: [String]
+        arguments: [String],
+        standardInput: Data? = nil,
+        standardInputCloseDelay: TimeInterval = 0
     ) async -> (status: Int32, output: Data) {
         await Task.detached {
             let process = Process()
             let outputPipe = Pipe()
+            let inputPipe = Pipe()
             process.executableURL = executable
             process.arguments = arguments
             process.standardOutput = outputPipe
             process.standardError = Pipe()
+            if standardInput != nil {
+                process.standardInput = inputPipe
+            }
 
             do {
                 try process.run()
+                if let standardInput {
+                    inputPipe.fileHandleForWriting.write(standardInput)
+                    if standardInputCloseDelay > 0 {
+                        Thread.sleep(forTimeInterval: standardInputCloseDelay)
+                    }
+                    try? inputPipe.fileHandleForWriting.close()
+                }
                 process.waitUntilExit()
                 return (process.terminationStatus, outputPipe.fileHandleForReading.readDataToEndOfFile())
             } catch {
@@ -485,5 +642,71 @@ enum VoiceMacroService {
         keyDown.postToPid(targetPID)
         keyUp.postToPid(targetPID)
         return true
+    }
+}
+
+@MainActor
+private final class VoiceMacroStatusToast {
+    static let shared = VoiceMacroStatusToast()
+
+    private let panel: NSPanel
+    private let label = NSTextField(labelWithString: "")
+    private var hideTask: Task<Void, Never>?
+
+    private init() {
+        self.panel = NSPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        self.panel.level = .statusBar
+        self.panel.isOpaque = false
+        self.panel.backgroundColor = .clear
+        self.panel.hasShadow = true
+        self.panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        let background = NSVisualEffectView()
+        background.material = .hudWindow
+        background.state = .active
+        background.wantsLayer = true
+        background.layer?.cornerRadius = 12
+        self.label.font = .systemFont(ofSize: 14, weight: .medium)
+        self.label.textColor = .labelColor
+        self.label.maximumNumberOfLines = 3
+        self.label.lineBreakMode = .byWordWrapping
+        self.label.translatesAutoresizingMaskIntoConstraints = false
+        background.addSubview(self.label)
+        NSLayoutConstraint.activate([
+            self.label.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 18),
+            self.label.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -18),
+            self.label.topAnchor.constraint(equalTo: background.topAnchor, constant: 14),
+            self.label.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -14),
+            self.label.widthAnchor.constraint(equalToConstant: 260),
+        ])
+        self.panel.contentView = background
+    }
+
+    func show(_ text: String) {
+        self.hideTask?.cancel()
+        self.label.stringValue = text
+        self.panel.contentView?.layoutSubtreeIfNeeded()
+        let size = self.panel.contentView?.fittingSize ?? NSSize(width: 296, height: 84)
+        let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? .zero
+        self.panel.setFrame(
+            NSRect(
+                x: screenFrame.maxX - size.width - 24,
+                y: screenFrame.maxY - size.height - 24,
+                width: size.width,
+                height: size.height
+            ),
+            display: true
+        )
+        self.panel.orderFrontRegardless()
+        self.hideTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            self.panel.orderOut(nil)
+        }
     }
 }

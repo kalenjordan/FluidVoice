@@ -12,13 +12,19 @@ final class HotkeyShortcutTests: XCTestCase {
     func testHerdrWorkspaceCommandExtractsWorkspaceName() {
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Herder comms."
-        ), "comms")
+        ), "comms.")
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "  HERDER   fluid voice! "
-        ), "fluid voice")
+        ), "fluid voice!")
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Herdr commerce land"
         ), "commerce land")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Herder, herder."
+        ), "herder.")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Herter Commerce Land. Where were we?"
+        ), "Commerce Land. Where were we?")
     }
 
     func testHerdrWorkspaceCommandDoesNotClaimOpenPhrase() {
@@ -99,6 +105,7 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.HerdrWorkspace(label: "fluidvoice", workspaceID: "w2"),
             VoiceMacroService.HerdrWorkspace(label: "commerce-land", workspaceID: "w3"),
             VoiceMacroService.HerdrWorkspace(label: "commerce-leak", workspaceID: "w4"),
+            VoiceMacroService.HerdrWorkspace(label: "ordellan", workspaceID: "w5"),
         ]
 
         XCTAssertEqual(
@@ -113,7 +120,60 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.resolveWorkspace(query: "coms", workspaces: workspaces)?.workspaceID,
             "w1"
         )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "or Dell in", workspaces: workspaces)?.workspaceID,
+            "w5"
+        )
         XCTAssertNil(VoiceMacroService.resolveWorkspace(query: "commerce", workspaces: workspaces))
+    }
+
+    func testCodexStatusCommandSupportsCommonRecognitionVariant() {
+        XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codex status."))
+        XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codec status"))
+        XCTAssertFalse(VoiceMacroService.isCodexStatusCommand(transcript: "Codex stats"))
+    }
+
+    func testCodexWeeklyStatusSummaryReportsWholeDayPacing() {
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = reset.addingTimeInterval(-6.5 * 24 * 60 * 60)
+        let summary = VoiceMacroService.CodexWeeklyStatus(
+            usedPercent: 10,
+            windowDurationMinutes: 7 * 24 * 60,
+            resetsAt: reset
+        ).summary(now: now)
+
+        XCTAssertTrue(summary.contains("90% remaining"))
+        XCTAssertTrue(summary.contains("On pace"))
+        XCTAssertTrue(summary.contains("day 1 of 7"))
+        XCTAssertTrue(summary.contains("Resets"))
+    }
+
+    func testWorkspaceInvocationSeparatesWorkspaceFromTrailingDictation() {
+        let workspaces = [
+            VoiceMacroService.HerdrWorkspace(label: "herdr", workspaceID: "w1"),
+            VoiceMacroService.HerdrWorkspace(label: "commerce-land", workspaceID: "w2"),
+        ]
+
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspaceInvocation(
+                query: "herder, investigate the focus issue.",
+                workspaces: workspaces
+            ),
+            VoiceMacroService.HerdrWorkspaceInvocation(
+                workspace: workspaces[0],
+                trailingText: "investigate the focus issue."
+            )
+        )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspaceInvocation(
+                query: "commerce land",
+                workspaces: workspaces
+            ),
+            VoiceMacroService.HerdrWorkspaceInvocation(
+                workspace: workspaces[1],
+                trailingText: nil
+            )
+        )
     }
 
     func testChromeFindCommandUsesRawQueryAndIsAppScoped() {
