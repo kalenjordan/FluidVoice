@@ -9,33 +9,64 @@ final class HotkeyShortcutTests: XCTestCase {
     private let pasteLastTranscriptionShortcutKey = "PasteLastTranscriptionHotkeyShortcut"
     private let pasteLastTranscriptionEnabledKey = "PasteLastTranscriptionShortcutEnabled"
 
-    func testOpenCommsVoiceMacroMatchesExactPhraseInGhostty() {
-        XCTAssertTrue(VoiceMacroService.matchesOpenComms(
+    func testHerdrWorkspaceCommandExtractsWorkspaceName() {
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Open comms.",
             appName: "Ghostty",
             bundleID: "com.mitchellh.ghostty",
             windowTitle: "COMMS"
-        ))
-        XCTAssertTrue(VoiceMacroService.matchesOpenComms(
-            transcript: "  OPEN   COMMS! ",
+        ), "comms")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "  OPEN   fluid voice! ",
             appName: "Herdr",
             bundleID: "unknown",
             windowTitle: ""
-        ))
+        ), "fluid voice")
     }
 
-    func testOpenCommsVoiceMacroRejectsOtherPhrasesAndApps() {
-        XCTAssertFalse(VoiceMacroService.matchesOpenComms(
-            transcript: "open communications",
-            appName: "Ghostty",
-            bundleID: "com.mitchellh.ghostty",
-            windowTitle: ""
-        ))
-        XCTAssertFalse(VoiceMacroService.matchesOpenComms(
+    func testHerdrWorkspaceCommandRejectsOtherApps() {
+        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "open comms",
             appName: "Notes",
             bundleID: "com.apple.Notes",
             windowTitle: "Notes"
+        ))
+    }
+
+    func testWorkspaceResolutionSupportsExactAliasAndUniqueTypoMatches() {
+        let workspaces = [
+            VoiceMacroService.HerdrWorkspace(label: "comms", workspaceID: "w1"),
+            VoiceMacroService.HerdrWorkspace(label: "fluidvoice", workspaceID: "w2"),
+            VoiceMacroService.HerdrWorkspace(label: "commerce-land", workspaceID: "w3"),
+            VoiceMacroService.HerdrWorkspace(label: "commerce-leak", workspaceID: "w4"),
+        ]
+
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "COMMS", workspaces: workspaces)?.workspaceID,
+            "w1"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "fluid boys", workspaces: workspaces)?.workspaceID,
+            "w2"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "coms", workspaces: workspaces)?.workspaceID,
+            "w1"
+        )
+        XCTAssertNil(VoiceMacroService.resolveWorkspace(query: "commerce", workspaces: workspaces))
+    }
+
+    func testChromeFindCommandUsesRawQueryAndIsAppScoped() {
+        XCTAssertEqual(
+            VoiceMacroService.chromeFindQuery(
+                transcript: "Find Export Currently.",
+                bundleID: "com.google.Chrome"
+            ),
+            "Export Currently"
+        )
+        XCTAssertNil(VoiceMacroService.chromeFindQuery(
+            transcript: "Find export",
+            bundleID: "com.apple.Safari"
         ))
     }
 

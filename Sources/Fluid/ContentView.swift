@@ -2212,21 +2212,48 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
-           let targetPID = typingTarget.pid,
-           VoiceMacroService.matchesOpenComms(
+           let workspaceQuery = VoiceMacroService.herdrWorkspaceQuery(
                transcript: transcribedText,
                appName: appInfo.name,
                bundleID: appInfo.bundleId,
                windowTitle: appInfo.windowTitle
            )
         {
-            DebugLogger.shared.info("Running voice macro: open comms", source: "ContentView")
+            DebugLogger.shared.info(
+                "Running Herdr workspace voice command: \(workspaceQuery)",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.openHerdrWorkspace(query: workspaceQuery)
+            DebugLogger.shared.info(
+                "Herdr workspace voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           let findQuery = VoiceMacroService.chromeFindQuery(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running Chrome find voice command: \(findQuery)",
+                source: "ContentView"
+            )
             if typingTarget.shouldRestoreOriginalFocus {
                 await self.restoreFocusToRecordingTarget()
             }
-            let succeeded = await VoiceMacroService.runOpenComms(targetPID: targetPID)
+            let succeeded = await VoiceMacroService.runChromeFind(
+                query: findQuery,
+                targetPID: targetPID
+            )
             DebugLogger.shared.info(
-                "Voice macro finished: open comms success=\(succeeded)",
+                "Chrome find voice command finished: success=\(succeeded)",
                 source: "ContentView"
             )
             if !didRequestOverlayHideOnStop {
