@@ -32,4 +32,16 @@ enum ClipboardService {
         let pasteboard = NSPasteboard.general
         return pasteboard.string(forType: .string)
     }
+
+    static func appending(clipboardText: String?, to spokenText: String) -> String {
+        let normalizedClipboardText = clipboardText?
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard let normalizedClipboardText, !normalizedClipboardText.isEmpty else { return spokenText }
+        guard !spokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return normalizedClipboardText
+        }
+        return spokenText + " " + normalizedClipboardText
+    }
 }

@@ -478,6 +478,11 @@ final class TypingService {
             return false
         }
 
+        // Synthetic terminal submission should remain a plain Return even if the
+        // user is still releasing the modifier combination that stopped dictation.
+        keyDown.flags = []
+        keyUp.flags = []
+
         if let preferredTargetPID, preferredTargetPID > 0 {
             keyDown.postToPid(preferredTargetPID)
             keyUp.postToPid(preferredTargetPID)

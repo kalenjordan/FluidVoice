@@ -58,6 +58,7 @@ final class GlobalHotkeyManager: NSObject {
     private var startRecordingCallback: (() async -> Void)?
     private var dictationModeCallback: (() async -> Void)?
     private var stopAndProcessCallback: (() async -> Void)?
+    private var stopAndProcessWithClipboardCallback: ((String) async -> Void)?
     private var promptModeCallback: (() async -> Void)?
     private var promptSelectionCallback: ((SettingsStore.DictationPromptSelection) async -> Void)?
     private var commandModeCallback: (() async -> Void)?
@@ -284,6 +285,7 @@ final class GlobalHotkeyManager: NSObject {
         startRecordingCallback: (() async -> Void)? = nil,
         dictationModeCallback: (() async -> Void)? = nil,
         stopAndProcessCallback: (() async -> Void)? = nil,
+        stopAndProcessWithClipboardCallback: ((String) async -> Void)? = nil,
         promptModeCallback: (() async -> Void)? = nil,
         promptSelectionCallback: ((SettingsStore.DictationPromptSelection) async -> Void)? = nil,
         commandModeCallback: (() async -> Void)? = nil,
@@ -306,6 +308,7 @@ final class GlobalHotkeyManager: NSObject {
         self.startRecordingCallback = startRecordingCallback
         self.dictationModeCallback = dictationModeCallback
         self.stopAndProcessCallback = stopAndProcessCallback
+        self.stopAndProcessWithClipboardCallback = stopAndProcessWithClipboardCallback
         self.promptModeCallback = promptModeCallback
         self.promptSelectionCallback = promptSelectionCallback
         self.commandModeCallback = commandModeCallback
@@ -907,6 +910,8 @@ final class GlobalHotkeyManager: NSObject {
                 )
             }
 
+            if self.handleAppendClipboardShortcut(keyCode: keyCode) { return nil }
+
             for shortcut in self.primaryShortcuts where shortcut.isModifierOnlyShortcut {
                 if self.handleModifierOnlyShortcutFlagsChanged(
                     behavior: self.primaryModifierOnlyBehavior(for: shortcut),
@@ -988,6 +993,44 @@ final class GlobalHotkeyManager: NSObject {
         }
 
         return Unmanaged.passUnretained(event)
+    }
+
+    private func handleAppendClipboardShortcut(keyCode: UInt16) -> Bool {
+        let physicalFlags = CGEventSource.flagsState(.combinedSessionState)
+        let disallowedFlags: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl]
+        let isShiftFnPress = keyCode == 63 &&
+            physicalFlags.contains(.maskShift) &&
+            physicalFlags.intersection(disallowedFlags).isEmpty
+        let usesPlainFnForDictation = self.primaryShortcuts.contains {
+            $0.isModifierOnlyShortcut && $0.normalizedModifierKeyCodes == [63]
+        }
+
+        guard isShiftFnPress,
+              usesPlainFnForDictation,
+              self.asrService.isRunning,
+              self.isDictateRecordingProvider?() ?? false
+        else {
+            return false
+        }
+
+        let clipboardText = ClipboardService.getFromClipboard()?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let clipboardText, !clipboardText.isEmpty else {
+            DebugLogger.shared.info(
+                "Shift + Fn pressed with no text clipboard content - stopping normally",
+                source: "GlobalHotkeyManager"
+            )
+            self.stopRecordingIfNeeded()
+            return true
+        }
+
+        DebugLogger.shared.info(
+            "Shift + Fn pressed - appending \(clipboardText.count) clipboard characters",
+            source: "GlobalHotkeyManager"
+        )
+        self.stopRecordingIfNeeded(appendingClipboardText: clipboardText)
+        return true
     }
 
     private func handleTapDisableEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -1829,7 +1872,7 @@ final class GlobalHotkeyManager: NSObject {
         }
     }
 
-    private func stopRecordingIfNeeded() {
+    private func stopRecordingIfNeeded(appendingClipboardText clipboardText: String? = nil) {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
 
@@ -1846,12 +1889,12 @@ final class GlobalHotkeyManager: NSObject {
                 return
             }
 
-            await self.stopRecordingInternal()
+            await self.stopRecordingInternal(appendingClipboardText: clipboardText)
         }
     }
 
     @MainActor
-    private func stopRecordingInternal() async {
+    private func stopRecordingInternal(appendingClipboardText clipboardText: String? = nil) async {
         guard self.asrService.isRunning else { return }
         guard !self.asrService.isDictionaryTrainingCaptureActive else {
             DebugLogger.shared.debug("Stop ignored - dictionary training capture is active", source: "GlobalHotkeyManager")
@@ -1865,7 +1908,9 @@ final class GlobalHotkeyManager: NSObject {
         self.isProcessingStop = true
         defer { isProcessingStop = false }
 
-        if let callback = stopAndProcessCallback {
+        if let clipboardText, let callback = stopAndProcessWithClipboardCallback {
+            await callback(clipboardText)
+        } else if let callback = stopAndProcessCallback {
             await callback()
         } else {
             await self.asrService.stopWithoutTranscription()

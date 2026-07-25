@@ -2056,7 +2056,10 @@ struct ContentView: View {
 
     // MARK: - Stop and Process Transcription
 
-    private func stopAndProcessTranscription(route: DictationOutputRoute = .normal) async {
+    private func stopAndProcessTranscription(
+        route: DictationOutputRoute = .normal,
+        appendingClipboardText clipboardText: String? = nil
+    ) async {
         DebugLogger.shared.debug("stopAndProcessTranscription called", source: "ContentView")
         DebugLogger.shared.info("Output route selected: \(route.rawValue)", source: "ContentView")
         self.appBench("stop_path_enter route=\(route.rawValue)")
@@ -2112,9 +2115,13 @@ struct ContentView: View {
         // Play the stop cue as soon as the audio engine has stopped, before the
         // (potentially slow) final transcription pass. Scoped to dictation only —
         // Command/Edit modes call asr.stop() without this callback.
-        let transcribedText = await asr.stop(onCaptureStopped: {
+        let spokenText = await asr.stop(onCaptureStopped: {
             TranscriptionSoundPlayer.shared.playStopSound()
         })
+        let transcribedText = ClipboardService.appending(
+            clipboardText: clipboardText,
+            to: spokenText
+        )
         self.appBench("asr_stop_return elapsedMs=\(Int(((ProcessInfo.processInfo.systemUptime - asrStopStartedAt) * 1000).rounded()))")
         let audioSnapshot = self.asr.consumeLastCompletedAudioSnapshot()
         DebugLogger.shared.info(
@@ -3450,6 +3457,17 @@ struct ContentView: View {
                 let route = self.currentDictationOutputRouteForHotkeyStop()
                 DebugLogger.shared.info("Hotkey stop callback using route: \(route.rawValue)", source: "ContentView")
                 await self.stopAndProcessTranscription(route: route)
+            },
+            stopAndProcessWithClipboardCallback: { clipboardText in
+                let route = self.currentDictationOutputRouteForHotkeyStop()
+                DebugLogger.shared.info(
+                    "Hotkey stop callback appending clipboard using route: \(route.rawValue)",
+                    source: "ContentView"
+                )
+                await self.stopAndProcessTranscription(
+                    route: route,
+                    appendingClipboardText: clipboardText
+                )
             },
             promptModeCallback: {
                 DebugLogger.shared.info("Prompt mode triggered", source: "ContentView")
