@@ -2240,10 +2240,7 @@ struct ContentView: View {
 
         if route == .normal,
            let workspaceQuery = VoiceMacroService.herdrWorkspaceQuery(
-               transcript: transcribedText,
-               appName: appInfo.name,
-               bundleID: appInfo.bundleId,
-               windowTitle: appInfo.windowTitle
+               transcript: transcribedText
            )
         {
             DebugLogger.shared.info(
@@ -2253,6 +2250,24 @@ struct ContentView: View {
             let succeeded = await VoiceMacroService.openHerdrWorkspace(query: workspaceQuery)
             DebugLogger.shared.info(
                 "Herdr workspace voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let url = VoiceMacroService.outboundDashURL(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running Outbound Dash voice command: \(url.absoluteString)",
+                source: "ContentView"
+            )
+            let succeeded = VoiceMacroService.openOrFocusOutboundDashInChrome(url)
+            DebugLogger.shared.info(
+                "Outbound Dash voice command finished: success=\(succeeded)",
                 source: "ContentView"
             )
             if !didRequestOverlayHideOnStop {
@@ -2331,6 +2346,59 @@ struct ContentView: View {
             )
             DebugLogger.shared.info(
                 "Chrome URL voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isChatGPTSidebarCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running ChatGPT sidebar voice command",
+                source: "ContentView"
+            )
+            if typingTarget.shouldRestoreOriginalFocus {
+                await self.restoreFocusToRecordingTarget()
+            }
+            let succeeded = VoiceMacroService.toggleChatGPTSidebar(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "ChatGPT sidebar voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           let searchQuery = VoiceMacroService.chatGPTSearchQuery(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running ChatGPT search voice command: \(searchQuery)",
+                source: "ContentView"
+            )
+            if typingTarget.shouldRestoreOriginalFocus {
+                await self.restoreFocusToRecordingTarget()
+            }
+            let succeeded = await VoiceMacroService.runChatGPTSearch(
+                query: searchQuery,
+                targetPID: targetPID
+            )
+            DebugLogger.shared.info(
+                "ChatGPT search voice command finished: success=\(succeeded)",
                 source: "ContentView"
             )
             if !didRequestOverlayHideOnStop {

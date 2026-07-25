@@ -11,25 +11,19 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testHerdrWorkspaceCommandExtractsWorkspaceName() {
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Open comms.",
-            appName: "Ghostty",
-            bundleID: "com.mitchellh.ghostty",
-            windowTitle: "COMMS"
+            transcript: "Herder comms."
         ), "comms")
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "  OPEN   fluid voice! ",
-            appName: "Herdr",
-            bundleID: "unknown",
-            windowTitle: ""
+            transcript: "  HERDER   fluid voice! "
         ), "fluid voice")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Herdr commerce land"
+        ), "commerce land")
     }
 
-    func testHerdrWorkspaceCommandRejectsOtherApps() {
+    func testHerdrWorkspaceCommandDoesNotClaimOpenPhrase() {
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "open comms",
-            appName: "Notes",
-            bundleID: "com.apple.Notes",
-            windowTitle: "Notes"
+            transcript: "open comms"
         ))
     }
 
@@ -87,6 +81,18 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testApplicationResolutionSupportsChatGPTClassicAlias() {
+        let chatGPTClassic = URL(fileURLWithPath: "/Applications/ChatGPT Classic.app")
+
+        XCTAssertEqual(
+            VoiceMacroService.resolveApplicationURL(
+                query: "ChatGPT",
+                candidates: [chatGPTClassic]
+            ),
+            chatGPTClassic
+        )
+    }
+
     func testWorkspaceResolutionSupportsExactAliasAndUniqueTypoMatches() {
         let workspaces = [
             VoiceMacroService.HerdrWorkspace(label: "comms", workspaceID: "w1"),
@@ -121,6 +127,49 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertNil(VoiceMacroService.chromeFindQuery(
             transcript: "Find export",
             bundleID: "com.apple.Safari"
+        ))
+    }
+
+    func testChatGPTSearchCommandUsesRawQueryAndIsAppScoped() {
+        XCTAssertEqual(
+            VoiceMacroService.chatGPTSearchQuery(
+                transcript: "Search Project planning notes.",
+                bundleID: "com.openai.chat"
+            ),
+            "Project planning notes"
+        )
+        XCTAssertNil(VoiceMacroService.chatGPTSearchQuery(
+            transcript: "Search project planning notes",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertNil(VoiceMacroService.chatGPTSearchQuery(
+            transcript: "Search",
+            bundleID: "com.openai.chat"
+        ))
+    }
+
+    func testChatGPTSidebarCommandIsExactAndAppScoped() {
+        XCTAssertTrue(VoiceMacroService.isChatGPTSidebarCommand(
+            transcript: "Sidebar.",
+            bundleID: "com.openai.chat"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChatGPTSidebarCommand(
+            transcript: "Open sidebar",
+            bundleID: "com.openai.chat"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChatGPTSidebarCommand(
+            transcript: "Sidebar",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
+    func testOutboundDashCommandIsExactAndGlobal() {
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Outbound Dash."),
+            URL(string: "http://outbound-dash.localhost:8764")
+        )
+        XCTAssertNil(VoiceMacroService.outboundDashURL(
+            transcript: "Open outbound dash"
         ))
     }
 

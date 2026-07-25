@@ -22,8 +22,8 @@ enum VoiceMacroService {
     }
 
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
-    private static let herdrAppNames = ["ghostty", "herdr"]
     private static let chromeBundleIDs = ["com.google.chrome"]
+    private static let chatGPTBundleIDs = ["com.openai.chat"]
     private static let finderBundleIDs = ["com.apple.finder"]
     private static let codexBundleIDs = [
         "com.mitchellh.ghostty",
@@ -62,17 +62,13 @@ enum VoiceMacroService {
         "commerce-land": ["commerce land"],
         "commerce-leak": ["commerce leak"],
     ]
+    private static let applicationAliases: [String: String] = [
+        "chatgpt": "chatgptclassic",
+    ]
 
-    static func herdrWorkspaceQuery(
-        transcript: String,
-        appName: String,
-        bundleID: String,
-        windowTitle: String
-    ) -> String? {
-        guard self.isHerdr(appName: appName, bundleID: bundleID, windowTitle: windowTitle) else {
-            return nil
-        }
-        return self.commandArgument(transcript, command: "open")
+    static func herdrWorkspaceQuery(transcript: String) -> String? {
+        self.commandArgument(transcript, command: "herder")
+            ?? self.commandArgument(transcript, command: "herdr")
     }
 
     static func applicationLaunchQuery(transcript: String) -> String? {
@@ -104,6 +100,21 @@ enum VoiceMacroService {
     static func chromeFindQuery(transcript: String, bundleID: String) -> String? {
         guard self.chromeBundleIDs.contains(bundleID.lowercased()) else { return nil }
         return self.commandArgument(transcript, command: "find")
+    }
+
+    static func chatGPTSearchQuery(transcript: String, bundleID: String) -> String? {
+        guard self.chatGPTBundleIDs.contains(bundleID.lowercased()) else { return nil }
+        return self.commandArgument(transcript, command: "search")
+    }
+
+    static func isChatGPTSidebarCommand(transcript: String, bundleID: String) -> Bool {
+        self.chatGPTBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "sidebar"
+    }
+
+    static func outboundDashURL(transcript: String) -> URL? {
+        guard self.normalizedPhrase(transcript) == "outbound dash" else { return nil }
+        return URL(string: "http://outbound-dash.localhost:8764")
     }
 
     static func chromeURL(transcript: String, bundleID: String) -> String? {
@@ -163,6 +174,7 @@ enum VoiceMacroService {
         return best.0
     }
 
+    @MainActor
     static func openHerdrWorkspace(query: String) async -> Bool {
         guard let executable = self.herdrExecutableURL() else { return false }
         let listResult = await self.runProcess(executable, arguments: ["workspace", "list"])
@@ -183,7 +195,13 @@ enum VoiceMacroService {
             executable,
             arguments: ["workspace", "focus", workspace.workspaceID]
         )
-        return focusResult.status == 0
+        guard focusResult.status == 0 else { return false }
+
+        return NSRunningApplication.runningApplications(
+            withBundleIdentifier: self.herdrBundleIDs[0]
+        ).contains {
+            $0.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        }
     }
 
     @MainActor
@@ -209,7 +227,8 @@ enum VoiceMacroService {
     }
 
     static func resolveApplicationURL(query: String, candidates: [URL]) -> URL? {
-        let normalizedQuery = self.normalizedApplicationName(query)
+        let rawNormalizedQuery = self.normalizedApplicationName(query)
+        let normalizedQuery = self.applicationAliases[rawNormalizedQuery] ?? rawNormalizedQuery
         guard !normalizedQuery.isEmpty else { return nil }
 
         let namedCandidates = candidates.map {
@@ -233,6 +252,43 @@ enum VoiceMacroService {
     }
 
     @MainActor
+    static func openOrFocusOutboundDashInChrome(_ url: URL) -> Bool {
+        let baseURL = url.absoluteString
+        let script = """
+        tell application "Google Chrome"
+            repeat with windowIndex from 1 to count of windows
+                set chromeWindow to window windowIndex
+                repeat with tabIndex from 1 to count of tabs of chromeWindow
+                    set tabURL to URL of tab tabIndex of chromeWindow
+                    if tabURL is "\(baseURL)" or tabURL is "\(baseURL)/" then
+                        set active tab index of chromeWindow to tabIndex
+                        set index of chromeWindow to 1
+                        activate
+                        return true
+                    end if
+                end repeat
+            end repeat
+
+            if (count of windows) is 0 then
+                make new window
+                set URL of active tab of front window to "\(baseURL)"
+            else
+                tell front window
+                    make new tab at end of tabs with properties {URL:"\(baseURL)"}
+                    set active tab index to count of tabs
+                end tell
+            end if
+            activate
+            return true
+        end tell
+        """
+
+        var error: NSDictionary?
+        let result = NSAppleScript(source: script)?.executeAndReturnError(&error)
+        return result?.booleanValue == true && error == nil
+    }
+
+    @MainActor
     static func runChromeFind(query: String, targetPID: pid_t) async -> Bool {
         guard self.isTargetFrontmost(targetPID) else { return false }
         guard self.postKey(CGKeyCode(kVK_ANSI_F), flags: .maskCommand, to: targetPID) else {
@@ -242,6 +298,32 @@ enum VoiceMacroService {
         try? await Task.sleep(nanoseconds: 150_000_000)
         guard self.isTargetFrontmost(targetPID) else { return false }
         return self.postText(query, to: targetPID)
+    }
+
+    @MainActor
+    static func runChatGPTSearch(query: String, targetPID: pid_t) async -> Bool {
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        guard self.postKey(
+            CGKeyCode(kVK_ANSI_F),
+            flags: [.maskCommand, .maskShift],
+            to: targetPID
+        ) else {
+            return false
+        }
+
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        return self.postText(query, to: targetPID)
+    }
+
+    @MainActor
+    static func toggleChatGPTSidebar(targetPID: pid_t) -> Bool {
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        return self.postKey(
+            CGKeyCode(kVK_ANSI_S),
+            flags: [.maskControl, .maskCommand],
+            to: targetPID
+        )
     }
 
     @MainActor
@@ -287,16 +369,6 @@ enum VoiceMacroService {
             }
         }
         return true
-    }
-
-    private static func isHerdr(appName: String, bundleID: String, windowTitle: String) -> Bool {
-        let normalizedAppName = appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedBundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedWindowTitle = windowTitle.lowercased()
-
-        return self.herdrBundleIDs.contains(normalizedBundleID)
-            || self.herdrAppNames.contains(normalizedAppName)
-            || normalizedWindowTitle.contains("herdr")
     }
 
     private static func commandArgument(_ transcript: String, command: String) -> String? {
