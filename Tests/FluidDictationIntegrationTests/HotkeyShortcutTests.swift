@@ -33,6 +33,60 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testApplicationLaunchCommandSupportsExplicitPhrases() {
+        XCTAssertEqual(
+            VoiceMacroService.applicationLaunchQuery(transcript: "Launch Key Mapper."),
+            "Key Mapper"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.applicationLaunchQuery(transcript: "Open the Key Mapper app!"),
+            "Key Mapper"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.applicationLaunchQuery(transcript: "open Key Mapper application"),
+            "Key Mapper"
+        )
+    }
+
+    func testApplicationLaunchCommandDoesNotClaimWorkspacePhrase() {
+        XCTAssertNil(
+            VoiceMacroService.applicationLaunchQuery(transcript: "Open Key Mapper")
+        )
+    }
+
+    func testApplicationResolutionIgnoresSpacingAndSupportsUniqueTypos() {
+        let applications = [
+            URL(fileURLWithPath: "/Applications/keymapper.app"),
+            URL(fileURLWithPath: "/Applications/Google Chrome.app"),
+            URL(fileURLWithPath: "/Applications/Keynote.app"),
+        ]
+
+        XCTAssertEqual(
+            VoiceMacroService.resolveApplicationURL(
+                query: "key mapper",
+                candidates: applications
+            ),
+            applications[0]
+        )
+        XCTAssertEqual(
+            VoiceMacroService.resolveApplicationURL(
+                query: "key mappr",
+                candidates: applications
+            ),
+            applications[0]
+        )
+    }
+
+    func testApplicationResolutionRejectsAmbiguousMatches() {
+        XCTAssertNil(VoiceMacroService.resolveApplicationURL(
+            query: "Note",
+            candidates: [
+                URL(fileURLWithPath: "/Applications/Notes.app"),
+                URL(fileURLWithPath: "/Applications/Noted.app"),
+            ]
+        ))
+    }
+
     func testWorkspaceResolutionSupportsExactAliasAndUniqueTypoMatches() {
         let workspaces = [
             VoiceMacroService.HerdrWorkspace(label: "comms", workspaceID: "w1"),

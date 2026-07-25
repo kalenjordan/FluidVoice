@@ -29,6 +29,31 @@ enum VoiceMacroService {
         "com.mitchellh.ghostty",
         "com.openai.codex",
     ]
+    private static let installedApplicationURLs: [URL] = {
+        let fileManager = FileManager.default
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/System/Applications", isDirectory: true),
+            fileManager.homeDirectoryForCurrentUser
+                .appendingPathComponent("Applications", isDirectory: true),
+        ]
+        var applications: [URL] = []
+
+        for root in roots where fileManager.fileExists(atPath: root.path) {
+            guard let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isApplicationKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else {
+                continue
+            }
+
+            for case let url as URL in enumerator where url.pathExtension.lowercased() == "app" {
+                applications.append(url)
+            }
+        }
+        return applications
+    }()
 
     // Add observed speech-to-text variants here when fuzzy matching is not sufficient.
     private static let workspaceAliases: [String: [String]] = [
@@ -48,6 +73,32 @@ enum VoiceMacroService {
             return nil
         }
         return self.commandArgument(transcript, command: "open")
+    }
+
+    static func applicationLaunchQuery(transcript: String) -> String? {
+        if let applicationName = self.commandArgument(transcript, command: "launch") {
+            return applicationName
+        }
+
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let expression = try? NSRegularExpression(
+            pattern: #"^open\s+(?:the\s+)?(.+?)\s+(?:app|application)$"#,
+            options: .caseInsensitive
+        ) else {
+            return nil
+        }
+
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = expression.firstMatch(in: trimmed, range: range),
+              let nameRange = Range(match.range(at: 1), in: trimmed)
+        else {
+            return nil
+        }
+
+        let applicationName = trimmed[nameRange].trimmingCharacters(in: .whitespacesAndNewlines)
+        return applicationName.isEmpty ? nil : applicationName
     }
 
     static func chromeFindQuery(transcript: String, bundleID: String) -> String? {
@@ -133,6 +184,52 @@ enum VoiceMacroService {
             arguments: ["workspace", "focus", workspace.workspaceID]
         )
         return focusResult.status == 0
+    }
+
+    @MainActor
+    static func launchApplication(named applicationName: String) async -> Bool {
+        guard let applicationURL = self.resolveApplicationURL(
+            query: applicationName,
+            candidates: self.installedApplicationURLs
+        ) else {
+            return false
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.addsToRecentItems = false
+        return await withCheckedContinuation { continuation in
+            NSWorkspace.shared.openApplication(
+                at: applicationURL,
+                configuration: configuration
+            ) { _, error in
+                continuation.resume(returning: error == nil)
+            }
+        }
+    }
+
+    static func resolveApplicationURL(query: String, candidates: [URL]) -> URL? {
+        let normalizedQuery = self.normalizedApplicationName(query)
+        guard !normalizedQuery.isEmpty else { return nil }
+
+        let namedCandidates = candidates.map {
+            ($0, self.normalizedApplicationName($0.deletingPathExtension().lastPathComponent))
+        }
+        let exactMatches = namedCandidates.filter { $0.1 == normalizedQuery }
+        if exactMatches.count == 1 {
+            return exactMatches[0].0
+        }
+        guard exactMatches.isEmpty else { return nil }
+
+        let scored = namedCandidates.map {
+            ($0.0, self.editDistance(normalizedQuery, $0.1))
+        }.sorted { $0.1 < $1.1 }
+        guard let best = scored.first else { return nil }
+
+        let maximumDistance = max(1, min(2, normalizedQuery.count / 5))
+        guard best.1 <= maximumDistance else { return nil }
+        guard scored.count == 1 || scored[1].1 > best.1 else { return nil }
+        return best.0
     }
 
     @MainActor
@@ -223,6 +320,10 @@ enum VoiceMacroService {
             $0.isWhitespace || $0.isPunctuation
         }
         return words.joined(separator: " ")
+    }
+
+    private static func normalizedApplicationName(_ text: String) -> String {
+        text.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
     private static func editDistance(_ lhs: String, _ rhs: String) -> Int {

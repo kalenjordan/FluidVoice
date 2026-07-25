@@ -2219,6 +2219,26 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
+           let applicationName = VoiceMacroService.applicationLaunchQuery(
+               transcript: transcribedText
+           )
+        {
+            DebugLogger.shared.info(
+                "Running application launch voice command: \(applicationName)",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.launchApplication(named: applicationName)
+            DebugLogger.shared.info(
+                "Application launch voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let workspaceQuery = VoiceMacroService.herdrWorkspaceQuery(
                transcript: transcribedText,
                appName: appInfo.name,
