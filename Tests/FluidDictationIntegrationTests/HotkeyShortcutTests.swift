@@ -117,6 +117,27 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testCodexClearLineCommandAcceptsSpokenSlashAndIsAppScoped() {
+        for transcript in ["Clear line.", "slash clear line", "/clear line"] {
+            for bundleID in ["com.mitchellh.ghostty", "com.openai.codex"] {
+                XCTAssertTrue(
+                    VoiceMacroService.isCodexClearLineCommand(
+                        transcript: transcript,
+                        bundleID: bundleID
+                    )
+                )
+            }
+        }
+        XCTAssertFalse(VoiceMacroService.isCodexClearLineCommand(
+            transcript: "clear the line",
+            bundleID: "com.openai.codex"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCodexClearLineCommand(
+            transcript: "clear line",
+            bundleID: "com.apple.Terminal"
+        ))
+    }
+
     func testCoreAudioFrameCountUsesActualBufferChannelLayout() {
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 4, 4, 1), 512)
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 8, 4, 2), 512)

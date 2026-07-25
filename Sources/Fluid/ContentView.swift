@@ -2268,6 +2268,31 @@ struct ContentView: View {
 
         if route == .normal,
            let targetPID = typingTarget.pid,
+           VoiceMacroService.isCodexClearLineCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running Codex clear-line voice command",
+                source: "ContentView"
+            )
+            if typingTarget.shouldRestoreOriginalFocus {
+                await self.restoreFocusToRecordingTarget()
+            }
+            let succeeded = VoiceMacroService.clearCodexLine(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Codex clear-line voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
            let url = VoiceMacroService.chromeURL(
                transcript: transcribedText,
                bundleID: appInfo.bundleId

@@ -25,6 +25,10 @@ enum VoiceMacroService {
     private static let herdrAppNames = ["ghostty", "herdr"]
     private static let chromeBundleIDs = ["com.google.chrome"]
     private static let finderBundleIDs = ["com.apple.finder"]
+    private static let codexBundleIDs = [
+        "com.mitchellh.ghostty",
+        "com.openai.codex",
+    ]
 
     // Add observed speech-to-text variants here when fuzzy matching is not sufficient.
     private static let workspaceAliases: [String: [String]] = [
@@ -73,6 +77,12 @@ enum VoiceMacroService {
     static func isFinderDeleteCommand(transcript: String, bundleID: String) -> Bool {
         self.finderBundleIDs.contains(bundleID.lowercased())
             && self.normalizedPhrase(transcript) == "delete"
+    }
+
+    static func isCodexClearLineCommand(transcript: String, bundleID: String) -> Bool {
+        guard self.codexBundleIDs.contains(bundleID.lowercased()) else { return false }
+        let phrase = self.normalizedPhrase(transcript)
+        return phrase == "clear line" || phrase == "slash clear line"
     }
 
     static func resolveWorkspace(query: String, workspaces: [HerdrWorkspace]) -> HerdrWorkspace? {
@@ -160,6 +170,26 @@ enum VoiceMacroService {
     static func deleteFinderSelection(targetPID: pid_t) -> Bool {
         guard self.isTargetFrontmost(targetPID) else { return false }
         return self.postKey(CGKeyCode(kVK_Delete), flags: .maskCommand, to: targetPID)
+    }
+
+    @MainActor
+    static func clearCodexLine(targetPID: pid_t) -> Bool {
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        // Codex has no one-shot clear-all shortcut for its multiline composer.
+        // Repeated Ctrl-K removes every line after the cursor; repeated Ctrl-U
+        // then removes the current line and every line before it.
+        let maximumComposerLines = 256
+        for _ in 0..<maximumComposerLines {
+            guard self.postKey(CGKeyCode(kVK_ANSI_K), flags: .maskControl, to: targetPID) else {
+                return false
+            }
+        }
+        for _ in 0..<maximumComposerLines {
+            guard self.postKey(CGKeyCode(kVK_ANSI_U), flags: .maskControl, to: targetPID) else {
+                return false
+            }
+        }
+        return true
     }
 
     private static func isHerdr(appName: String, bundleID: String, windowTitle: String) -> Bool {
