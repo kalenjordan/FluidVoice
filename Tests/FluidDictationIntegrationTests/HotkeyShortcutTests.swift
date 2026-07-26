@@ -322,6 +322,14 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Matchbook Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/matchbook")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Matt's book dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/matchbook")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         )
@@ -331,6 +339,10 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Ash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Commerce Land Act."),
             URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         )
         XCTAssertEqual(
