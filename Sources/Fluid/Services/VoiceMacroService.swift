@@ -229,8 +229,14 @@ enum VoiceMacroService {
     }
 
     static func outboundDashURL(transcript: String) -> URL? {
-        guard self.normalizedPhrase(transcript) == "outbound dash" else { return nil }
-        return URL(string: "http://outbound-dash.localhost:8764")
+        switch self.normalizedPhrase(transcript) {
+        case "outbound dash":
+            return URL(string: "http://outbound-dash.localhost:8764")
+        case "signalflame dash":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
+        default:
+            return nil
+        }
     }
 
     static func chromeURL(transcript: String, bundleID: String) -> String? {
@@ -461,13 +467,18 @@ enum VoiceMacroService {
         )
         guard focusResult.status == 0 else { return false }
 
-        guard let herdrApplication = NSRunningApplication.runningApplications(
+        guard let applicationURL = NSWorkspace.shared.urlForApplication(
             withBundleIdentifier: self.herdrBundleIDs[0]
-        ).first else {
+        ) else {
             return false
         }
-        guard herdrApplication.activate(
-            options: [.activateAllWindows, .activateIgnoringOtherApps]
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.addsToRecentItems = false
+        guard let herdrApplication = try? await NSWorkspace.shared.openApplication(
+            at: applicationURL,
+            configuration: configuration
         ) else {
             return false
         }
