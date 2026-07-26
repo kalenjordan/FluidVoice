@@ -2238,6 +2238,29 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isChromeRefreshCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Chrome refresh voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.refreshChrome(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Chrome refresh voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not refresh the Chrome page.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isCodexStatusCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running Codex status voice command", source: "ContentView")

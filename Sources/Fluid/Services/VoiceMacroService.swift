@@ -218,6 +218,15 @@ enum VoiceMacroService {
         return self.commandArgument(transcript, command: "find")
     }
 
+    static func isChromeRefreshCommand(transcript: String, bundleID: String) -> Bool {
+        self.chromeBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "refresh"
+    }
+
+    static func refreshChrome(targetPID: pid_t) -> Bool {
+        self.postKey(CGKeyCode(kVK_ANSI_R), flags: .maskCommand, to: targetPID)
+    }
+
     static func chatGPTSearchQuery(transcript: String, bundleID: String) -> String? {
         guard self.chatGPTBundleIDs.contains(bundleID.lowercased()) else { return nil }
         return self.commandArgument(transcript, command: "search")
@@ -234,7 +243,8 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764")
         case "signalflame dash", "signal flame dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
-        case "commerce land dash", "commerce landash", "commerce land ash", "commerceland dash":
+        case "commerce land dash", "commerce landash", "commerce land ash", "commerceland dash",
+             "carmer s landash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         default:
             return nil

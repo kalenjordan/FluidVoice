@@ -138,6 +138,21 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isCodexStatusCommand(transcript: "Codex stats"))
     }
 
+    func testRefreshCommandIsScopedToChrome() {
+        XCTAssertTrue(VoiceMacroService.isChromeRefreshCommand(
+            transcript: "Refresh.",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeRefreshCommand(
+            transcript: "Refresh",
+            bundleID: "com.apple.Safari"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeRefreshCommand(
+            transcript: "Reload",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
     func testBackCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isBackCommand(transcript: "Back."))
         XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
@@ -316,6 +331,10 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Ash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Carmer's Landash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         )
         XCTAssertEqual(
