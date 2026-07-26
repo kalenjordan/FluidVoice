@@ -234,7 +234,7 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764")
         case "signalflame dash", "signal flame dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
-        case "commerce land dash", "commerce landash", "commerceland dash":
+        case "commerce land dash", "commerce landash", "commerce land ash", "commerceland dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         default:
             return nil

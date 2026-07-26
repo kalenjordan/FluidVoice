@@ -315,6 +315,10 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Commerce Land Ash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerceland Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         )
