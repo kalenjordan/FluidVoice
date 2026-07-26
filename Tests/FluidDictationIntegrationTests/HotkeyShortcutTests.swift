@@ -297,6 +297,14 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.outboundDashURL(transcript: "Signalflame Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
         )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Signal Flame Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Commerce Land Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+        )
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"
         ))

@@ -232,8 +232,10 @@ enum VoiceMacroService {
         switch self.normalizedPhrase(transcript) {
         case "outbound dash":
             return URL(string: "http://outbound-dash.localhost:8764")
-        case "signalflame dash":
+        case "signalflame dash", "signal flame dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
+        case "commerce land dash":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         default:
             return nil
         }
