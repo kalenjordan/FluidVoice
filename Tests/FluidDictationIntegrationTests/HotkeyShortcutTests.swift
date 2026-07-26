@@ -138,6 +138,11 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isCodexStatusCommand(transcript: "Codex stats"))
     }
 
+    func testBackCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isBackCommand(transcript: "Back."))
+        XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
+    }
+
     func testNewCodexTabCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
             transcript: "New Codex tab."

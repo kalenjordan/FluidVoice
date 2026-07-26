@@ -276,6 +276,32 @@ enum VoiceMacroService {
             || self.normalizedPhrase(transcript) == "codec status"
     }
 
+    static func isBackCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "back"
+    }
+
+    static func switchToPreviousApplication() -> Bool {
+        guard let keyDown = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: CGKeyCode(kVK_Tab),
+            keyDown: true
+        ),
+        let keyUp = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: CGKeyCode(kVK_Tab),
+            keyDown: false
+        )
+        else {
+            return false
+        }
+
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return true
+    }
+
     static func isNewCodexTabCommand(transcript: String) -> Bool {
         let phrase = self.normalizedPhrase(transcript)
         return phrase == "new codex tab" || phrase == "codex new tab"

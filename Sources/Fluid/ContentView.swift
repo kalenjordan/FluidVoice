@@ -2219,6 +2219,25 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
+           VoiceMacroService.isBackCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running previous application voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.switchToPreviousApplication()
+            DebugLogger.shared.info(
+                "Previous application voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not switch to the previous application.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isCodexStatusCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running Codex status voice command", source: "ContentView")
