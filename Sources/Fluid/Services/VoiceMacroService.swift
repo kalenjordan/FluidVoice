@@ -292,6 +292,67 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "back"
     }
 
+    static func herdrNotificationsEnabledCommand(transcript: String) -> Bool? {
+        switch self.normalizedPhrase(transcript) {
+        case "notifications on":
+            return true
+        case "notifications off":
+            return false
+        default:
+            return nil
+        }
+    }
+
+    static func setHerdrNotificationsEnabled(_ enabled: Bool) -> Bool {
+        let configURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/herdr/plugins/config/herdr-focus-notify/.env")
+        let key = "HERDR_FOCUS_NOTIFY_ENABLED"
+
+        do {
+            let existing = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+            var lines = existing.components(separatedBy: .newlines)
+            if lines.last == "" {
+                lines.removeLast()
+            }
+
+            var replaced = false
+            lines = lines.compactMap { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                let assignment = trimmed.hasPrefix("export ")
+                    ? String(trimmed.dropFirst("export ".count))
+                    : trimmed
+                guard assignment.split(separator: "=", maxSplits: 1).first
+                    .map({ $0.trimmingCharacters(in: .whitespaces) == key }) == true
+                else {
+                    return line
+                }
+                guard !replaced else { return nil }
+                replaced = true
+                return "\(key)=\(enabled ? 1 : 0)"
+            }
+            if !replaced {
+                lines.append("\(key)=\(enabled ? 1 : 0)")
+            }
+
+            try FileManager.default.createDirectory(
+                at: configURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try (lines.joined(separator: "\n") + "\n").write(
+                to: configURL,
+                atomically: true,
+                encoding: .utf8
+            )
+            return true
+        } catch {
+            DebugLogger.shared.error(
+                "Failed to update Herdr focus notifications: \(error.localizedDescription)",
+                source: "VoiceMacroService"
+            )
+            return false
+        }
+    }
+
     static func switchToPreviousApplication() -> Bool {
         guard let commandDown = CGEvent(
             keyboardEventSource: nil,

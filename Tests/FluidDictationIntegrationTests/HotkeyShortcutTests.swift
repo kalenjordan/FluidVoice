@@ -158,6 +158,20 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
     }
 
+    func testHerdrNotificationsCommandMatchesExactState() {
+        XCTAssertEqual(
+            VoiceMacroService.herdrNotificationsEnabledCommand(transcript: "Notifications on."),
+            true
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrNotificationsEnabledCommand(transcript: "notifications off"),
+            false
+        )
+        XCTAssertNil(
+            VoiceMacroService.herdrNotificationsEnabledCommand(transcript: "toggle notifications")
+        )
+    }
+
     func testNewCodexTabCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
             transcript: "New Codex tab."

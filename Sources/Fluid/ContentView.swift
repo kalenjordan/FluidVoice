@@ -2219,6 +2219,30 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
+           let enabled = VoiceMacroService.herdrNotificationsEnabledCommand(
+               transcript: transcribedText
+           )
+        {
+            DebugLogger.shared.info(
+                "Running Herdr notifications \(enabled ? "on" : "off") voice command",
+                source: "ContentView"
+            )
+            let succeeded = VoiceMacroService.setHerdrNotificationsEnabled(enabled)
+            VoiceMacroService.showStatusToast(
+                succeeded
+                    ? "Herdr notifications \(enabled ? "on" : "off")."
+                    : "Could not update Herdr notifications."
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isBackCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running previous application voice command", source: "ContentView")
