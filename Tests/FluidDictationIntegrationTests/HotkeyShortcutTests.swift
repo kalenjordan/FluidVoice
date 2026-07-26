@@ -182,10 +182,10 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testNextPendingCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isNextPendingCommand(
-            transcript: "Next pending."
+            transcript: "Next."
         ))
         XCTAssertFalse(VoiceMacroService.isNextPendingCommand(
-            transcript: "Open next pending"
+            transcript: "Next pending"
         ))
     }
 

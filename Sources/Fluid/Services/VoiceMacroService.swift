@@ -299,7 +299,7 @@ enum VoiceMacroService {
     }
 
     static func isNextPendingCommand(transcript: String) -> Bool {
-        self.normalizedPhrase(transcript) == "next pending"
+        self.normalizedPhrase(transcript) == "next"
     }
 
     static func isEDMFocusPlaylistCommand(transcript: String) -> Bool {
@@ -700,10 +700,15 @@ enum VoiceMacroService {
         let script = """
         tell application "Google Chrome"
             repeat with windowIndex from 1 to count of windows
-                set chromeWindow to window windowIndex
-                repeat with tabIndex from 1 to count of tabs of chromeWindow
-                    set tabURL to URL of tab tabIndex of chromeWindow
-                    if tabURL is "\(baseURL)" or tabURL is "\(baseURL)/" then
+                    set chromeWindow to window windowIndex
+                    repeat with tabIndex from 1 to count of tabs of chromeWindow
+                        set tabURL to URL of tab tabIndex of chromeWindow
+                    if tabURL is "\(baseURL)" ¬
+                        or tabURL is "\(baseURL)/" ¬
+                        or tabURL starts with "\(baseURL)?" ¬
+                        or tabURL starts with "\(baseURL)#" ¬
+                        or tabURL starts with "\(baseURL)/?" ¬
+                        or tabURL starts with "\(baseURL)/#" then
                         set active tab index of chromeWindow to tabIndex
                         set index of chromeWindow to 1
                         activate
