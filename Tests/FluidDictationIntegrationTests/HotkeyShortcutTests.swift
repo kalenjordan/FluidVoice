@@ -27,9 +27,14 @@ final class HotkeyShortcutTests: XCTestCase {
         ), "Commerce Land. Where were we?")
     }
 
-    func testHerdrWorkspaceCommandDoesNotClaimOpenPhrase() {
+    func testHerdrWorkspaceOpenCommandIsScopedToHerdr() {
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "open comms",
+            bundleID: "com.mitchellh.ghostty"
+        ), "comms")
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "open comms"
+            transcript: "open comms",
+            bundleID: "com.google.Chrome"
         ))
     }
 
@@ -131,6 +136,66 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codex status."))
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codec status"))
         XCTAssertFalse(VoiceMacroService.isCodexStatusCommand(transcript: "Codex stats"))
+    }
+
+    func testNewCodexTabCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
+            transcript: "New Codex tab."
+        ))
+        XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
+            transcript: "Codex new tab."
+        ))
+        XCTAssertFalse(VoiceMacroService.isNewCodexTabCommand(
+            transcript: "Open a new Codex tab"
+        ))
+    }
+
+    func testTabNavigationCommandsAreScopedToHerdr() {
+        XCTAssertNotNil(VoiceMacroService.tabDirectionCommand(
+            transcript: "Tab right.",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+        XCTAssertNotNil(VoiceMacroService.tabDirectionCommand(
+            transcript: "Tab left",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+        XCTAssertNil(VoiceMacroService.tabDirectionCommand(
+            transcript: "Tab right",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
+    func testCloseTabCommandIsScopedToHerdr() {
+        XCTAssertTrue(VoiceMacroService.isCloseTabCommand(
+            transcript: "Close tab.",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCloseTabCommand(
+            transcript: "Close tab",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCloseTabCommand(
+            transcript: "Close the tab",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+    }
+
+    func testNextPendingCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isNextPendingCommand(
+            transcript: "Next pending."
+        ))
+        XCTAssertFalse(VoiceMacroService.isNextPendingCommand(
+            transcript: "Open next pending"
+        ))
+    }
+
+    func testEDMFocusPlaylistCommandUsesConcisePhrase() {
+        XCTAssertTrue(VoiceMacroService.isEDMFocusPlaylistCommand(
+            transcript: "Spotify EDM."
+        ))
+        XCTAssertFalse(VoiceMacroService.isEDMFocusPlaylistCommand(
+            transcript: "Play EDM Focus Background Beats"
+        ))
     }
 
     func testCodexWeeklyStatusSummaryReportsWholeDayPacing() {

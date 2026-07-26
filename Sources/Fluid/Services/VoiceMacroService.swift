@@ -18,6 +18,11 @@ enum VoiceMacroService {
         let trailingText: String?
     }
 
+    enum TabDirection {
+        case left
+        case right
+    }
+
     struct CodexWeeklyStatus: Equatable {
         let usedPercent: Double
         let windowDurationMinutes: Double
@@ -51,10 +56,75 @@ enum VoiceMacroService {
         let result: Result
     }
 
+    private struct HerdrCurrentPaneResponse: Decodable {
+        struct Result: Decodable {
+            let pane: Pane
+        }
+
+        struct Pane: Decodable {
+            let cwd: String
+            let tabID: String
+            let workspaceID: String
+
+            enum CodingKeys: String, CodingKey {
+                case cwd
+                case tabID = "tab_id"
+                case workspaceID = "workspace_id"
+            }
+        }
+
+        let result: Result
+    }
+
+    private struct HerdrTabListResponse: Decodable {
+        struct Result: Decodable {
+            let tabs: [Tab]
+        }
+
+        struct Tab: Decodable {
+            let number: Int
+            let tabID: String
+
+            enum CodingKeys: String, CodingKey {
+                case number
+                case tabID = "tab_id"
+            }
+        }
+
+        let result: Result
+    }
+
+    private struct HerdrTabCreateResponse: Decodable {
+        struct Result: Decodable {
+            let rootPane: RootPane
+
+            enum CodingKeys: String, CodingKey {
+                case rootPane = "root_pane"
+            }
+        }
+
+        struct RootPane: Decodable {
+            let paneID: String
+
+            enum CodingKeys: String, CodingKey {
+                case paneID = "pane_id"
+            }
+        }
+
+        let result: Result
+    }
+
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
+    private static let herdrCallerEnvironmentVariables: Set<String> = [
+        "HERDR_PANE_ID",
+        "HERDR_TAB_ID",
+        "HERDR_TERMINAL_ID",
+        "HERDR_WORKSPACE_ID",
+    ]
     private static let chromeBundleIDs = ["com.google.chrome"]
     private static let chatGPTBundleIDs = ["com.openai.chat"]
     private static let finderBundleIDs = ["com.apple.finder"]
+    private static let spotifyBundleIDs = ["com.spotify.client"]
     private static let codexBundleIDs = [
         "com.mitchellh.ghostty",
         "com.openai.codex",
@@ -97,10 +167,24 @@ enum VoiceMacroService {
         "chatgpt": "chatgptclassic",
     ]
 
-    static func herdrWorkspaceQuery(transcript: String) -> String? {
-        self.commandArgument(transcript, command: "herder", preserveTerminalPunctuation: true)
+    static func herdrWorkspaceQuery(transcript: String, bundleID: String = "") -> String? {
+        let globalQuery = self.commandArgument(
+            transcript,
+            command: "herder",
+            preserveTerminalPunctuation: true
+        )
             ?? self.commandArgument(transcript, command: "herdr", preserveTerminalPunctuation: true)
             ?? self.commandArgument(transcript, command: "herter", preserveTerminalPunctuation: true)
+        if let globalQuery {
+            return globalQuery
+        }
+
+        guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
+        return self.commandArgument(
+            transcript,
+            command: "open",
+            preserveTerminalPunctuation: true
+        )
     }
 
     static func applicationLaunchQuery(transcript: String) -> String? {
@@ -182,6 +266,69 @@ enum VoiceMacroService {
     static func isCodexStatusCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "codex status"
             || self.normalizedPhrase(transcript) == "codec status"
+    }
+
+    static func isNewCodexTabCommand(transcript: String) -> Bool {
+        let phrase = self.normalizedPhrase(transcript)
+        return phrase == "new codex tab" || phrase == "codex new tab"
+    }
+
+    static func tabDirectionCommand(transcript: String, bundleID: String) -> TabDirection? {
+        guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
+        switch self.normalizedPhrase(transcript) {
+        case "tab left":
+            return .left
+        case "tab right":
+            return .right
+        default:
+            return nil
+        }
+    }
+
+    static func isCloseTabCommand(transcript: String, bundleID: String) -> Bool {
+        self.herdrBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "close tab"
+    }
+
+    static func isNextPendingCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "next pending"
+    }
+
+    static func isEDMFocusPlaylistCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "spotify edm"
+    }
+
+    @MainActor
+    static func playEDMFocusPlaylist() async -> Bool {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        guard let applicationURL = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: self.spotifyBundleIDs[0]
+        ) else {
+            return false
+        }
+
+        do {
+            _ = try await NSWorkspace.shared.openApplication(
+                at: applicationURL,
+                configuration: configuration
+            )
+        } catch {
+            return false
+        }
+
+        try? await Task.sleep(for: .milliseconds(250))
+        let script = """
+        tell application "Spotify"
+            play track "spotify:track:1HWy19J4EI51m1RR9iqzn5" in context "spotify:playlist:3YLw8MyzjwzAoZe73zXQK6"
+            activate
+        end tell
+        """
+        var error: NSDictionary?
+        guard NSAppleScript(source: script)?.executeAndReturnError(&error) != nil else {
+            return false
+        }
+        return error == nil
     }
 
     static func codexWeeklyStatus() async -> CodexWeeklyStatus? {
@@ -329,6 +476,162 @@ enum VoiceMacroService {
         try? await Task.sleep(nanoseconds: 150_000_000)
         guard self.isTargetFrontmost(herdrApplication.processIdentifier) else { return false }
         return self.postText(trailingText, to: herdrApplication.processIdentifier)
+    }
+
+    @MainActor
+    static func openNewCodexTab() async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        // FluidVoice can inherit Herdr caller IDs when launched from a Herdr terminal.
+        // Remove them so --current resolves the workspace currently visible in Herdr.
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let current = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              )
+        else {
+            return false
+        }
+
+        let pane = current.result.pane
+        let createResult = await self.runProcess(
+            executable,
+            arguments: [
+                "tab", "create",
+                "--workspace", pane.workspaceID,
+                "--cwd", pane.cwd,
+                "--focus",
+            ]
+        )
+        guard createResult.status == 0,
+              let created = try? JSONDecoder().decode(
+                  HerdrTabCreateResponse.self,
+                  from: createResult.output
+              )
+        else {
+            return false
+        }
+
+        let runResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", created.result.rootPane.paneID, "codex"]
+        )
+        guard runResult.status == 0,
+              let herdrApplication = NSRunningApplication.runningApplications(
+                  withBundleIdentifier: self.herdrBundleIDs[0]
+              ).first
+        else {
+            return false
+        }
+        return herdrApplication.activate(
+            options: [.activateAllWindows, .activateIgnoringOtherApps]
+        )
+    }
+
+    @MainActor
+    static func moveHerdrTab(_ direction: TabDirection) async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let currentPane = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              ).result.pane
+        else {
+            return false
+        }
+
+        let listResult = await self.runProcess(
+            executable,
+            arguments: ["tab", "list", "--workspace", currentPane.workspaceID]
+        )
+        guard listResult.status == 0,
+              let response = try? JSONDecoder().decode(
+                  HerdrTabListResponse.self,
+                  from: listResult.output
+              ),
+              response.result.tabs.count > 1
+        else {
+            return false
+        }
+
+        let tabs = response.result.tabs.sorted { $0.number < $1.number }
+        guard let currentIndex = tabs.firstIndex(where: { $0.tabID == currentPane.tabID }) else {
+            return false
+        }
+        let offset: Int
+        switch direction {
+        case .left:
+            offset = tabs.count - 1
+        case .right:
+            offset = 1
+        }
+        let target = tabs[(currentIndex + offset) % tabs.count]
+        let focusResult = await self.runProcess(
+            executable,
+            arguments: ["tab", "focus", target.tabID]
+        )
+        return focusResult.status == 0
+    }
+
+    @MainActor
+    static func closeCurrentHerdrTab() async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let currentPane = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              ).result.pane
+        else {
+            return false
+        }
+
+        let closeResult = await self.runProcess(
+            executable,
+            arguments: ["tab", "close", currentPane.tabID]
+        )
+        return closeResult.status == 0
+    }
+
+    @MainActor
+    static func openNextPendingHerdrTab() async -> Bool {
+        guard let herdrApplication = NSRunningApplication.runningApplications(
+            withBundleIdentifier: self.herdrBundleIDs[0]
+        ).first,
+              herdrApplication.activate(
+                  options: [.activateAllWindows, .activateIgnoringOtherApps]
+              )
+        else {
+            return false
+        }
+
+        try? await Task.sleep(for: .milliseconds(150))
+        let processIdentifier = herdrApplication.processIdentifier
+        guard self.isTargetFrontmost(processIdentifier),
+              self.postKey(
+                  CGKeyCode(kVK_ANSI_D),
+                  flags: .maskCommand,
+                  to: processIdentifier
+              )
+        else {
+            return false
+        }
+
+        try? await Task.sleep(for: .milliseconds(100))
+        return self.postKey(CGKeyCode(kVK_Return), to: processIdentifier)
     }
 
     @MainActor
@@ -575,7 +878,8 @@ enum VoiceMacroService {
         _ executable: URL,
         arguments: [String],
         standardInput: Data? = nil,
-        standardInputCloseDelay: TimeInterval = 0
+        standardInputCloseDelay: TimeInterval = 0,
+        removingEnvironmentVariables: Set<String> = []
     ) async -> (status: Int32, output: Data) {
         await Task.detached {
             let process = Process()
@@ -583,6 +887,13 @@ enum VoiceMacroService {
             let inputPipe = Pipe()
             process.executableURL = executable
             process.arguments = arguments
+            if !removingEnvironmentVariables.isEmpty {
+                var environment = ProcessInfo.processInfo.environment
+                for variable in removingEnvironmentVariables {
+                    environment.removeValue(forKey: variable)
+                }
+                process.environment = environment
+            }
             process.standardOutput = outputPipe
             process.standardError = Pipe()
             if standardInput != nil {

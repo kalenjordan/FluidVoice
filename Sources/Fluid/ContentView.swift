@@ -2240,6 +2240,110 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isEDMFocusPlaylistCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running Spotify EDM Focus playlist voice command",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.playEDMFocusPlaylist()
+            DebugLogger.shared.info(
+                "Spotify EDM Focus playlist voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not start the Spotify playlist.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           VoiceMacroService.isNewCodexTabCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running new Codex tab voice command", source: "ContentView")
+            let succeeded = await VoiceMacroService.openNewCodexTab()
+            DebugLogger.shared.info(
+                "New Codex tab voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open a new Codex tab.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let direction = VoiceMacroService.tabDirectionCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Herdr tab navigation voice command", source: "ContentView")
+            let succeeded = await VoiceMacroService.moveHerdrTab(direction)
+            DebugLogger.shared.info(
+                "Herdr tab navigation voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not move to another Herder tab.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           VoiceMacroService.isCloseTabCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Herdr close tab voice command", source: "ContentView")
+            let succeeded = await VoiceMacroService.closeCurrentHerdrTab()
+            DebugLogger.shared.info(
+                "Herdr close tab voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not close the Herder tab.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           VoiceMacroService.isNextPendingCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running next pending Herdr tab voice command", source: "ContentView")
+            let succeeded = await VoiceMacroService.openNextPendingHerdrTab()
+            DebugLogger.shared.info(
+                "Next pending Herdr tab voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open the next pending Herder tab.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let applicationName = VoiceMacroService.applicationLaunchQuery(
                transcript: transcribedText
            )
@@ -2261,7 +2365,8 @@ struct ContentView: View {
 
         if route == .normal,
            let workspaceQuery = VoiceMacroService.herdrWorkspaceQuery(
-               transcript: transcribedText
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
            )
         {
             DebugLogger.shared.info(
