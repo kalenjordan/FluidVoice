@@ -281,24 +281,38 @@ enum VoiceMacroService {
     }
 
     static func switchToPreviousApplication() -> Bool {
-        guard let keyDown = CGEvent(
+        guard let commandDown = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: CGKeyCode(kVK_Command),
+            keyDown: true
+        ),
+        let tabDown = CGEvent(
             keyboardEventSource: nil,
             virtualKey: CGKeyCode(kVK_Tab),
             keyDown: true
         ),
-        let keyUp = CGEvent(
+        let tabUp = CGEvent(
             keyboardEventSource: nil,
             virtualKey: CGKeyCode(kVK_Tab),
+            keyDown: false
+        ),
+        let commandUp = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: CGKeyCode(kVK_Command),
             keyDown: false
         )
         else {
             return false
         }
 
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        commandDown.flags = .maskCommand
+        tabDown.flags = .maskCommand
+        tabUp.flags = .maskCommand
+        commandUp.flags = []
+        commandDown.post(tap: .cghidEventTap)
+        tabDown.post(tap: .cghidEventTap)
+        tabUp.post(tap: .cghidEventTap)
+        commandUp.post(tap: .cghidEventTap)
         return true
     }
 
