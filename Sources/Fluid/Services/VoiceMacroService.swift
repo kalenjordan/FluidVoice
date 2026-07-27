@@ -308,6 +308,8 @@ enum VoiceMacroService {
         case "commerce land dash", "commerce landash", "commerce land ash", "commerce land act",
              "commerceland dash", "carmer s landash", "carmerce land dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+        case "commerce leak dash", "commerce leaked ash":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
         case "ordellan dash", "or dell and dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
         case "linkedin crm dash":
