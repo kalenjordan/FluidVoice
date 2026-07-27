@@ -94,6 +94,28 @@ enum VoiceMacroService {
         let result: Result
     }
 
+    private struct HerdrPaneListResponse: Decodable {
+        struct Result: Decodable {
+            let panes: [Pane]
+        }
+
+        struct Pane: Decodable {
+            let agent: String?
+            let agentStatus: String?
+            let paneID: String
+            let tabID: String
+
+            enum CodingKeys: String, CodingKey {
+                case agent
+                case agentStatus = "agent_status"
+                case paneID = "pane_id"
+                case tabID = "tab_id"
+            }
+        }
+
+        let result: Result
+    }
+
     private struct HerdrTabCreateResponse: Decodable {
         struct Result: Decodable {
             let rootPane: RootPane
@@ -288,6 +310,8 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         case "ordellan dash", "or dell and dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+        case "linkedin crm dash":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         default:
             return nil
         }
@@ -426,6 +450,15 @@ enum VoiceMacroService {
         return phrase == "new tab"
             || phrase == "new codex tab"
             || phrase == "codex new tab"
+    }
+
+    static func isWritingWorkspaceCommand(transcript: String) -> Bool {
+        switch self.normalizedPhrase(transcript) {
+        case "right", "start writing", "write":
+            return true
+        default:
+            return false
+        }
     }
 
     static func tabDirectionCommand(transcript: String, bundleID: String) -> TabDirection? {
@@ -688,6 +721,88 @@ enum VoiceMacroService {
             return false
         }
         return herdrApplication.activate(
+            options: [.activateAllWindows, .activateIgnoringOtherApps]
+        )
+    }
+
+    @MainActor
+    static func openWritingWorkspace() async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let listResult = await self.runProcess(executable, arguments: ["workspace", "list"])
+        guard listResult.status == 0,
+              let response = try? JSONDecoder().decode(
+                  HerdrWorkspaceListResponse.self,
+                  from: listResult.output
+              ),
+              let workspace = response.result.workspaces.first(where: {
+                  self.normalizedPhrase($0.label) == "writing"
+              })
+        else {
+            return false
+        }
+
+        let paneListResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "list", "--workspace", workspace.workspaceID]
+        )
+        guard paneListResult.status == 0,
+              let paneResponse = try? JSONDecoder().decode(
+                  HerdrPaneListResponse.self,
+                  from: paneListResult.output
+              )
+        else {
+            return false
+        }
+
+        let emptyCodexPane = paneResponse.result.panes.first {
+            $0.agent?.lowercased() == "codex" && $0.agentStatus?.lowercased() == "idle"
+        }
+        if let emptyCodexPane {
+            let focusWorkspaceResult = await self.runProcess(
+                executable,
+                arguments: ["workspace", "focus", workspace.workspaceID]
+            )
+            guard focusWorkspaceResult.status == 0 else { return false }
+            let focusTabResult = await self.runProcess(
+                executable,
+                arguments: ["tab", "focus", emptyCodexPane.tabID]
+            )
+            guard focusTabResult.status == 0 else { return false }
+            return self.activateHerdr()
+        }
+
+        let createResult = await self.runProcess(
+            executable,
+            arguments: [
+                "tab", "create",
+                "--workspace", workspace.workspaceID,
+                "--cwd", "/Users/kalen/repos/writing",
+                "--focus",
+            ]
+        )
+        guard createResult.status == 0,
+              let created = try? JSONDecoder().decode(
+                  HerdrTabCreateResponse.self,
+                  from: createResult.output
+              )
+        else {
+            return false
+        }
+
+        let runResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", created.result.rootPane.paneID, "codex"]
+        )
+        return runResult.status == 0 && self.activateHerdr()
+    }
+
+    private static func activateHerdr() -> Bool {
+        guard let application = NSRunningApplication.runningApplications(
+            withBundleIdentifier: self.herdrBundleIDs[0]
+        ).first else {
+            return false
+        }
+        return application.activate(
             options: [.activateAllWindows, .activateIgnoringOtherApps]
         )
     }

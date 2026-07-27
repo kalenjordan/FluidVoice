@@ -2397,6 +2397,25 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isWritingWorkspaceCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running writing workspace voice command", source: "ContentView")
+            let succeeded = await VoiceMacroService.openWritingWorkspace()
+            DebugLogger.shared.info(
+                "Writing workspace voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open the writing workspace.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isNewCodexTabCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running new Codex tab voice command", source: "ContentView")

@@ -249,6 +249,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testWritingWorkspaceCommandHandlesWriteHomophones() {
+        XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
+            transcript: "Write."
+        ))
+        XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
+            transcript: "Right"
+        ))
+        XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
+            transcript: "Start writing."
+        ))
+        XCTAssertFalse(VoiceMacroService.isWritingWorkspaceCommand(
+            transcript: "Write this"
+        ))
+    }
+
     func testTabNavigationCommandsAreScopedToHerdr() {
         XCTAssertNotNil(VoiceMacroService.tabDirectionCommand(
             transcript: "Tab right.",
@@ -447,6 +462,10 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Or Dell and Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         )
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"
