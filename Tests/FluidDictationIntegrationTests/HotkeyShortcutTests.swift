@@ -203,29 +203,34 @@ final class HotkeyShortcutTests: XCTestCase {
     func testHerdrNotificationsCommandMatchesExactState() {
         XCTAssertEqual(
             VoiceMacroService.herdrNotificationsEnabledCommand(
-                transcript: "Notifications on.",
-                bundleID: "com.mitchellh.ghostty"
+                transcript: "Notifications on."
             ),
             true
         )
         XCTAssertEqual(
             VoiceMacroService.herdrNotificationsEnabledCommand(
-                transcript: "notifications off",
-                bundleID: "com.mitchellh.ghostty"
+                transcript: "notifications off"
             ),
             false
         )
         XCTAssertNil(
             VoiceMacroService.herdrNotificationsEnabledCommand(
-                transcript: "toggle notifications",
-                bundleID: "com.mitchellh.ghostty"
+                transcript: "toggle notifications"
             )
         )
+    }
+
+    func testNudgesCommandMatchesExactState() {
+        XCTAssertEqual(
+            VoiceMacroService.nudgesEnabledCommand(transcript: "Nudges on."),
+            true
+        )
+        XCTAssertEqual(
+            VoiceMacroService.nudgesEnabledCommand(transcript: "nudges off"),
+            false
+        )
         XCTAssertNil(
-            VoiceMacroService.herdrNotificationsEnabledCommand(
-                transcript: "notifications on",
-                bundleID: "com.google.Chrome"
-            )
+            VoiceMacroService.nudgesEnabledCommand(transcript: "toggle nudges")
         )
     }
 

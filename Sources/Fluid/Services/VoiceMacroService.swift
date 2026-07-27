@@ -350,10 +350,8 @@ enum VoiceMacroService {
     }
 
     static func herdrNotificationsEnabledCommand(
-        transcript: String,
-        bundleID: String
+        transcript: String
     ) -> Bool? {
-        guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
         switch self.normalizedPhrase(transcript) {
         case "notifications on":
             return true
@@ -364,11 +362,27 @@ enum VoiceMacroService {
         }
     }
 
-    @MainActor
-    static func setHerdrNotificationsEnabled(_ enabled: Bool, targetPID: pid_t) -> Bool {
-        guard self.isTargetFrontmost(targetPID) else { return false }
-        let keyCode = enabled ? CGKeyCode(kVK_ANSI_N) : CGKeyCode(kVK_ANSI_O)
-        return self.postKey(keyCode, flags: [.maskCommand, .maskShift], to: targetPID)
+    static func nudgesEnabledCommand(transcript: String) -> Bool? {
+        switch self.normalizedPhrase(transcript) {
+        case "nudges on":
+            return true
+        case "nudges off":
+            return false
+        default:
+            return nil
+        }
+    }
+
+    static func setHerdrNotificationsEnabled(_ enabled: Bool) async -> Bool {
+        await self.invokeHerdrPluginAction(
+            "herdr-focus-notify.\(enabled ? "enable" : "disable")"
+        )
+    }
+
+    static func setNudgesEnabled(_ enabled: Bool) async -> Bool {
+        await self.invokeHerdrPluginAction(
+            "kalen.nudges.\(enabled ? "enable" : "disable")"
+        )
     }
 
     static func switchToPreviousApplication() -> Bool {
@@ -1080,6 +1094,16 @@ enum VoiceMacroService {
                 return (-1, Data())
             }
         }.value
+    }
+
+    private static func invokeHerdrPluginAction(_ actionID: String) async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let result = await self.runProcess(
+            executable,
+            arguments: ["plugin", "action", "invoke", actionID],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        return result.status == 0
     }
 
     @MainActor

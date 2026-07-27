@@ -2218,24 +2218,41 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
-           let targetPID = typingTarget.pid,
            let enabled = VoiceMacroService.herdrNotificationsEnabledCommand(
-               transcript: transcribedText,
-               bundleID: appInfo.bundleId
+               transcript: transcribedText
            )
         {
             DebugLogger.shared.info(
                 "Running Herdr notifications \(enabled ? "on" : "off") voice command",
                 source: "ContentView"
             )
-            let succeeded = VoiceMacroService.setHerdrNotificationsEnabled(
-                enabled,
-                targetPID: targetPID
-            )
+            let succeeded = await VoiceMacroService.setHerdrNotificationsEnabled(enabled)
             VoiceMacroService.showStatusToast(
                 succeeded
                     ? "Herdr notifications \(enabled ? "on" : "off")."
                     : "Could not update Herdr notifications."
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let enabled = VoiceMacroService.nudgesEnabledCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running nudges \(enabled ? "on" : "off") voice command",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.setNudgesEnabled(enabled)
+            VoiceMacroService.showStatusToast(
+                succeeded
+                    ? "Nudges \(enabled ? "on" : "off")."
+                    : "Could not update nudges."
             )
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
