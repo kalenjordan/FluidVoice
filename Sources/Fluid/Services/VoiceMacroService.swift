@@ -223,8 +223,32 @@ enum VoiceMacroService {
             && self.normalizedPhrase(transcript) == "refresh"
     }
 
+    static func isChromeCopyURLCommand(transcript: String, bundleID: String) -> Bool {
+        self.chromeBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "copy url"
+    }
+
     static func refreshChrome(targetPID: pid_t) -> Bool {
         self.postKey(CGKeyCode(kVK_ANSI_R), flags: .maskCommand, to: targetPID)
+    }
+
+    @MainActor
+    static func copyChromeURL(targetPID: pid_t) -> Bool {
+        guard self.isTargetFrontmost(targetPID) else { return false }
+
+        var error: NSDictionary?
+        guard let url = NSAppleScript(
+            source: #"tell application "Google Chrome" to get URL of active tab of front window"#
+        )?.executeAndReturnError(&error).stringValue,
+            error == nil,
+            !url.isEmpty
+        else {
+            return false
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setString(url, forType: .string)
     }
 
     static func chatGPTSearchQuery(transcript: String, bundleID: String) -> String? {
@@ -251,6 +275,13 @@ enum VoiceMacroService {
         default:
             return nil
         }
+    }
+
+    static func gmailURL(transcript: String) -> URL? {
+        guard self.normalizedPhrase(transcript) == "open gmail" else { return nil }
+        return URL(
+            string: "https://mail.google.com/mail/u/0/#search/fdsafdsafdsafdsafdsafdsafdsa"
+        )
     }
 
     static func chromeURL(transcript: String, bundleID: String) -> String? {
@@ -292,7 +323,11 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "back"
     }
 
-    static func herdrNotificationsEnabledCommand(transcript: String) -> Bool? {
+    static func herdrNotificationsEnabledCommand(
+        transcript: String,
+        bundleID: String
+    ) -> Bool? {
+        guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
         switch self.normalizedPhrase(transcript) {
         case "notifications on":
             return true
@@ -303,54 +338,11 @@ enum VoiceMacroService {
         }
     }
 
-    static func setHerdrNotificationsEnabled(_ enabled: Bool) -> Bool {
-        let configURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/herdr/plugins/config/herdr-focus-notify/.env")
-        let key = "HERDR_FOCUS_NOTIFY_ENABLED"
-
-        do {
-            let existing = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
-            var lines = existing.components(separatedBy: .newlines)
-            if lines.last == "" {
-                lines.removeLast()
-            }
-
-            var replaced = false
-            lines = lines.compactMap { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                let assignment = trimmed.hasPrefix("export ")
-                    ? String(trimmed.dropFirst("export ".count))
-                    : trimmed
-                guard assignment.split(separator: "=", maxSplits: 1).first
-                    .map({ $0.trimmingCharacters(in: .whitespaces) == key }) == true
-                else {
-                    return line
-                }
-                guard !replaced else { return nil }
-                replaced = true
-                return "\(key)=\(enabled ? 1 : 0)"
-            }
-            if !replaced {
-                lines.append("\(key)=\(enabled ? 1 : 0)")
-            }
-
-            try FileManager.default.createDirectory(
-                at: configURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try (lines.joined(separator: "\n") + "\n").write(
-                to: configURL,
-                atomically: true,
-                encoding: .utf8
-            )
-            return true
-        } catch {
-            DebugLogger.shared.error(
-                "Failed to update Herdr focus notifications: \(error.localizedDescription)",
-                source: "VoiceMacroService"
-            )
-            return false
-        }
+    @MainActor
+    static func setHerdrNotificationsEnabled(_ enabled: Bool, targetPID: pid_t) -> Bool {
+        guard self.isTargetFrontmost(targetPID) else { return false }
+        let keyCode = enabled ? CGKeyCode(kVK_ANSI_N) : CGKeyCode(kVK_ANSI_O)
+        return self.postKey(keyCode, flags: [.maskCommand, .maskShift], to: targetPID)
     }
 
     static func switchToPreviousApplication() -> Bool {
@@ -808,7 +800,7 @@ enum VoiceMacroService {
     }
 
     @MainActor
-    static func openOrFocusOutboundDashInChrome(_ url: URL) -> Bool {
+    static func openOrFocusURLInChrome(_ url: URL) -> Bool {
         let baseURL = url.absoluteString
         let script = """
         tell application "Google Chrome"

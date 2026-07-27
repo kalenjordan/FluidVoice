@@ -661,6 +661,84 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
+    func testCompactWithTrailingMessageSubmitsInTwoSteps() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "/compact Come back to the notification work",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty"
+        )
+
+        XCTAssertEqual(
+            plan.steps,
+            [
+                .text("/compact"),
+                .pressReturn,
+                .pause(milliseconds: 400),
+                .text("Come back to the notification work"),
+                .pressReturn,
+            ]
+        )
+    }
+
+    func testButFirstCompactSubmitsCommandBeforeMessage() {
+        for transcript in [
+            "Come back to the notification work but first /compact",
+            "Come back to the notification work, but first slash compact.",
+            "Come back to the notification work but first forward slash compact",
+        ] {
+            let plan = ASRService.makeDictationLiteralOutputPlan(
+                for: transcript,
+                appName: "Ghostty",
+                bundleID: "com.mitchellh.ghostty"
+            )
+
+            XCTAssertEqual(
+                plan.steps,
+                [
+                    .text("/compact"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text("Come back to the notification work"),
+                    .pressReturn,
+                ],
+                transcript
+            )
+        }
+    }
+
+    func testButFirstCompactOnlyRunsInSlashCommandApps() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "Keep going but first /compact",
+                appName: "Notes",
+                bundleID: "com.apple.Notes"
+            ).steps,
+            [.text("Keep going but first /compact")]
+        )
+    }
+
+    func testCompactWithoutTrailingMessageRemainsPlain() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "/compact",
+                appName: "Codex",
+                bundleID: "com.openai.codex"
+            ).steps,
+            [.text("/compact")]
+        )
+    }
+
+    func testCompactContinuationOnlyRunsInSlashCommandApps() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "/compact keep going",
+                appName: "Notes",
+                bundleID: "com.apple.Notes"
+            ).steps,
+            [.text("/compact keep going")]
+        )
+    }
+
     func testTerminalOutputPlanSubmitsOnlyWhenExplicitlyEnabled() {
         let terminalPlan = ASRService.makeDictationLiteralOutputPlan(
             for: "git status",

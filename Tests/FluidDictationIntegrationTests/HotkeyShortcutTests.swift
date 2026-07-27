@@ -153,6 +153,25 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testCopyURLCommandIsScopedToChrome() {
+        XCTAssertTrue(VoiceMacroService.isChromeCopyURLCommand(
+            transcript: "Copy URL.",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertTrue(VoiceMacroService.isChromeCopyURLCommand(
+            transcript: "copy url",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeCopyURLCommand(
+            transcript: "Copy URL",
+            bundleID: "com.apple.Safari"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeCopyURLCommand(
+            transcript: "Copy the URL",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
     func testBackCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isBackCommand(transcript: "Back."))
         XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
@@ -160,15 +179,30 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testHerdrNotificationsCommandMatchesExactState() {
         XCTAssertEqual(
-            VoiceMacroService.herdrNotificationsEnabledCommand(transcript: "Notifications on."),
+            VoiceMacroService.herdrNotificationsEnabledCommand(
+                transcript: "Notifications on.",
+                bundleID: "com.mitchellh.ghostty"
+            ),
             true
         )
         XCTAssertEqual(
-            VoiceMacroService.herdrNotificationsEnabledCommand(transcript: "notifications off"),
+            VoiceMacroService.herdrNotificationsEnabledCommand(
+                transcript: "notifications off",
+                bundleID: "com.mitchellh.ghostty"
+            ),
             false
         )
         XCTAssertNil(
-            VoiceMacroService.herdrNotificationsEnabledCommand(transcript: "toggle notifications")
+            VoiceMacroService.herdrNotificationsEnabledCommand(
+                transcript: "toggle notifications",
+                bundleID: "com.mitchellh.ghostty"
+            )
+        )
+        XCTAssertNil(
+            VoiceMacroService.herdrNotificationsEnabledCommand(
+                transcript: "notifications on",
+                bundleID: "com.google.Chrome"
+            )
         )
     }
 
@@ -370,6 +404,14 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"
         ))
+    }
+
+    func testOpenGmailCommandIsExactAndGlobal() {
+        XCTAssertEqual(
+            VoiceMacroService.gmailURL(transcript: "Open Gmail."),
+            URL(string: "https://mail.google.com/mail/u/0/#search/fdsafdsafdsafdsafdsafdsafdsa")
+        )
+        XCTAssertNil(VoiceMacroService.gmailURL(transcript: "Open my Gmail"))
     }
 
     func testChromeURLCommandResolvesClientDashboardAndIsAppScoped() {

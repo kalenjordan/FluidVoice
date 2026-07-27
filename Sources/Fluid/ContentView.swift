@@ -2219,15 +2219,20 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
            let enabled = VoiceMacroService.herdrNotificationsEnabledCommand(
-               transcript: transcribedText
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
            )
         {
             DebugLogger.shared.info(
                 "Running Herdr notifications \(enabled ? "on" : "off") voice command",
                 source: "ContentView"
             )
-            let succeeded = VoiceMacroService.setHerdrNotificationsEnabled(enabled)
+            let succeeded = VoiceMacroService.setHerdrNotificationsEnabled(
+                enabled,
+                targetPID: targetPID
+            )
             VoiceMacroService.showStatusToast(
                 succeeded
                     ? "Herdr notifications \(enabled ? "on" : "off")."
@@ -2277,6 +2282,31 @@ struct ContentView: View {
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not refresh the Chrome page.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isChromeCopyURLCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Chrome copy URL voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.copyChromeURL(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Chrome copy URL voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            VoiceMacroService.showStatusToast(
+                succeeded ? "URL copied." : "Could not copy the Chrome URL."
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
             }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
@@ -2430,6 +2460,24 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let url = VoiceMacroService.gmailURL(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running open Gmail voice command",
+                source: "ContentView"
+            )
+            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open Gmail.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let workspaceQuery = VoiceMacroService.herdrWorkspaceQuery(
                transcript: transcribedText,
                bundleID: appInfo.bundleId
@@ -2461,7 +2509,7 @@ struct ContentView: View {
                 "Running Outbound Dash voice command: \(url.absoluteString)",
                 source: "ContentView"
             )
-            let succeeded = VoiceMacroService.openOrFocusOutboundDashInChrome(url)
+            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
             DebugLogger.shared.info(
                 "Outbound Dash voice command finished: success=\(succeeded)",
                 source: "ContentView"

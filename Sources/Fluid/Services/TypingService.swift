@@ -328,21 +328,27 @@ final class TypingService {
             self.bench("settle_delay_done delayMs=\(settleDelayMs) elapsedMs=\(Self.elapsedMs(since: requestedAt))")
             self.log("[TypingService] Delay completed, calling insertTextInstantly")
             let insertStartedAt = ProcessInfo.processInfo.systemUptime
-            self.bench("insert_call")
-            self.insertTextInstantly(text, preferredTargetPID: preferredTargetPID)
             for step in plan.steps {
-                guard case .pressReturn = step else { continue }
-                // Text injection is asynchronous from the terminal's perspective. Give the
-                // destination enough time to finish accepting it before pressing Return.
-                let submissionDelay = Self.terminalSubmissionDelayMicros(for: mode)
-                self.bench(
-                    "terminal_submit_settle_start delayMs=\(submissionDelay / 1_000) mode=\(mode.rawValue) preferredPID=\(preferredTargetPID.map { String($0) } ?? "nil")"
-                )
-                usleep(submissionDelay)
-                let returnPosted = self.pressReturn(preferredTargetPID: preferredTargetPID)
-                self.bench(
-                    "terminal_submit_result posted=\(returnPosted) delayMs=\(submissionDelay / 1_000) preferredPID=\(preferredTargetPID.map { String($0) } ?? "nil")"
-                )
+                switch step {
+                case let .text(stepText):
+                    self.bench("insert_call chars=\(stepText.count)")
+                    self.insertTextInstantly(stepText, preferredTargetPID: preferredTargetPID)
+                case .pressReturn:
+                    // Text injection is asynchronous from the destination's perspective.
+                    // Give it enough time to finish accepting the preceding step.
+                    let submissionDelay = Self.terminalSubmissionDelayMicros(for: mode)
+                    self.bench(
+                        "terminal_submit_settle_start delayMs=\(submissionDelay / 1_000) mode=\(mode.rawValue) preferredPID=\(preferredTargetPID.map { String($0) } ?? "nil")"
+                    )
+                    usleep(submissionDelay)
+                    let returnPosted = self.pressReturn(preferredTargetPID: preferredTargetPID)
+                    self.bench(
+                        "terminal_submit_result posted=\(returnPosted) delayMs=\(submissionDelay / 1_000) preferredPID=\(preferredTargetPID.map { String($0) } ?? "nil")"
+                    )
+                case let .pause(milliseconds):
+                    self.bench("step_pause_start delayMs=\(milliseconds)")
+                    usleep(useconds_t(milliseconds * 1_000))
+                }
             }
             self.bench(
                 "insert_return elapsedMs=\(Self.elapsedMs(since: insertStartedAt)) totalMs=\(Self.elapsedMs(since: requestedAt))"

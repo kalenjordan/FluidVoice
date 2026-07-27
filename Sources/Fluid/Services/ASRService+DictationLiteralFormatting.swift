@@ -4,6 +4,7 @@ struct DictationLiteralOutputPlan: Equatable {
     enum Step: Equatable {
         case text(String)
         case pressReturn
+        case pause(milliseconds: UInt32)
     }
 
     let steps: [Step]
@@ -141,6 +142,11 @@ private enum DictationLiteralFormatter {
         options: []
     )
 
+    private static let compactFirstSuffixRegex = try? NSRegularExpression(
+        pattern: #"(?is)^(.+?)[,;]?\s+but\s+first[,\s]+(?:/|(?:forward\s+)?slash\s+)compact\s*[.!?]*\s*$"#,
+        options: []
+    )
+
     private static let mentionRejectedTokens: Set<String> = [
         "a", "an", "airport", "breakfast", "brunch", "class", "dinner", "home",
         "hotel", "house", "lunch", "meeting", "night", "noon", "office", "place",
@@ -233,6 +239,22 @@ private enum DictationLiteralFormatter {
             bundleID: bundleID,
             windowTitle: windowTitle
         )
+        if let followUpMessage = self.compactFollowUpMessage(
+            in: formattedText,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) {
+            return DictationLiteralOutputPlan(
+                steps: [
+                    .text("/compact"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text(followUpMessage),
+                    .pressReturn,
+                ]
+            )
+        }
         var steps: [DictationLiteralOutputPlan.Step] = [.text(formattedText)]
         if submitTerminalCommand,
            !formattedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -241,6 +263,54 @@ private enum DictationLiteralFormatter {
             steps.append(.pressReturn)
         }
         return DictationLiteralOutputPlan(steps: steps)
+    }
+
+    private static func compactFollowUpMessage(
+        in text: String,
+        appName: String?,
+        bundleID: String?,
+        windowTitle: String?
+    ) -> String? {
+        let isCodexLikeApp = self.isSlashCommandAutocompleteApp(
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        )
+        let isHerdrTerminal = bundleID?.lowercased() == "com.mitchellh.ghostty"
+        guard isCodexLikeApp || isHerdrTerminal else {
+            return nil
+        }
+
+        if let suffixMessage = self.compactFirstSuffixMessage(in: text) {
+            return suffixMessage
+        }
+
+        let prefix = "/compact"
+        guard text.count > prefix.count,
+              text.prefix(prefix.count).lowercased() == prefix
+        else {
+            return nil
+        }
+        let boundaryIndex = text.index(text.startIndex, offsetBy: prefix.count)
+        guard text[boundaryIndex].isWhitespace else { return nil }
+        let continuation = text[boundaryIndex...]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return continuation.isEmpty ? nil : continuation
+    }
+
+    private static func compactFirstSuffixMessage(in text: String) -> String? {
+        guard let regex = self.compactFirstSuffixRegex else { return nil }
+        let source = text as NSString
+        let match = regex.firstMatch(
+            in: text,
+            range: NSRange(location: 0, length: source.length)
+        )
+        guard let match, match.range(at: 1).location != NSNotFound else {
+            return nil
+        }
+        let message = source.substring(with: match.range(at: 1))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? nil : message
     }
 
     static func applyTerminalLiteralAutocompleteSpacing(
