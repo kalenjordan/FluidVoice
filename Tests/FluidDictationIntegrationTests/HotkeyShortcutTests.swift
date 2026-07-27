@@ -25,6 +25,14 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Herter Commerce Land. Where were we?"
         ), "Commerce Land. Where were we?")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Her Fluid Voice",
+            bundleID: "com.mitchellh.ghostty"
+        ), "Fluid Voice")
+        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Her name is Sarah",
+            bundleID: "com.google.Chrome"
+        ))
     }
 
     func testHerdrWorkspaceOpenCommandIsScopedToHerdr() {
@@ -419,6 +427,14 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound ash."),
             URL(string: "http://outbound-dash.localhost:8764")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Ordellan Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Or Dell and Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
         )
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"

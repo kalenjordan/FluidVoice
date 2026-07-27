@@ -115,6 +115,7 @@ enum VoiceMacroService {
     }
 
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
+    private static let herdrCommandAliases = ["herder", "herdr", "herter"]
     private static let herdrCallerEnvironmentVariables: Set<String> = [
         "HERDR_PANE_ID",
         "HERDR_TAB_ID",
@@ -168,18 +169,22 @@ enum VoiceMacroService {
     ]
 
     static func herdrWorkspaceQuery(transcript: String, bundleID: String = "") -> String? {
-        let globalQuery = self.commandArgument(
+        let globalQuery = self.herdrCommandArgument(
             transcript,
-            command: "herder",
             preserveTerminalPunctuation: true
         )
-            ?? self.commandArgument(transcript, command: "herdr", preserveTerminalPunctuation: true)
-            ?? self.commandArgument(transcript, command: "herter", preserveTerminalPunctuation: true)
         if let globalQuery {
             return globalQuery
         }
 
         guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
+        if let query = self.commandArgument(
+            transcript,
+            command: "her",
+            preserveTerminalPunctuation: true
+        ) {
+            return query
+        }
         return self.commandArgument(
             transcript,
             command: "open",
@@ -281,6 +286,8 @@ enum VoiceMacroService {
         case "commerce land dash", "commerce landash", "commerce land ash", "commerce land act",
              "commerceland dash", "carmer s landash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+        case "ordellan dash", "or dell and dash":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
         default:
             return nil
         }
@@ -964,6 +971,22 @@ enum VoiceMacroService {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return argument.isEmpty ? nil : argument
+    }
+
+    private static func herdrCommandArgument(
+        _ transcript: String,
+        preserveTerminalPunctuation: Bool = false
+    ) -> String? {
+        for command in self.herdrCommandAliases {
+            if let argument = self.commandArgument(
+                transcript,
+                command: command,
+                preserveTerminalPunctuation: preserveTerminalPunctuation
+            ) {
+                return argument
+            }
+        }
+        return nil
     }
 
     private static func normalizedPhrase(_ text: String) -> String {
