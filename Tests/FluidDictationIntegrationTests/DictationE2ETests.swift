@@ -717,6 +717,60 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
+    func testAndNextSubmitsMessageBeforeOpeningNextPendingTab() {
+        for transcript in [
+            "Fix the login bug and next",
+            "Fix the login bug, and next.",
+            "Fix the login bug; And Next!",
+        ] {
+            let plan = ASRService.makeDictationLiteralOutputPlan(
+                for: transcript,
+                appName: "Codex",
+                bundleID: "com.openai.codex"
+            )
+
+            XCTAssertEqual(
+                plan.steps,
+                [
+                    .text("Fix the login bug"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .openNextPendingHerdrTab,
+                ],
+                transcript
+            )
+        }
+    }
+
+    func testAndNextRunsInHerdrTerminal() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "Review these changes and next.",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty"
+        )
+
+        XCTAssertEqual(
+            plan.steps,
+            [
+                .text("Review these changes"),
+                .pressReturn,
+                .pause(milliseconds: 400),
+                .openNextPendingHerdrTab,
+            ]
+        )
+    }
+
+    func testAndNextRemainsLiteralOutsideCodexAndHerdr() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "Buy milk and next.",
+                appName: "Notes",
+                bundleID: "com.apple.Notes"
+            ).steps,
+            [.text("Buy milk and next.")]
+        )
+    }
+
     func testCompactWithoutTrailingMessageRemainsPlain() {
         XCTAssertEqual(
             ASRService.makeDictationLiteralOutputPlan(

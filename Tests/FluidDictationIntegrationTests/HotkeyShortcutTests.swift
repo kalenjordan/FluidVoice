@@ -236,6 +236,9 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testNewCodexTabCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
+            transcript: "New tab."
+        ))
+        XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
             transcript: "New Codex tab."
         ))
         XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
@@ -423,6 +426,10 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Carmer's Landash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Carmerce Land Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         )
         XCTAssertEqual(

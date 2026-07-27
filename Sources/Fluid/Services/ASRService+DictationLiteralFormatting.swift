@@ -5,6 +5,7 @@ struct DictationLiteralOutputPlan: Equatable {
         case text(String)
         case pressReturn
         case pause(milliseconds: UInt32)
+        case openNextPendingHerdrTab
     }
 
     let steps: [Step]
@@ -147,6 +148,11 @@ private enum DictationLiteralFormatter {
         options: []
     )
 
+    private static let andNextSuffixRegex = try? NSRegularExpression(
+        pattern: #"(?is)^(.+?)[,;]?\s+and\s+next\s*[.!?]*\s*$"#,
+        options: []
+    )
+
     private static let mentionRejectedTokens: Set<String> = [
         "a", "an", "airport", "breakfast", "brunch", "class", "dinner", "home",
         "hotel", "house", "lunch", "meeting", "night", "noon", "office", "place",
@@ -239,6 +245,21 @@ private enum DictationLiteralFormatter {
             bundleID: bundleID,
             windowTitle: windowTitle
         )
+        if let message = self.andNextMessage(
+            in: formattedText,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) {
+            return DictationLiteralOutputPlan(
+                steps: [
+                    .text(message),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .openNextPendingHerdrTab,
+                ]
+            )
+        }
         if let followUpMessage = self.compactFollowUpMessage(
             in: formattedText,
             appName: appName,
@@ -263,6 +284,35 @@ private enum DictationLiteralFormatter {
             steps.append(.pressReturn)
         }
         return DictationLiteralOutputPlan(steps: steps)
+    }
+
+    private static func andNextMessage(
+        in text: String,
+        appName: String?,
+        bundleID: String?,
+        windowTitle: String?
+    ) -> String? {
+        let haystack = [appName, bundleID, windowTitle]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        let isCodexOrHerdr = haystack.contains("codex")
+            || bundleID?.lowercased() == "com.mitchellh.ghostty"
+        guard isCodexOrHerdr,
+              let regex = self.andNextSuffixRegex
+        else {
+            return nil
+        }
+
+        let range = NSRange(location: 0, length: (text as NSString).length)
+        guard let match = regex.firstMatch(in: text, range: range),
+              match.numberOfRanges > 1
+        else {
+            return nil
+        }
+        let message = (text as NSString)
+            .substring(with: match.range(at: 1))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? nil : message
     }
 
     private static func compactFollowUpMessage(

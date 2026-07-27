@@ -348,6 +348,15 @@ final class TypingService {
                 case let .pause(milliseconds):
                     self.bench("step_pause_start delayMs=\(milliseconds)")
                     usleep(useconds_t(milliseconds * 1_000))
+                case .openNextPendingHerdrTab:
+                    Task { @MainActor in
+                        let succeeded = await VoiceMacroService.openNextPendingHerdrTab()
+                        if !succeeded {
+                            VoiceMacroService.showStatusToast(
+                                "Could not open the next pending Herder tab."
+                            )
+                        }
+                    }
                 }
             }
             self.bench(

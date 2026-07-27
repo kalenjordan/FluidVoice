@@ -284,7 +284,7 @@ enum VoiceMacroService {
         case "matchbook dash", "matt s book dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/matchbook")
         case "commerce land dash", "commerce landash", "commerce land ash", "commerce land act",
-             "commerceland dash", "carmer s landash":
+             "commerceland dash", "carmer s landash", "carmerce land dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         case "ordellan dash", "or dell and dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
@@ -423,7 +423,9 @@ enum VoiceMacroService {
 
     static func isNewCodexTabCommand(transcript: String) -> Bool {
         let phrase = self.normalizedPhrase(transcript)
-        return phrase == "new codex tab" || phrase == "codex new tab"
+        return phrase == "new tab"
+            || phrase == "new codex tab"
+            || phrase == "codex new tab"
     }
 
     static func tabDirectionCommand(transcript: String, bundleID: String) -> TabDirection? {
