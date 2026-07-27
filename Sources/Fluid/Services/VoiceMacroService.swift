@@ -179,12 +179,18 @@ enum VoiceMacroService {
     }()
 
     // Add observed speech-to-text variants here when fuzzy matching is not sufficient.
-    private static let workspaceAliases: [String: [String]] = [
+    private static let projectAliases: [String: [String]] = [
         "comms": ["coms", "comms workspace"],
         "fluidvoice": ["fluid voice", "fluid boys"],
         "commerce-land": ["commerce land"],
         "commerce-leak": ["commerce leak"],
-        "ordellan": ["or dell in", "or dallin", "or dall in"],
+        "ordellan": [
+            "or dell and",
+            "or dell in",
+            "or dallin",
+            "or dall in",
+            "or delin",
+        ],
     ]
     private static let applicationAliases: [String: String] = [
         "chatgpt": "chatgptclassic",
@@ -298,7 +304,8 @@ enum VoiceMacroService {
     }
 
     static func outboundDashURL(transcript: String) -> URL? {
-        switch self.normalizedPhrase(transcript) {
+        let phrase = self.normalizedPhrase(transcript)
+        switch phrase {
         case "outbound dash", "outbound ash":
             return URL(string: "http://outbound-dash.localhost:8764")
         case "signalflame dash", "signal flame dash":
@@ -310,13 +317,20 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         case "commerce leak dash", "commerce leaked ash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
-        case "ordellan dash", "or dell and dash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
         case "linkedin crm dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         default:
+            break
+        }
+
+        guard phrase.hasSuffix(" dash") else { return nil }
+        let spokenProjectName = String(phrase.dropLast(" dash".count))
+        guard let projectName = self.canonicalProjectName(for: spokenProjectName),
+              projectName == "ordellan"
+        else {
             return nil
         }
+        return URL(string: "http://outbound-dash.localhost:8764/clients/\(projectName)")
     }
 
     static func gmailURL(transcript: String) -> URL? {
@@ -351,7 +365,8 @@ enum VoiceMacroService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clientName.isEmpty else { return nil }
 
-        let slug = clientName.replacingOccurrences(of: " ", with: "-")
+        let slug = self.canonicalProjectName(for: clientName)
+            ?? clientName.replacingOccurrences(of: " ", with: "-")
         return "http://outbound-dash.localhost:8764/clients/\(slug)"
     }
 
@@ -571,7 +586,7 @@ enum VoiceMacroService {
         }
 
         let aliasMatches = workspaces.filter { workspace in
-            let aliases = self.workspaceAliases[workspace.label.lowercased()] ?? []
+            let aliases = self.projectAliases[workspace.label.lowercased()] ?? []
             return aliases.contains { self.normalizedPhrase($0) == normalizedQuery }
         }
         if aliasMatches.count == 1 {
@@ -1127,6 +1142,14 @@ enum VoiceMacroService {
             $0.isWhitespace || $0.isPunctuation
         }
         return words.joined(separator: " ")
+    }
+
+    private static func canonicalProjectName(for spokenName: String) -> String? {
+        let normalizedName = self.normalizedPhrase(spokenName)
+        return self.projectAliases.first { projectName, aliases in
+            self.normalizedPhrase(projectName) == normalizedName
+                || aliases.contains { self.normalizedPhrase($0) == normalizedName }
+        }?.key
     }
 
     private static func normalizedApplicationName(_ text: String) -> String {

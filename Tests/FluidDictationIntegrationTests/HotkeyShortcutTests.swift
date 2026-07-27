@@ -137,6 +137,10 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.resolveWorkspace(query: "or Dell in", workspaces: workspaces)?.workspaceID,
             "w5"
         )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "or delin", workspaces: workspaces)?.workspaceID,
+            "w5"
+        )
         XCTAssertNil(VoiceMacroService.resolveWorkspace(query: "commerce", workspaces: workspaces))
     }
 
@@ -472,6 +476,10 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Or Delin Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         )
@@ -518,6 +526,13 @@ final class HotkeyShortcutTests: XCTestCase {
                 bundleID: "com.google.Chrome"
             ),
             "http://outbound-dash.localhost:8764/clients/commerce-land"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "open or delin dash",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash.localhost:8764/clients/ordellan"
         )
         XCTAssertNil(VoiceMacroService.chromeURL(
             transcript: "open layers dash",
