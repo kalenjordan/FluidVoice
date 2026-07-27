@@ -184,6 +184,7 @@ enum VoiceMacroService {
         "fluidvoice": ["fluid voice", "fluid boys"],
         "commerce-land": ["commerce land"],
         "commerce-leak": ["commerce leak"],
+        "hvac": ["h fact"],
         "ordellan": [
             "or dell and",
             "or dell in",
@@ -319,18 +320,29 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
         case "linkedin crm dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+        case "hvac dash":
+            return URL(
+                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
+            )
         default:
             break
         }
 
         guard phrase.hasSuffix(" dash") else { return nil }
         let spokenProjectName = String(phrase.dropLast(" dash".count))
-        guard let projectName = self.canonicalProjectName(for: spokenProjectName),
-              projectName == "ordellan"
-        else {
+        guard let projectName = self.canonicalProjectName(for: spokenProjectName) else {
             return nil
         }
-        return URL(string: "http://outbound-dash.localhost:8764/clients/\(projectName)")
+        switch projectName {
+        case "hvac":
+            return URL(
+                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
+            )
+        case "ordellan":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+        default:
+            return nil
+        }
     }
 
     static func gmailURL(transcript: String) -> URL? {
@@ -367,6 +379,9 @@ enum VoiceMacroService {
 
         let slug = self.canonicalProjectName(for: clientName)
             ?? clientName.replacingOccurrences(of: " ", with: "-")
+        if slug == "hvac" {
+            return "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
+        }
         return "http://outbound-dash.localhost:8764/clients/\(slug)"
     }
 

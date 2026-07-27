@@ -483,6 +483,18 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "HVAC Dash."),
+            URL(
+                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
+            )
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "H fact dash."),
+            URL(
+                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
+            )
+        )
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"
         ))
@@ -533,6 +545,13 @@ final class HotkeyShortcutTests: XCTestCase {
                 bundleID: "com.google.Chrome"
             ),
             "http://outbound-dash.localhost:8764/clients/ordellan"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "open h fact dash",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
         )
         XCTAssertNil(VoiceMacroService.chromeURL(
             transcript: "open layers dash",
