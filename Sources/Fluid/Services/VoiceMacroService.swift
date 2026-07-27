@@ -228,8 +228,17 @@ enum VoiceMacroService {
             && self.normalizedPhrase(transcript) == "copy url"
     }
 
+    static func isChromeCloseTabCommand(transcript: String, bundleID: String) -> Bool {
+        self.chromeBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "close tab"
+    }
+
     static func refreshChrome(targetPID: pid_t) -> Bool {
         self.postKey(CGKeyCode(kVK_ANSI_R), flags: .maskCommand, to: targetPID)
+    }
+
+    static func closeChromeTab(targetPID: pid_t) -> Bool {
+        self.postKey(CGKeyCode(kVK_ANSI_W), flags: .maskCommand, to: targetPID)
     }
 
     @MainActor
@@ -282,6 +291,16 @@ enum VoiceMacroService {
         return URL(
             string: "https://mail.google.com/mail/u/0/#search/fdsafdsafdsafdsafdsafdsafdsa"
         )
+    }
+
+    static func googleSearchURL(transcript: String) -> URL? {
+        guard let query = self.commandArgument(transcript, command: "google") else {
+            return nil
+        }
+
+        var components = URLComponents(string: "https://www.google.com/search")
+        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+        return components?.url
     }
 
     static func chromeURL(transcript: String, bundleID: String) -> String? {

@@ -199,11 +199,12 @@ final class DictationPostProcessingService {
         }
 
         let promptText = settings.effectiveDictationSystemPrompt(for: dictationSlot, appBundleID: nil)
-        let systemPrompt = ""
-        let userMessageContent = SettingsStore.renderDictationUserMessage(
+        let messageParts = SettingsStore.dictationMessageParts(
             promptText: promptText,
             transcript: trimmed
         )
+        let systemPrompt = messageParts.systemPrompt
+        let userMessageContent = messageParts.userMessageContent
 
         guard !resolved.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AIProcessingError.missingModel(provider: resolved.providerKey)

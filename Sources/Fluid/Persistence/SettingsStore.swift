@@ -1225,6 +1225,29 @@ final class SettingsStore: ObservableObject {
         return promptText + "\n\n" + transcript
     }
 
+    /// Keep dictation instructions and source text in separate message roles so
+    /// short transcript fragments cannot be mistaken for conversational input.
+    static func dictationMessageParts(
+        promptText: String,
+        transcript: String
+    ) -> (systemPrompt: String, userMessageContent: String) {
+        let systemPrompt = promptText.replacingOccurrences(
+            of: self.transcriptPlaceholder,
+            with: "<the transcript is provided separately in the user message>"
+        )
+        return (
+            systemPrompt: systemPrompt,
+            userMessageContent: """
+            Transform only the transcript below according to the system instructions.
+            Return only the transformed transcript.
+
+            <transcript>
+            \(transcript)
+            </transcript>
+            """
+        )
+    }
+
     private func defaultPromptResolution(
         for mode: PromptMode,
         source: PromptResolutionSource,

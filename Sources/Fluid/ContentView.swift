@@ -1890,19 +1890,18 @@ struct ContentView: View {
             return self.buildSystemPrompt(appInfo: appInfo, dictationSlot: dictationSlot)
         }()
 
-        // Dictation enhancement folds the prompt + transcript into a single user
-        // turn (substituting `${transcript}` when present, otherwise appending
-        // the transcript after a blank line). Non-dictation callers — the AI
-        // chat tab specifically — keep the legacy two-message layout where
-        // the prompt is the system turn and the input is the user turn.
+        // Dictation enhancement keeps instructions in the system role and the
+        // transcript in a clearly delimited user turn. This prevents short
+        // fragments from being interpreted as a conversational reply.
         let systemPrompt: String
         let userMessageContent: String
         if isDictationCall {
-            systemPrompt = ""
-            userMessageContent = SettingsStore.renderDictationUserMessage(
+            let messageParts = SettingsStore.dictationMessageParts(
                 promptText: promptText,
                 transcript: inputText
             )
+            systemPrompt = messageParts.systemPrompt
+            userMessageContent = messageParts.userMessageContent
         } else {
             systemPrompt = promptText
             userMessageContent = inputText
@@ -2315,6 +2314,29 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isChromeCloseTabCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Chrome close tab voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.closeChromeTab(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Chrome close tab voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not close the Chrome tab.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isCodexStatusCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running Codex status voice command", source: "ContentView")
@@ -2470,6 +2492,24 @@ struct ContentView: View {
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not open Gmail.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let url = VoiceMacroService.googleSearchURL(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running Google search voice command",
+                source: "ContentView"
+            )
+            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not search Google.")
             }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()

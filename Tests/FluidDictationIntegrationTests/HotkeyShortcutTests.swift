@@ -172,6 +172,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testChromeCloseTabCommandIsExactAndAppScoped() {
+        XCTAssertTrue(VoiceMacroService.isChromeCloseTabCommand(
+            transcript: "Close tab.",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeCloseTabCommand(
+            transcript: "Close the tab",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeCloseTabCommand(
+            transcript: "Close tab",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+    }
+
     func testBackCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isBackCommand(transcript: "Back."))
         XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
@@ -412,6 +427,15 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "https://mail.google.com/mail/u/0/#search/fdsafdsafdsafdsafdsafdsafdsa")
         )
         XCTAssertNil(VoiceMacroService.gmailURL(transcript: "Open my Gmail"))
+    }
+
+    func testGoogleSearchCommandUsesRawQueryAndIsGlobal() {
+        XCTAssertEqual(
+            VoiceMacroService.googleSearchURL(transcript: "Google Most realistic outbound voice agent."),
+            URL(string: "https://www.google.com/search?q=Most%20realistic%20outbound%20voice%20agent")
+        )
+        XCTAssertNil(VoiceMacroService.googleSearchURL(transcript: "Google"))
+        XCTAssertNil(VoiceMacroService.googleSearchURL(transcript: "Search Google for voice agents"))
     }
 
     func testChromeURLCommandResolvesClientDashboardAndIsAppScoped() {

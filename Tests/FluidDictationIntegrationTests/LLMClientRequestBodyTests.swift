@@ -55,6 +55,33 @@ final class LLMClientRequestBodyTests: XCTestCase {
 
     // MARK: - Dictation custom prompt resolution
 
+    func testDictationMessagesSeparateInstructionsFromShortTranscript() {
+        let parts = SettingsStore.dictationMessageParts(
+            promptText: "You clean dictated text and return only the result.",
+            transcript: "Most realistic outbound voice agent"
+        )
+
+        XCTAssertEqual(
+            parts.systemPrompt,
+            "You clean dictated text and return only the result."
+        )
+        XCTAssertTrue(parts.userMessageContent.contains(
+            "<transcript>\nMost realistic outbound voice agent\n</transcript>"
+        ))
+        XCTAssertFalse(parts.systemPrompt.contains("Most realistic outbound voice agent"))
+    }
+
+    func testDictationMessagesDoNotInjectTranscriptIntoPromptPlaceholder() {
+        let parts = SettingsStore.dictationMessageParts(
+            promptText: "Clean this: ${transcript}",
+            transcript: "Hello there"
+        )
+
+        XCTAssertFalse(parts.systemPrompt.contains("${transcript}"))
+        XCTAssertFalse(parts.systemPrompt.contains("Hello there"))
+        XCTAssertTrue(parts.userMessageContent.contains("<transcript>\nHello there\n</transcript>"))
+    }
+
     func testCustomPromptOnly_omitsBasePromptFromEffectivePromptAndRequestBody() {
         self.withPromptSettingsRestored {
             let settings = SettingsStore.shared
