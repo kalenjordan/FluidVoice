@@ -71,7 +71,7 @@ final class GlobalHotkeyManager: NSObject {
     private var cancelCallback: (() -> Bool)? // Returns true if handled
     private var pasteLastTranscriptionCallback: (() -> Void)?
     private var hotkeyMode: HotkeyActivationMode = SettingsStore.shared.hotkeyMode
-    private let automaticTapThresholdSeconds: TimeInterval = 0.4
+    private let automaticTapThresholdSeconds: TimeInterval = 1.0
 
     private struct ModifierOnlyShortcutBehavior {
         let shortcut: HotkeyShortcut
