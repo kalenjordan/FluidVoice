@@ -18,6 +18,8 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     // Cached menu items to avoid rebuilding entire menu
     private var statusMenuItem: NSMenuItem?
     private var copyLastTranscriptMenuItem: NSMenuItem?
+    private var recentTranscriptsMenuItem: NSMenuItem?
+    private var recentTranscriptsSubmenu: NSMenu?
     private var rollbackMenuItem: NSMenuItem?
     private var microphoneMenuItem: NSMenuItem?
     private var microphoneSubmenu: NSMenu?
@@ -475,6 +477,18 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         menu.addItem(copyLastTranscriptItem)
         self.copyLastTranscriptMenuItem = copyLastTranscriptItem
 
+        let recentTranscriptsSubmenu = NSMenu(title: "Recent Transcripts")
+        let recentTranscriptsMenuItem = NSMenuItem(
+            title: "Recent Transcripts",
+            action: nil,
+            keyEquivalent: ""
+        )
+        recentTranscriptsMenuItem.submenu = recentTranscriptsSubmenu
+        menu.addItem(recentTranscriptsMenuItem)
+        self.recentTranscriptsMenuItem = recentTranscriptsMenuItem
+        self.recentTranscriptsSubmenu = recentTranscriptsSubmenu
+        self.refreshRecentTranscriptsMenu()
+
         menu.addItem(.separator())
 
         // Open Main Window
@@ -556,6 +570,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         let statusTitle = self.isRecording ? "Recording...\(hotkeyInfo)" : "Ready to Record\(hotkeyInfo)"
         self.statusMenuItem?.title = statusTitle
         self.copyLastTranscriptMenuItem?.isEnabled = self.canCopyLastTranscript
+        self.recentTranscriptsMenuItem?.isEnabled = !self.isProcessingActive
         self.microphoneMenuItem?.isEnabled = true
 
         // Update rollback availability text
@@ -565,8 +580,51 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         if menu === self.menu {
             self.updateMenuItemsText()
+            self.refreshRecentTranscriptsMenu()
             self.refreshMicrophoneMenu()
         }
+    }
+
+    private func refreshRecentTranscriptsMenu() {
+        guard let submenu = self.recentTranscriptsSubmenu else { return }
+
+        submenu.removeAllItems()
+        let recentEntries = TranscriptionHistoryStore.shared.entries
+            .compactMap { entry -> (title: String, text: String)? in
+                guard let text = entry.clipboardText else { return nil }
+                return (Self.recentTranscriptMenuTitle(for: text), text)
+            }
+            .prefix(5)
+
+        guard !recentEntries.isEmpty else {
+            let emptyItem = NSMenuItem(
+                title: "No Recent Transcripts",
+                action: nil,
+                keyEquivalent: ""
+            )
+            emptyItem.isEnabled = false
+            submenu.addItem(emptyItem)
+            return
+        }
+
+        for entry in recentEntries {
+            let item = NSMenuItem(
+                title: entry.title,
+                action: #selector(copyRecentTranscript(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = entry.text
+            submenu.addItem(item)
+        }
+    }
+
+    static func recentTranscriptMenuTitle(for text: String) -> String {
+        let singleLine = text
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        guard singleLine.count > 80 else { return singleLine }
+        return String(singleLine.prefix(77)) + "..."
     }
 
     private func refreshMicrophoneMenu() {
@@ -642,6 +700,22 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
 
         _ = ClipboardService.copyToClipboard(text)
         DebugLogger.shared.info("Menu action: Copied latest transcription to clipboard", source: "MenuBarManager")
+    }
+
+    @objc private func copyRecentTranscript(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String, !text.isEmpty else {
+            DebugLogger.shared.info(
+                "Menu action: Recent transcript had no text",
+                source: "MenuBarManager"
+            )
+            return
+        }
+
+        _ = ClipboardService.copyToClipboard(text)
+        DebugLogger.shared.info(
+            "Menu action: Copied recent transcription to clipboard",
+            source: "MenuBarManager"
+        )
     }
 
     @objc private func selectMicrophone(_ sender: NSMenuItem) {

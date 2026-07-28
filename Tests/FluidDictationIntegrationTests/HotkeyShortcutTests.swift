@@ -9,6 +9,19 @@ final class HotkeyShortcutTests: XCTestCase {
     private let pasteLastTranscriptionShortcutKey = "PasteLastTranscriptionHotkeyShortcut"
     private let pasteLastTranscriptionEnabledKey = "PasteLastTranscriptionShortcutEnabled"
 
+    func testRecentTranscriptMenuTitleCollapsesWhitespaceAndTruncatesLongText() {
+        XCTAssertEqual(
+            MenuBarManager.recentTranscriptMenuTitle(for: "First line\n  second\tline"),
+            "First line second line"
+        )
+
+        let longText = String(repeating: "a", count: 81)
+        XCTAssertEqual(
+            MenuBarManager.recentTranscriptMenuTitle(for: longText),
+            String(repeating: "a", count: 77) + "..."
+        )
+    }
+
     func testHerdrWorkspaceCommandExtractsWorkspaceName() {
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Herder comms."
