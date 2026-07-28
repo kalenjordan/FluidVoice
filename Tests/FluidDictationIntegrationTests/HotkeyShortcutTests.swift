@@ -591,6 +591,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testDeleteDesktopCommandIsExactAndAppIndependent() {
+        XCTAssertTrue(VoiceMacroService.isDeleteDesktopCommand(
+            transcript: "Delete desktop."
+        ))
+        XCTAssertTrue(VoiceMacroService.isDeleteDesktopCommand(
+            transcript: "DELETE DESKTOP!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isDeleteDesktopCommand(
+            transcript: "delete the desktop"
+        ))
+        XCTAssertFalse(VoiceMacroService.isDeleteDesktopCommand(
+            transcript: "delete desktop files"
+        ))
+    }
+
     func testCodexClearLineCommandAcceptsSpokenSlashAndIsAppScoped() {
         for transcript in ["Clear line.", "slash clear line", "/clear line"] {
             for bundleID in ["com.mitchellh.ghostty", "com.openai.codex"] {

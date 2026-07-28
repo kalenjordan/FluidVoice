@@ -18,6 +18,11 @@ enum VoiceMacroService {
         let trailingText: String?
     }
 
+    struct DesktopDeletionResult: Equatable {
+        let deletedCount: Int
+        let failedCount: Int
+    }
+
     enum TabDirection {
         case left
         case right
@@ -388,6 +393,10 @@ enum VoiceMacroService {
     static func isFinderDeleteCommand(transcript: String, bundleID: String) -> Bool {
         self.finderBundleIDs.contains(bundleID.lowercased())
             && self.normalizedPhrase(transcript) == "delete"
+    }
+
+    static func isDeleteDesktopCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "delete desktop"
     }
 
     static func isCodexClearLineCommand(transcript: String, bundleID: String) -> Bool {
@@ -1091,6 +1100,48 @@ enum VoiceMacroService {
     static func deleteFinderSelection(targetPID: pid_t) -> Bool {
         guard self.isTargetFrontmost(targetPID) else { return false }
         return self.postKey(CGKeyCode(kVK_Delete), flags: .maskCommand, to: targetPID)
+    }
+
+    static func deleteDesktopContents(
+        fileManager: FileManager = .default
+    ) -> DesktopDeletionResult? {
+        guard let desktopURL = fileManager.urls(
+            for: .desktopDirectory,
+            in: .userDomainMask
+        ).first else {
+            return nil
+        }
+
+        let items: [URL]
+        do {
+            items = try fileManager.contentsOfDirectory(
+                at: desktopURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            return nil
+        }
+
+        var deletedCount = 0
+        var failedCount = 0
+        for item in items {
+            do {
+                guard try item.resourceValues(
+                    forKeys: [.isRegularFileKey]
+                ).isRegularFile == true else {
+                    continue
+                }
+                _ = try fileManager.trashItem(at: item, resultingItemURL: nil)
+                deletedCount += 1
+            } catch {
+                failedCount += 1
+            }
+        }
+        return DesktopDeletionResult(
+            deletedCount: deletedCount,
+            failedCount: failedCount
+        )
     }
 
     @MainActor

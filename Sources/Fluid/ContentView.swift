@@ -2218,6 +2218,44 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
+           VoiceMacroService.isDeleteDesktopCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running delete Desktop voice command",
+                source: "ContentView"
+            )
+            let result = VoiceMacroService.deleteDesktopContents()
+            let succeeded = result.map { $0.failedCount == 0 } ?? false
+            DebugLogger.shared.info(
+                "Delete Desktop voice command finished: success=\(succeeded), "
+                    + "deleted=\(result?.deletedCount ?? 0), failed=\(result?.failedCount ?? 0)",
+                source: "ContentView"
+            )
+            switch result {
+            case nil:
+                VoiceMacroService.showStatusToast("Could not access the Desktop.")
+            case let result? where result.failedCount > 0:
+                VoiceMacroService.showStatusToast(
+                    "Moved \(result.deletedCount) Desktop file(s) to Trash. "
+                        + "\(result.failedCount) could not be moved."
+                )
+            case let result? where result.deletedCount == 0:
+                VoiceMacroService.showStatusToast("No visible files found on the Desktop.")
+            case let result?:
+                VoiceMacroService.showStatusToast(
+                    "Moved \(result.deletedCount) Desktop file(s) to Trash."
+                )
+            }
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let enabled = VoiceMacroService.herdrNotificationsEnabledCommand(
                transcript: transcribedText
            )
