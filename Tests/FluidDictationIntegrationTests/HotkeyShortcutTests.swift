@@ -233,6 +233,10 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isWindowMiddleCommand(
             transcript: "window"
         ))
+        XCTAssertEqual(
+            VoiceMacroService.windowMiddleURL,
+            URL(string: "rectangle-pro://execute-custom?name=Middle")
+        )
     }
 
     func testWindowTopLeftCommandUsesExactPhrase() {

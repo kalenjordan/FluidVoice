@@ -2321,11 +2321,10 @@ struct ContentView: View {
         }
 
         if route == .normal,
-           let targetPID = typingTarget.pid,
            VoiceMacroService.isWindowMiddleCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running window middle voice command", source: "ContentView")
-            let succeeded = VoiceMacroService.moveWindowToMiddle(targetPID: targetPID)
+            let succeeded = VoiceMacroService.moveWindowToMiddle()
             DebugLogger.shared.info(
                 "Window middle voice command finished: success=\(succeeded)",
                 source: "ContentView"

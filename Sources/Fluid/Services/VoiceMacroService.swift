@@ -431,12 +431,12 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "window middle"
     }
 
-    static func moveWindowToMiddle(targetPID: pid_t) -> Bool {
-        self.postKey(
-            CGKeyCode(kVK_DownArrow),
-            flags: [.maskCommand, .maskAlternate],
-            to: targetPID
-        )
+    static let windowMiddleURL = URL(
+        string: "rectangle-pro://execute-custom?name=Middle"
+    )!
+
+    static func moveWindowToMiddle() -> Bool {
+        NSWorkspace.shared.open(self.windowMiddleURL)
     }
 
     static func isWindowTopLeftCommand(transcript: String) -> Bool {
