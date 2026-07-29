@@ -146,7 +146,13 @@ enum VoiceMacroService {
     }
 
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
-    private static let herdrCommandAliases = ["herder", "herdr", "herter", "heard her"]
+    private static let herdrCommandAliases = [
+        "herder",
+        "herdr",
+        "herter",
+        "heard her",
+        "terminal",
+    ]
     private static let herdrCallerEnvironmentVariables: Set<String> = [
         "HERDR_PANE_ID",
         "HERDR_TAB_ID",

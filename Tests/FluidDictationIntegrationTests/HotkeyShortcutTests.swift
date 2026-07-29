@@ -42,6 +42,12 @@ final class HotkeyShortcutTests: XCTestCase {
             transcript: "Heard her fluid voice."
         ), "fluid voice.")
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Terminal comms."
+        ), "comms.")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "TERMINAL, fluid voice!"
+        ), "fluid voice!")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Her Fluid Voice",
             bundleID: "com.mitchellh.ghostty"
         ), "Fluid Voice")
