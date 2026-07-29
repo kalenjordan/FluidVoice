@@ -434,7 +434,7 @@ enum VoiceMacroService {
     static func moveWindowToMiddle(targetPID: pid_t) -> Bool {
         self.postKey(
             CGKeyCode(kVK_DownArrow),
-            flags: [.maskCommand, .maskShift],
+            flags: [.maskCommand, .maskAlternate],
             to: targetPID
         )
     }
