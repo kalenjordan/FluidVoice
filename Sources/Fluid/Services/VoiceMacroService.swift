@@ -142,7 +142,7 @@ enum VoiceMacroService {
     }
 
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
-    private static let herdrCommandAliases = ["herder", "herdr", "herter"]
+    private static let herdrCommandAliases = ["herder", "herdr", "herter", "heard her"]
     private static let herdrCallerEnvironmentVariables: Set<String> = [
         "HERDR_PANE_ID",
         "HERDR_TAB_ID",
@@ -325,6 +325,10 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
         case "linkedin crm dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+        case "layers dash":
+            return URL(
+                string: "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
+            )
         case "hvac dash":
             return URL(
                 string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
@@ -386,6 +390,9 @@ enum VoiceMacroService {
             ?? clientName.replacingOccurrences(of: " ", with: "-")
         if slug == "hvac" {
             return "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
+        }
+        if slug == "layers" {
+            return "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
         }
         return "http://outbound-dash.localhost:8764/clients/\(slug)"
     }

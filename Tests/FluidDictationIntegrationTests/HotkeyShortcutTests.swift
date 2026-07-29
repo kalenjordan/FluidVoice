@@ -39,6 +39,9 @@ final class HotkeyShortcutTests: XCTestCase {
             transcript: "Herter Commerce Land. Where were we?"
         ), "Commerce Land. Where were we?")
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Heard her fluid voice."
+        ), "fluid voice.")
+        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Her Fluid Voice",
             bundleID: "com.mitchellh.ghostty"
         ), "Fluid Voice")
@@ -503,6 +506,12 @@ final class HotkeyShortcutTests: XCTestCase {
             )
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Layers Dash."),
+            URL(
+                string: "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
+            )
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "H fact dash."),
             URL(
                 string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
@@ -536,7 +545,7 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "Open layers dash.",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/layers"
+            "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
