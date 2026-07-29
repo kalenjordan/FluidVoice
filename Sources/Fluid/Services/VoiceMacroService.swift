@@ -335,6 +335,8 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
         case "linkedin crm dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+        case "st3 dash", "s t three dash":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
         case "layers dash":
             return URL(
                 string: "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
@@ -427,6 +429,10 @@ enum VoiceMacroService {
     static func isCodexStatusCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "codex status"
             || self.normalizedPhrase(transcript) == "codec status"
+    }
+
+    static func isRestartFluidVoiceCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "restart fluid voice"
     }
 
     static func isBackCommand(transcript: String) -> Bool {

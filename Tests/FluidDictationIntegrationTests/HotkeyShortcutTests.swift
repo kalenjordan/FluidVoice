@@ -556,6 +556,14 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "ST3 Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "S T three dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "HVAC Dash."),
             URL(
                 string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
@@ -693,6 +701,15 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isCodexClearLineCommand(
             transcript: "clear line",
             bundleID: "com.apple.Terminal"
+        ))
+    }
+
+    func testRestartFluidVoiceCommandIsExactAndGlobal() {
+        XCTAssertTrue(VoiceMacroService.isRestartFluidVoiceCommand(
+            transcript: "Restart Fluid Voice."
+        ))
+        XCTAssertFalse(VoiceMacroService.isRestartFluidVoiceCommand(
+            transcript: "Please restart Fluid Voice"
         ))
     }
 

@@ -2675,10 +2675,13 @@ struct ContentView: View {
                 "Running restart FluidVoice voice command",
                 source: "ContentView"
             )
+            VoiceMacroService.showStatusToast("Restarting FluidVoice…")
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
             }
-            self.restartApp()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                self.restartApp()
+            }
             return
         }
 
