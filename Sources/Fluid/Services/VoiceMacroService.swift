@@ -427,6 +427,18 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "back"
     }
 
+    static func isWindowMiddleCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "window middle"
+    }
+
+    static func moveWindowToMiddle(targetPID: pid_t) -> Bool {
+        self.postKey(
+            CGKeyCode(kVK_DownArrow),
+            flags: [.maskCommand, .maskShift],
+            to: targetPID
+        )
+    }
+
     static func herdrNotificationsEnabledCommand(
         transcript: String
     ) -> Bool? {

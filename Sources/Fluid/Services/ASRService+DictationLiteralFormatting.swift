@@ -276,6 +276,19 @@ private enum DictationLiteralFormatter {
                 ]
             )
         }
+        if let standaloneCommand = self.standaloneSubmittingSlashCommand(
+            formattedText,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) {
+            return DictationLiteralOutputPlan(
+                steps: [
+                    .text(standaloneCommand),
+                    .pressReturn,
+                ]
+            )
+        }
         var steps: [DictationLiteralOutputPlan.Step] = [.text(formattedText)]
         if submitTerminalCommand,
            !formattedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -284,6 +297,27 @@ private enum DictationLiteralFormatter {
             steps.append(.pressReturn)
         }
         return DictationLiteralOutputPlan(steps: steps)
+    }
+
+    private static func standaloneSubmittingSlashCommand(
+        _ text: String,
+        appName: String?,
+        bundleID: String?,
+        windowTitle: String?
+    ) -> String? {
+        guard self.isSlashCommandAutocompleteApp(
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) || bundleID?.lowercased() == "com.mitchellh.ghostty"
+        else {
+            return nil
+        }
+        let command = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
+            .lowercased()
+        return ["/clear", "/compact"].contains(command) ? command : nil
     }
 
     private static func andNextMessage(

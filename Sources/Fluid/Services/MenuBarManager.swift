@@ -14,6 +14,11 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     private var menu: NSMenu?
     private var isSetup: Bool = false
     private var hostedWindow: NSWindow?
+    private var pendingBuildMenuItem: NSMenuItem?
+    private var pendingBuildIndicator: NSView?
+    private var pendingBuildCheckTimer: Timer?
+    private var launchedExecutableModificationDate: Date?
+    private var hasPendingBuild: Bool = false
 
     // Cached menu items to avoid rebuilding entire menu
     private var statusMenuItem: NSMenuItem?
@@ -68,6 +73,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     }
 
     deinit {
+        self.pendingBuildCheckTimer?.invalidate()
         statusItem = nil
     }
 
@@ -436,6 +442,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
 
         // Set initial icon
         self.updateMenuBarIcon()
+        self.startPendingBuildMonitoring()
 
         // Create menu
         self.menu = NSMenu()
@@ -454,6 +461,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
             image.isTemplate = true // Adapts to light/dark mode and tints red when recording
             statusItem.button?.image = image
         }
+        self.updatePendingBuildIndicator()
     }
 
     private func buildMenuStructure() {
@@ -502,14 +510,6 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         preferencesItem.keyEquivalentModifierMask = [.command]
         menu.addItem(preferencesItem)
 
-        let customDictionaryItem = NSMenuItem(
-            title: "Custom Dictionary",
-            action: #selector(openCustomDictionary),
-            keyEquivalent: ""
-        )
-        customDictionaryItem.target = self
-        menu.addItem(customDictionaryItem)
-
         let microphoneSubmenu = NSMenu(title: "Microphone")
         let microphoneMenuItem = NSMenuItem(title: "Microphone", action: nil, keyEquivalent: "")
         microphoneMenuItem.submenu = microphoneSubmenu
@@ -517,14 +517,14 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         self.microphoneMenuItem = microphoneMenuItem
         self.microphoneSubmenu = microphoneSubmenu
 
-        // Check for Updates
-        let updateItem = NSMenuItem(
-            title: "Check for Updates...",
-            action: #selector(checkForUpdates(_:)),
+        let pendingBuildItem = NSMenuItem(
+            title: "Restart to Use New Build",
+            action: #selector(restartToUsePendingBuild(_:)),
             keyEquivalent: ""
         )
-        updateItem.target = self
-        menu.addItem(updateItem)
+        pendingBuildItem.target = self
+        menu.addItem(pendingBuildItem)
+        self.pendingBuildMenuItem = pendingBuildItem
 
         menu.addItem(.separator())
 
@@ -572,9 +572,65 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         self.copyLastTranscriptMenuItem?.isEnabled = self.canCopyLastTranscript
         self.recentTranscriptsMenuItem?.isEnabled = !self.isProcessingActive
         self.microphoneMenuItem?.isEnabled = true
+        self.pendingBuildMenuItem?.isHidden = !self.hasPendingBuild
+        self.pendingBuildMenuItem?.isEnabled = !self.isRecording
 
         // Update rollback availability text
         self.rollbackMenuItem?.isEnabled = SimpleUpdater.shared.hasRollbackBackup()
+    }
+
+    private func startPendingBuildMonitoring() {
+        guard self.pendingBuildCheckTimer == nil else { return }
+        self.launchedExecutableModificationDate = self.executableModificationDate()
+        self.pendingBuildCheckTimer = Timer.scheduledTimer(
+            withTimeInterval: 2,
+            repeats: true
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshPendingBuildState()
+            }
+        }
+    }
+
+    private func executableModificationDate() -> Date? {
+        guard let executableURL = Bundle.main.executableURL,
+              let attributes = try? FileManager.default.attributesOfItem(
+                  atPath: executableURL.path
+              )
+        else {
+            return nil
+        }
+        return attributes[.modificationDate] as? Date
+    }
+
+    private func refreshPendingBuildState() {
+        guard !self.hasPendingBuild,
+              let launchedDate = self.launchedExecutableModificationDate,
+              let currentDate = self.executableModificationDate(),
+              currentDate > launchedDate
+        else {
+            return
+        }
+        self.hasPendingBuild = true
+        self.updatePendingBuildIndicator()
+        self.updateMenuItemsText()
+    }
+
+    private func updatePendingBuildIndicator() {
+        guard let button = self.statusItem?.button else { return }
+        self.pendingBuildIndicator?.removeFromSuperview()
+        self.pendingBuildIndicator = nil
+        guard self.hasPendingBuild else { return }
+
+        let indicator = NSView(frame: NSRect(x: button.bounds.maxX - 7, y: 2, width: 6, height: 6))
+        indicator.wantsLayer = true
+        indicator.layer?.backgroundColor = NSColor.systemOrange.cgColor
+        indicator.layer?.cornerRadius = 3
+        indicator.layer?.borderColor = NSColor.windowBackgroundColor.cgColor
+        indicator.layer?.borderWidth = 1
+        indicator.autoresizingMask = [.minXMargin, .maxYMargin]
+        button.addSubview(indicator)
+        self.pendingBuildIndicator = indicator
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -594,7 +650,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
                 guard let text = entry.clipboardText else { return nil }
                 return (Self.recentTranscriptMenuTitle(for: text), text)
             }
-            .prefix(5)
+            .prefix(20)
 
         guard !recentEntries.isEmpty else {
             let emptyItem = NSMenuItem(
@@ -768,6 +824,27 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
                 }
                 msg.alertStyle = .informational
                 msg.runModal()
+            }
+        }
+    }
+
+    @objc private func restartToUsePendingBuild(_ sender: Any?) {
+        guard self.hasPendingBuild, !self.isRecording else {
+            return
+        }
+        guard let appURL = Bundle.main.bundleURL as URL? else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
+            if let error {
+                DebugLogger.shared.error(
+                    "Could not restart for pending build: \(error.localizedDescription)",
+                    source: "MenuBarManager"
+                )
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                NSApp.terminate(nil)
             }
         }
     }

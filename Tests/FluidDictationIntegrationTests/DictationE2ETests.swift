@@ -771,14 +771,42 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
-    func testCompactWithoutTrailingMessageRemainsPlain() {
+    func testCompactWithoutTrailingMessageSubmitsAndStripsPunctuation() {
+        for transcript in ["/compact", "/compact?", "/compact."] {
+            XCTAssertEqual(
+                ASRService.makeDictationLiteralOutputPlan(
+                    for: transcript,
+                    appName: "Codex",
+                    bundleID: "com.openai.codex"
+                ).steps,
+                [.text("/compact"), .pressReturn],
+                transcript
+            )
+        }
+    }
+
+    func testClearSlashCommandStripsTrailingPunctuationAndSubmits() {
+        for transcript in ["/clear", "/clear?", "/clear."] {
+            XCTAssertEqual(
+                ASRService.makeDictationLiteralOutputPlan(
+                    for: transcript,
+                    appName: "Codex",
+                    bundleID: "com.openai.codex"
+                ).steps,
+                [.text("/clear"), .pressReturn],
+                transcript
+            )
+        }
+    }
+
+    func testClearSlashCommandOnlySubmitsInCodexLikeApps() {
         XCTAssertEqual(
             ASRService.makeDictationLiteralOutputPlan(
-                for: "/compact",
-                appName: "Codex",
-                bundleID: "com.openai.codex"
+                for: "/clear?",
+                appName: "Notes",
+                bundleID: "com.apple.Notes"
             ).steps,
-            [.text("/compact")]
+            [.text("/clear?")]
         )
     }
 

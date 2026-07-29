@@ -2322,6 +2322,26 @@ struct ContentView: View {
 
         if route == .normal,
            let targetPID = typingTarget.pid,
+           VoiceMacroService.isWindowMiddleCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running window middle voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.moveWindowToMiddle(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Window middle voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not move the window to the middle.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
            VoiceMacroService.isChromeRefreshCommand(
                transcript: transcribedText,
                bundleID: appInfo.bundleId

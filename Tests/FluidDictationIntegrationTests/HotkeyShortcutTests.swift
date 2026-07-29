@@ -220,6 +220,21 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
     }
 
+    func testWindowMiddleCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isWindowMiddleCommand(
+            transcript: "Window middle."
+        ))
+        XCTAssertTrue(VoiceMacroService.isWindowMiddleCommand(
+            transcript: "WINDOW MIDDLE!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowMiddleCommand(
+            transcript: "move window middle"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowMiddleCommand(
+            transcript: "window"
+        ))
+    }
+
     func testHerdrNotificationsCommandMatchesExactState() {
         XCTAssertEqual(
             VoiceMacroService.herdrNotificationsEnabledCommand(
