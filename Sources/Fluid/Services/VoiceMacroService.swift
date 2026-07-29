@@ -439,6 +439,18 @@ enum VoiceMacroService {
         )
     }
 
+    static func isWindowTopLeftCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "window top left"
+    }
+
+    static func moveWindowToTopLeft(targetPID: pid_t) -> Bool {
+        self.postKey(
+            CGKeyCode(kVK_ANSI_U),
+            flags: [.maskControl, .maskAlternate],
+            to: targetPID
+        )
+    }
+
     static func herdrNotificationsEnabledCommand(
         transcript: String
     ) -> Bool? {

@@ -235,6 +235,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testWindowTopLeftCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isWindowTopLeftCommand(
+            transcript: "Window top left."
+        ))
+        XCTAssertTrue(VoiceMacroService.isWindowTopLeftCommand(
+            transcript: "WINDOW TOP LEFT!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowTopLeftCommand(
+            transcript: "move window top left"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowTopLeftCommand(
+            transcript: "window top"
+        ))
+    }
+
     func testHerdrNotificationsCommandMatchesExactState() {
         XCTAssertEqual(
             VoiceMacroService.herdrNotificationsEnabledCommand(

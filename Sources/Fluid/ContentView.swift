@@ -2342,6 +2342,26 @@ struct ContentView: View {
 
         if route == .normal,
            let targetPID = typingTarget.pid,
+           VoiceMacroService.isWindowTopLeftCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running window top-left voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.moveWindowToTopLeft(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Window top-left voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not move the window to the top left.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
            VoiceMacroService.isChromeRefreshCommand(
                transcript: transcribedText,
                bundleID: appInfo.bundleId
