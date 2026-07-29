@@ -264,6 +264,22 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
             transcript: "Codex new tab."
         ))
+        XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
+            transcript: "New tab investigate the focus issue."
+        ))
+        XCTAssertEqual(
+            VoiceMacroService.newCodexTabPrompt(
+                transcript: "New Codex tab. Investigate the focus issue."
+            ),
+            "Investigate the focus issue."
+        )
+        XCTAssertEqual(
+            VoiceMacroService.newCodexTabPrompt(
+                transcript: "Codex new tab, review the current changes."
+            ),
+            "review the current changes."
+        )
+        XCTAssertNil(VoiceMacroService.newCodexTabPrompt(transcript: "New tab."))
         XCTAssertFalse(VoiceMacroService.isNewCodexTabCommand(
             transcript: "Open a new Codex tab"
         ))
@@ -510,6 +526,10 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(
                 string: "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
             )
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "H fact dash."),

@@ -2457,7 +2457,8 @@ struct ContentView: View {
            VoiceMacroService.isNewCodexTabCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running new Codex tab voice command", source: "ContentView")
-            let succeeded = await VoiceMacroService.openNewCodexTab()
+            let prompt = VoiceMacroService.newCodexTabPrompt(transcript: transcribedText)
+            let succeeded = await VoiceMacroService.openNewCodexTab(prompt: prompt)
             DebugLogger.shared.info(
                 "New Codex tab voice command finished: success=\(succeeded)",
                 source: "ContentView"

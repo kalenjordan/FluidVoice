@@ -18,6 +18,10 @@ enum VoiceMacroService {
         let trailingText: String?
     }
 
+    private struct NewCodexTabInvocation {
+        let trailingText: String?
+    }
+
     struct DesktopDeletionResult: Equatable {
         let deletedCount: Int
         let failedCount: Int
@@ -329,6 +333,8 @@ enum VoiceMacroService {
             return URL(
                 string: "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
             )
+        case "outbound farm dash":
+            return URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm")
         case "hvac dash":
             return URL(
                 string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
@@ -494,10 +500,11 @@ enum VoiceMacroService {
     }
 
     static func isNewCodexTabCommand(transcript: String) -> Bool {
-        let phrase = self.normalizedPhrase(transcript)
-        return phrase == "new tab"
-            || phrase == "new codex tab"
-            || phrase == "codex new tab"
+        self.newCodexTabInvocation(transcript: transcript) != nil
+    }
+
+    static func newCodexTabPrompt(transcript: String) -> String? {
+        self.newCodexTabInvocation(transcript: transcript)?.trailingText
     }
 
     static func isWritingWorkspaceCommand(transcript: String) -> Bool {
@@ -720,7 +727,7 @@ enum VoiceMacroService {
     }
 
     @MainActor
-    static func openNewCodexTab() async -> Bool {
+    static func openNewCodexTab(prompt: String? = nil) async -> Bool {
         guard let executable = self.herdrExecutableURL() else { return false }
         // FluidVoice can inherit Herdr caller IDs when launched from a Herdr terminal.
         // Remove them so --current resolves the workspace currently visible in Herdr.
@@ -768,9 +775,38 @@ enum VoiceMacroService {
         else {
             return false
         }
-        return herdrApplication.activate(
+        guard herdrApplication.activate(
             options: [.activateAllWindows, .activateIgnoringOtherApps]
-        )
+        ) else {
+            return false
+        }
+
+        guard let prompt else { return true }
+        for _ in 0..<60 {
+            let paneListResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "list", "--workspace", pane.workspaceID]
+            )
+            if paneListResult.status == 0,
+               let paneResponse = try? JSONDecoder().decode(
+                   HerdrPaneListResponse.self,
+                   from: paneListResult.output
+               ),
+               let createdPane = paneResponse.result.panes.first(where: {
+                   $0.paneID == created.result.rootPane.paneID
+               }),
+               createdPane.agent?.lowercased() == "codex",
+               createdPane.agentStatus?.lowercased() == "idle"
+            {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard self.isTargetFrontmost(herdrApplication.processIdentifier) else {
+                    return false
+                }
+                return self.postText(prompt, to: herdrApplication.processIdentifier)
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return false
     }
 
     @MainActor
@@ -1215,6 +1251,34 @@ enum VoiceMacroService {
             $0.isWhitespace || $0.isPunctuation
         }
         return words.joined(separator: " ")
+    }
+
+    private static func newCodexTabInvocation(
+        transcript: String
+    ) -> NewCodexTabInvocation? {
+        let pattern = #"^(new codex tab|codex new tab|new tab)\b(.*)$"#
+        guard let expression = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+
+        let range = NSRange(transcript.startIndex..., in: transcript)
+        guard let match = expression.firstMatch(in: transcript, range: range),
+              match.range.location == 0,
+              let trailingRange = Range(match.range(at: 2), in: transcript)
+        else {
+            return nil
+        }
+
+        let separators = CharacterSet.whitespacesAndNewlines.union(
+            CharacterSet(charactersIn: ",.:;!?-")
+        )
+        let trailingText = transcript[trailingRange].trimmingCharacters(in: separators)
+        return NewCodexTabInvocation(
+            trailingText: trailingText.isEmpty ? nil : trailingText
+        )
     }
 
     private static func canonicalProjectName(for spokenName: String) -> String? {
