@@ -802,7 +802,17 @@ enum VoiceMacroService {
                 guard self.isTargetFrontmost(herdrApplication.processIdentifier) else {
                     return false
                 }
-                return self.postText(prompt, to: herdrApplication.processIdentifier)
+                guard self.postText(prompt, to: herdrApplication.processIdentifier) else {
+                    return false
+                }
+                try? await Task.sleep(for: .milliseconds(50))
+                guard self.isTargetFrontmost(herdrApplication.processIdentifier) else {
+                    return false
+                }
+                return self.postKey(
+                    CGKeyCode(kVK_Return),
+                    to: herdrApplication.processIdentifier
+                )
             }
             try? await Task.sleep(for: .milliseconds(250))
         }
@@ -1272,10 +1282,9 @@ enum VoiceMacroService {
             return nil
         }
 
-        let separators = CharacterSet.whitespacesAndNewlines.union(
-            CharacterSet(charactersIn: ",.:;!?-")
-        )
-        let trailingText = transcript[trailingRange].trimmingCharacters(in: separators)
+        let trailingText = String(transcript[trailingRange].drop(while: {
+            $0.isWhitespace || $0.isPunctuation
+        }))
         return NewCodexTabInvocation(
             trailingText: trailingText.isEmpty ? nil : trailingText
         )
