@@ -1819,7 +1819,8 @@ struct ContentView: View {
         _ inputText: String,
         overrideSystemPrompt: String? = nil,
         dictationSlot: SettingsStore.DictationShortcutSlot? = nil,
-        streamHandler: PrivateAIStreamHandler? = nil
+        streamHandler: PrivateAIStreamHandler? = nil,
+        promptCapture: ((String) -> Void)? = nil
     ) async throws -> String {
         let appInfo = self.recordingAppInfo ?? self.getCurrentAppInfo()
         let route = DictationProviderRoute.resolve(
@@ -1905,6 +1906,17 @@ struct ContentView: View {
         } else {
             systemPrompt = promptText
             userMessageContent = inputText
+        }
+        promptCapture?(systemPrompt)
+
+        if route.usesCodexCLI {
+            let response = try await CodexCLIService.shared.enhance(
+                systemPrompt: systemPrompt,
+                transcript: inputText,
+                model: derivedSelectedModel
+            )
+            streamHandler?(response)
+            return response
         }
 
         // Skip API key validation for local endpoints
@@ -2657,6 +2669,20 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isRestartFluidVoiceCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running restart FluidVoice voice command",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            self.restartApp()
+            return
+        }
+
+        if route == .normal,
            let url = VoiceMacroService.outboundDashURL(transcript: transcribedText)
         {
             DebugLogger.shared.info(
@@ -2836,6 +2862,8 @@ struct ContentView: View {
         var finalText: String
         var aiFallbackReason: String?
         var postProcessingModel: String?
+        var aiProcessingDurationMs: Int?
+        var aiEnhancementPrompt: String?
         // Route app-specific formatting and AI enhancement according to the app
         // that will receive the finished dictation. This can differ from the app
         // where recording began when focus changes while dictating.
@@ -2885,7 +2913,8 @@ struct ContentView: View {
                     normalizedTranscribedText,
                     overrideSystemPrompt: promptOverride,
                     dictationSlot: activeDictationSlot,
-                    streamHandler: streamHandler
+                    streamHandler: streamHandler,
+                    promptCapture: { aiEnhancementPrompt = $0 }
                 )
                 await streamPreview.flush()
             } catch {
@@ -2910,6 +2939,9 @@ struct ContentView: View {
                 finalText = normalizedTranscribedText
             }
             let postProcessingLatencyMs = Int((Date().timeIntervalSince(postProcessingStart) * 1000).rounded())
+            if aiFallbackReason == nil {
+                aiProcessingDurationMs = postProcessingLatencyMs
+            }
             let postProcessingProviderName = postProcessingModelInfo.provider ?? "unknown"
             let postProcessingModelName = postProcessingModelInfo.model ?? "unknown"
             DebugLogger.shared.info(
@@ -3019,6 +3051,8 @@ struct ContentView: View {
                 windowTitle: appInfo.windowTitle,
                 wasAIProcessed: postProcessingModel != nil && aiFallbackReason == nil,
                 processingModel: postProcessingModel,
+                aiProcessingDurationMs: aiProcessingDurationMs,
+                aiEnhancementPrompt: aiFallbackReason == nil ? aiEnhancementPrompt : nil,
                 aiProcessingError: aiFallbackReason
             )
             self.persistDictationAudioIfNeeded(
@@ -3464,6 +3498,8 @@ struct ContentView: View {
 
         var aiFallbackReason: String?
         var postProcessingModel: String?
+        var aiProcessingDurationMs: Int?
+        var aiEnhancementPrompt: String?
         let appInfo = self.getCurrentAppInfo()
         let normalizedTranscribedText = ASRService.applySpokenPunctuationFormatting(
             transcribedText,
@@ -3478,10 +3514,15 @@ struct ContentView: View {
                 dictationSlot: .primary,
                 appBundleID: appInfo.bundleId
             ).model
+            let postProcessingStart = Date()
             do {
                 finalText = try await self.processTextWithAI(
                     normalizedTranscribedText,
-                    dictationSlot: .primary
+                    dictationSlot: .primary,
+                    promptCapture: { aiEnhancementPrompt = $0 }
+                )
+                aiProcessingDurationMs = Int(
+                    (Date().timeIntervalSince(postProcessingStart) * 1000).rounded()
                 )
             } catch {
                 DebugLogger.shared.error(
@@ -3529,6 +3570,8 @@ struct ContentView: View {
                 windowTitle: appInfo.windowTitle,
                 wasAIProcessed: postProcessingModel != nil && aiFallbackReason == nil,
                 processingModel: postProcessingModel,
+                aiProcessingDurationMs: aiProcessingDurationMs,
+                aiEnhancementPrompt: aiFallbackReason == nil ? aiEnhancementPrompt : nil,
                 aiProcessingError: aiFallbackReason
             )
         }

@@ -17,7 +17,7 @@ final class ModelRepository {
     /// All built-in provider IDs (not including custom/saved providers)
     static var builtInProviderIDs: [String] {
         var providers = [
-            "openai", "anthropic", "xai", "groq", "cerebras", "google", "openrouter", "ollama", "lmstudio",
+            CodexCLIService.providerID, "openai", "anthropic", "xai", "groq", "cerebras", "google", "openrouter", "ollama", "lmstudio",
         ]
         if PrivateFeatures.privateAIProvider {
             providers.insert(PrivateAIProviderFeature.shared.providerID, at: 0)
@@ -33,6 +33,8 @@ final class ModelRepository {
         }
 
         switch providerID {
+        case CodexCLIService.providerID:
+            return [CodexCLIService.defaultModel]
         case "openai":
             return ["gpt-4.1"]
         case "anthropic":
@@ -59,6 +61,8 @@ final class ModelRepository {
     /// Returns the default base URL for a given provider ID.
     func defaultBaseURL(for providerID: String) -> String {
         switch providerID {
+        case CodexCLIService.providerID:
+            return "http://localhost/codex-cli"
         case "openai":
             return "https://api.openai.com/v1"
         case "anthropic":
@@ -89,6 +93,7 @@ final class ModelRepository {
         }
 
         switch providerID {
+        case CodexCLIService.providerID: return "Codex CLI"
         case "openai": return "OpenAI"
         case "anthropic": return "Anthropic"
         case "xai": return "xAI"
@@ -111,6 +116,8 @@ final class ModelRepository {
     /// Returns nil for providers that don't have a relevant URL.
     func providerWebsiteURL(for providerID: String) -> (url: String, label: String)? {
         switch providerID {
+        case CodexCLIService.providerID:
+            return ("https://learn.chatgpt.com/docs/non-interactive-mode", "Setup Guide")
         case "openai":
             return ("https://platform.openai.com/api-keys", "Get API Key")
         case "anthropic":
@@ -152,6 +159,7 @@ final class ModelRepository {
     /// Returns the list of built-in providers for UI pickers
     func builtInProvidersList() -> [(id: String, name: String)] {
         var list: [(id: String, name: String)] = [
+            (CodexCLIService.providerID, "Codex CLI"),
             ("openai", "OpenAI"),
             ("anthropic", "Anthropic"),
             ("xai", "xAI"),

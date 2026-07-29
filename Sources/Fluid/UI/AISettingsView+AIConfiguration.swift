@@ -1317,6 +1317,10 @@ extension AIEnhancementSettingsView {
     }
 
     private func providerDetailsSection(for item: ProviderItem) -> AnyView {
+        if item.id == CodexCLIService.providerID {
+            return self.codexCLIProviderDetailsSection(for: item)
+        }
+
         let providerKey = self.viewModel.providerKey(for: item.id)
         let isCustom = !ModelRepository.shared.isBuiltIn(item.id)
         let baseURL = self.viewModel.openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1516,6 +1520,67 @@ extension AIEnhancementSettingsView {
                     .fluidCompactButton(foreground: .red, borderColor: .red.opacity(0.6))
                 }
             }
+        })
+    }
+
+    private func codexCLIProviderDetailsSection(for item: ProviderItem) -> AnyView {
+        let models = ModelRepository.shared.defaultModels(for: item.id)
+        let isTesting = self.viewModel.isTestingConnection &&
+            self.viewModel.selectedProviderID == item.id
+
+        return AnyView(VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(self.theme.palette.accent)
+                Text("Uses your local Codex CLI login and Codex subscription limits. FluidVoice sends only the enhancement prompt and transcript.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                Text("Model")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .leading)
+
+                SearchableModelPicker(
+                    models: models,
+                    selectedModel: self.modelBinding(for: item.id),
+                    selectionEnabled: true,
+                    controlWidth: 180,
+                    controlHeight: AISettingsLayout.providerRowControlHeight
+                )
+            }
+
+            if self.viewModel.connectionStatus(for: item.id) == .failed,
+               !self.viewModel.connectionErrorMessage(for: item.id).isEmpty
+            {
+                self.providerErrorPreview(
+                    self.viewModel.connectionErrorMessage(for: item.id),
+                    lineLimit: 8
+                )
+            }
+
+            Button(action: {
+                Task { await self.viewModel.testAPIConnection() }
+            }) {
+                HStack(spacing: 6) {
+                    if isTesting {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .fixedSize()
+                    } else {
+                        Image(systemName: "checkmark.shield")
+                            .font(.system(size: 12))
+                    }
+                    Text(isTesting ? "Verifying..." : "Verify Codex Login")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+            }
+            .fluidButton(.accent, size: .small)
+            .disabled(isTesting)
         })
     }
 

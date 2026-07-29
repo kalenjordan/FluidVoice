@@ -739,6 +739,33 @@ final class AIEnhancementSettingsViewModel: ObservableObject {
 
         let providerID = self.selectedProviderID
         let providerName = ModelRepository.shared.displayName(for: providerID)
+        if providerID == CodexCLIService.providerID {
+            let model = self.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !model.isEmpty else {
+                self.updateConnectionStatus(.failed, for: providerID)
+                self.setConnectionError("Select a model before verifying.", for: providerID)
+                return
+            }
+
+            self.isTestingConnection = true
+            self.updateConnectionStatus(.testing, for: providerID)
+            defer { self.isTestingConnection = false }
+
+            do {
+                try await CodexCLIService.shared.verify(model: model)
+                self.storeVerificationFingerprint(
+                    for: providerID,
+                    baseURL: ModelRepository.shared.defaultBaseURL(for: providerID),
+                    apiKey: ""
+                )
+                self.setEditingAPIKey(false, for: providerID)
+            } catch {
+                self.updateConnectionStatus(.failed, for: providerID)
+                self.setConnectionError(error.localizedDescription, for: providerID)
+            }
+            return
+        }
+
         let baseURL = self.providerBaseURL(for: providerID)
         if self.hasProviderAPIKeyDraft(for: providerID), !self.saveProviderAPIKeys(invalidating: providerID) {
             self.updateConnectionStatus(.failed, for: providerID)

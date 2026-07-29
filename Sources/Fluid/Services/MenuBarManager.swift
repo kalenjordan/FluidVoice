@@ -25,6 +25,10 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     private var copyLastTranscriptMenuItem: NSMenuItem?
     private var recentTranscriptsMenuItem: NSMenuItem?
     private var recentTranscriptsSubmenu: NSMenu?
+    private var recentAIEnhancementsMenuItem: NSMenuItem?
+    private var recentAIEnhancementsSubmenu: NSMenu?
+    private var allAIEnhancementsMenuItem: NSMenuItem?
+    private var allAIEnhancementsSubmenu: NSMenu?
     private var rollbackMenuItem: NSMenuItem?
     private var microphoneMenuItem: NSMenuItem?
     private var microphoneSubmenu: NSMenu?
@@ -497,6 +501,29 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         self.recentTranscriptsSubmenu = recentTranscriptsSubmenu
         self.refreshRecentTranscriptsMenu()
 
+        let recentAIEnhancementsSubmenu = NSMenu(title: "Recent AI Enhancements")
+        let recentAIEnhancementsMenuItem = NSMenuItem(
+            title: "Recent AI Enhancements",
+            action: nil,
+            keyEquivalent: ""
+        )
+        recentAIEnhancementsMenuItem.submenu = recentAIEnhancementsSubmenu
+        menu.addItem(recentAIEnhancementsMenuItem)
+        self.recentAIEnhancementsMenuItem = recentAIEnhancementsMenuItem
+        self.recentAIEnhancementsSubmenu = recentAIEnhancementsSubmenu
+
+        let allAIEnhancementsSubmenu = NSMenu(title: "All AI Enhancements")
+        let allAIEnhancementsMenuItem = NSMenuItem(
+            title: "All AI Enhancements",
+            action: nil,
+            keyEquivalent: ""
+        )
+        allAIEnhancementsMenuItem.submenu = allAIEnhancementsSubmenu
+        menu.addItem(allAIEnhancementsMenuItem)
+        self.allAIEnhancementsMenuItem = allAIEnhancementsMenuItem
+        self.allAIEnhancementsSubmenu = allAIEnhancementsSubmenu
+        self.refreshAIEnhancementsMenus()
+
         menu.addItem(.separator())
 
         // Open Main Window
@@ -571,6 +598,8 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         self.statusMenuItem?.title = statusTitle
         self.copyLastTranscriptMenuItem?.isEnabled = self.canCopyLastTranscript
         self.recentTranscriptsMenuItem?.isEnabled = !self.isProcessingActive
+        self.recentAIEnhancementsMenuItem?.isEnabled = !self.isProcessingActive
+        self.allAIEnhancementsMenuItem?.isEnabled = !self.isProcessingActive
         self.microphoneMenuItem?.isEnabled = true
         self.pendingBuildMenuItem?.isHidden = !self.hasPendingBuild
         self.pendingBuildMenuItem?.isEnabled = !self.isRecording
@@ -637,6 +666,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         if menu === self.menu {
             self.updateMenuItemsText()
             self.refreshRecentTranscriptsMenu()
+            self.refreshAIEnhancementsMenus()
             self.refreshMicrophoneMenu()
         }
     }
@@ -681,6 +711,79 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
             .joined(separator: " ")
         guard singleLine.count > 80 else { return singleLine }
         return String(singleLine.prefix(77)) + "..."
+    }
+
+    private func refreshAIEnhancementsMenus() {
+        let entries = TranscriptionHistoryStore.shared.entries.filter(\.wasAIProcessed)
+        self.populateAIEnhancementsMenu(
+            self.recentAIEnhancementsSubmenu,
+            entries: Array(entries.prefix(20)),
+            emptyTitle: "No Recent AI Enhancements"
+        )
+        self.populateAIEnhancementsMenu(
+            self.allAIEnhancementsSubmenu,
+            entries: entries,
+            emptyTitle: "No AI Enhancements"
+        )
+    }
+
+    private func populateAIEnhancementsMenu(
+        _ submenu: NSMenu?,
+        entries: [TranscriptionHistoryEntry],
+        emptyTitle: String
+    ) {
+        guard let submenu else { return }
+        submenu.removeAllItems()
+
+        guard !entries.isEmpty else {
+            let emptyItem = NSMenuItem(title: emptyTitle, action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            submenu.addItem(emptyItem)
+            return
+        }
+
+        for entry in entries {
+            let item = NSMenuItem(
+                title: Self.recentTranscriptMenuTitle(for: entry.processedText),
+                action: #selector(copyAIEnhancement(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = Self.aiEnhancementClipboardText(for: entry)
+            submenu.addItem(item)
+        }
+    }
+
+    static func aiEnhancementClipboardText(for entry: TranscriptionHistoryEntry) -> String {
+        let prompt = entry.aiEnhancementPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = entry.processingModel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let duration = entry.aiProcessingDurationMs.map(Self.formatAIDuration) ?? "Not recorded"
+        return """
+        Recorded At:
+        \(entry.fullDateString)
+
+        Model:
+        \(model?.isEmpty == false ? model! : "Not recorded")
+
+        AI Processing Time:
+        \(duration)
+
+        Original Text:
+        \(entry.rawText)
+
+        Prompt:
+        \(prompt?.isEmpty == false ? prompt! : "Not recorded for this history entry.")
+
+        Enhanced Text:
+        \(entry.processedText)
+        """
+    }
+
+    private static func formatAIDuration(_ milliseconds: Int) -> String {
+        if milliseconds < 1_000 {
+            return "\(milliseconds) ms"
+        }
+        return String(format: "%.2f seconds", Double(milliseconds) / 1_000)
     }
 
     private func refreshMicrophoneMenu() {
@@ -770,6 +873,15 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         _ = ClipboardService.copyToClipboard(text)
         DebugLogger.shared.info(
             "Menu action: Copied recent transcription to clipboard",
+            source: "MenuBarManager"
+        )
+    }
+
+    @objc private func copyAIEnhancement(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String, !text.isEmpty else { return }
+        _ = ClipboardService.copyToClipboard(text)
+        DebugLogger.shared.info(
+            "Menu action: Copied AI enhancement details to clipboard",
             source: "MenuBarManager"
         )
     }

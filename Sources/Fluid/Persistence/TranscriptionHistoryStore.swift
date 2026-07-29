@@ -20,6 +20,12 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
     let characterCount: Int
     let wasAIProcessed: Bool
     let processingModel: String?
+    /// Wall-clock time spent performing the successful AI enhancement.
+    let aiProcessingDurationMs: Int?
+    /// Exact system prompt used for successful AI dictation enhancement.
+    /// Older history entries decode this as nil because prompts were not
+    /// persisted before this field was introduced.
+    let aiEnhancementPrompt: String?
     /// Non-nil when AI post-processing was configured but failed and we fell
     /// back to typing the raw transcription. The string carries the error
     /// message for display / debugging.
@@ -35,6 +41,8 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
         windowTitle: String,
         wasAIProcessed: Bool,
         processingModel: String? = nil,
+        aiProcessingDurationMs: Int? = nil,
+        aiEnhancementPrompt: String? = nil,
         aiProcessingError: String? = nil,
         audio: DictationAudioMetadata? = nil
     ) {
@@ -47,6 +55,8 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
         self.characterCount = processedText.count
         self.wasAIProcessed = wasAIProcessed
         self.processingModel = processingModel
+        self.aiProcessingDurationMs = aiProcessingDurationMs
+        self.aiEnhancementPrompt = aiEnhancementPrompt
         self.aiProcessingError = aiProcessingError
         self.audio = audio
     }
@@ -61,6 +71,8 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
         characterCount: Int,
         wasAIProcessed: Bool,
         processingModel: String?,
+        aiProcessingDurationMs: Int?,
+        aiEnhancementPrompt: String?,
         aiProcessingError: String?,
         audio: DictationAudioMetadata?
     ) {
@@ -73,6 +85,8 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
         self.characterCount = characterCount
         self.wasAIProcessed = wasAIProcessed
         self.processingModel = processingModel
+        self.aiProcessingDurationMs = aiProcessingDurationMs
+        self.aiEnhancementPrompt = aiEnhancementPrompt
         self.aiProcessingError = aiProcessingError
         self.audio = audio
     }
@@ -88,13 +102,16 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
         self.characterCount = try container.decode(Int.self, forKey: .characterCount)
         self.wasAIProcessed = try container.decode(Bool.self, forKey: .wasAIProcessed)
         self.processingModel = try container.decodeIfPresent(String.self, forKey: .processingModel)
+        self.aiProcessingDurationMs = try container.decodeIfPresent(Int.self, forKey: .aiProcessingDurationMs)
+        self.aiEnhancementPrompt = try container.decodeIfPresent(String.self, forKey: .aiEnhancementPrompt)
         self.aiProcessingError = try container.decodeIfPresent(String.self, forKey: .aiProcessingError)
         self.audio = try container.decodeIfPresent(DictationAudioMetadata.self, forKey: .audio)
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, timestamp, rawText, processedText, appName, windowTitle
-        case characterCount, wasAIProcessed, processingModel, aiProcessingError, audio
+        case characterCount, wasAIProcessed, processingModel, aiProcessingDurationMs
+        case aiEnhancementPrompt, aiProcessingError, audio
     }
 
     /// Preview text for list display (first 80 chars)
@@ -143,6 +160,8 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
             characterCount: self.characterCount,
             wasAIProcessed: self.wasAIProcessed,
             processingModel: self.processingModel,
+            aiProcessingDurationMs: self.aiProcessingDurationMs,
+            aiEnhancementPrompt: self.aiEnhancementPrompt,
             aiProcessingError: self.aiProcessingError,
             audio: audio
         )
@@ -190,6 +209,8 @@ final class TranscriptionHistoryStore: ObservableObject {
         windowTitle: String,
         wasAIProcessed: Bool? = nil,
         processingModel: String? = nil,
+        aiProcessingDurationMs: Int? = nil,
+        aiEnhancementPrompt: String? = nil,
         aiProcessingError: String? = nil,
         audio: DictationAudioMetadata? = nil
     ) {
@@ -205,6 +226,8 @@ final class TranscriptionHistoryStore: ObservableObject {
             windowTitle: windowTitle,
             wasAIProcessed: wasAIProcessed ?? (processingModel != nil && aiProcessingError == nil),
             processingModel: processingModel,
+            aiProcessingDurationMs: aiProcessingDurationMs,
+            aiEnhancementPrompt: aiEnhancementPrompt,
             aiProcessingError: aiProcessingError,
             audio: audio
         )

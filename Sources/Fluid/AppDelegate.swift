@@ -79,7 +79,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             source: "AppDelegate"
         )
         UNUserNotificationCenter.current().delegate = self
-        NotificationService.dismissAppRestarting()
+        // Let the banner posted by the previous process remain visible long
+        // enough for Notification Center to present it after the relaunch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            NotificationService.dismissAppRestarting()
+        }
         self.observeMainWindowLifecycle()
 
         // Initialize app settings (dock visibility, etc.)

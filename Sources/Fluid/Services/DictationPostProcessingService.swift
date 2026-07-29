@@ -13,6 +13,11 @@ struct DictationProviderRoute: Equatable {
             self.providerKey == "custom:\(PrivateAIProviderFeature.shared.providerID)"
     }
 
+    var usesCodexCLI: Bool {
+        self.providerID == CodexCLIService.providerID ||
+            self.providerKey == CodexCLIService.providerID
+    }
+
     static func resolve(
         settings: SettingsStore,
         dictationSlot: SettingsStore.DictationShortcutSlot? = nil,
@@ -208,6 +213,19 @@ final class DictationPostProcessingService {
 
         guard !resolved.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AIProcessingError.missingModel(provider: resolved.providerKey)
+        }
+
+        if resolved.usesCodexCLI {
+            let response = try await CodexCLIService.shared.enhance(
+                systemPrompt: systemPrompt,
+                transcript: trimmed,
+                model: resolved.model
+            )
+            return Result(
+                text: ASRService.applyGAAVFormatting(response),
+                providerID: resolved.providerID,
+                model: resolved.model
+            )
         }
 
         let isLocal = ModelRepository.shared.isLocalEndpoint(resolved.baseURL)
