@@ -79,6 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             source: "AppDelegate"
         )
         UNUserNotificationCenter.current().delegate = self
+        NotificationService.dismissAppRestarting()
         self.observeMainWindowLifecycle()
 
         // Initialize app settings (dock visibility, etc.)

@@ -10,6 +10,52 @@ enum NotificationService {
         static let aiProcessingFallback = "aiProcessingFallback"
         static let audioCaptureFallback = "audioCaptureFallback"
         static let commandModeFailure = "commandModeFailure"
+        static let appRestart = "appRestart"
+    }
+
+    private static let appRestartNotificationIdentifier = "app-restart-in-progress"
+
+    static func showAppRestarting(completion: @escaping @Sendable () -> Void) {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized ||
+                settings.authorizationStatus == .provisional
+            else {
+                completion()
+                return
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = "Restarting FluidVoice…"
+            content.body = "The new build is starting now."
+            content.sound = nil
+            content.userInfo = [UserInfoKey.kind: Kind.appRestart]
+
+            let request = UNNotificationRequest(
+                identifier: self.appRestartNotificationIdentifier,
+                content: content,
+                trigger: nil
+            )
+            center.add(request) { error in
+                if let error {
+                    DebugLogger.shared.warning(
+                        "Failed to show restart notification: \(error.localizedDescription)",
+                        source: "NotificationService"
+                    )
+                }
+                completion()
+            }
+        }
+    }
+
+    static func dismissAppRestarting() {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(
+            withIdentifiers: [self.appRestartNotificationIdentifier]
+        )
+        center.removeDeliveredNotifications(
+            withIdentifiers: [self.appRestartNotificationIdentifier]
+        )
     }
 
     static func showAudioCaptureFallback(

@@ -832,21 +832,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         guard self.hasPendingBuild, !self.isRecording else {
             return
         }
-        guard let appURL = Bundle.main.bundleURL as URL? else { return }
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
-            if let error {
-                DebugLogger.shared.error(
-                    "Could not restart for pending build: \(error.localizedDescription)",
-                    source: "MenuBarManager"
-                )
-                return
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                NSApp.terminate(nil)
-            }
-        }
+        _ = AppRelauncher.restartCurrentApp()
     }
 
     @objc private func rollbackToPreviousVersion(_ sender: Any?) {

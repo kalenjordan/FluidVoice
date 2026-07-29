@@ -4847,17 +4847,10 @@ extension ContentView {
     }
 
     func restartApp() {
-        let appPath = Bundle.main.bundlePath
-        let process = Process()
-        process.launchPath = "/usr/bin/open"
-        process.arguments = ["-n", appPath]
         // Clear pending flag and hide prompt before restarting
         UserDefaults.standard.set(false, forKey: self.accessibilityRestartFlagKey)
         self.showRestartPrompt = false
-        try? process.run()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            NSApp.terminate(nil)
-        }
+        _ = AppRelauncher.restartCurrentApp()
     }
 
     func startAccessibilityPolling() {
