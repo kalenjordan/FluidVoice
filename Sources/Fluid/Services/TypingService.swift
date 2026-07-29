@@ -498,7 +498,13 @@ final class TypingService {
         keyDown.flags = []
         keyUp.flags = []
 
-        if let preferredTargetPID, preferredTargetPID > 0 {
+        if let preferredTargetPID,
+           preferredTargetPID > 0,
+           !Self.shouldPostReturnViaHID(
+               preferredTargetPID: preferredTargetPID,
+               frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+           )
+        {
             keyDown.postToPid(preferredTargetPID)
             keyUp.postToPid(preferredTargetPID)
             self.log("[TypingService] Return posted to PID \(preferredTargetPID)")
@@ -508,6 +514,16 @@ final class TypingService {
             self.log("[TypingService] Return posted via HID tap")
         }
         return true
+    }
+
+    static func shouldPostReturnViaHID(
+        preferredTargetPID: pid_t?,
+        frontmostPID: pid_t?
+    ) -> Bool {
+        guard let preferredTargetPID, preferredTargetPID > 0 else {
+            return true
+        }
+        return preferredTargetPID == frontmostPID
     }
 
     private func tryReliablePasteInsertion(_ text: String, preferredTargetPID: pid_t?) -> Bool {

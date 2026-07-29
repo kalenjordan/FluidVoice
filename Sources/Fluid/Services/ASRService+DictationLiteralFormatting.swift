@@ -260,6 +260,22 @@ private enum DictationLiteralFormatter {
                 ]
             )
         }
+        if let followUpMessage = self.clearFollowUpMessage(
+            in: formattedText,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) {
+            return DictationLiteralOutputPlan(
+                steps: [
+                    .text("/clear"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text(followUpMessage),
+                    .pressReturn,
+                ]
+            )
+        }
         if let followUpMessage = self.compactFollowUpMessage(
             in: formattedText,
             appName: appName,
@@ -347,6 +363,33 @@ private enum DictationLiteralFormatter {
             .substring(with: match.range(at: 1))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return message.isEmpty ? nil : message
+    }
+
+    private static func clearFollowUpMessage(
+        in text: String,
+        appName: String?,
+        bundleID: String?,
+        windowTitle: String?
+    ) -> String? {
+        let isCodexLikeApp = self.isSlashCommandAutocompleteApp(
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        )
+        let isHerdrTerminal = bundleID?.lowercased() == "com.mitchellh.ghostty"
+        guard isCodexLikeApp || isHerdrTerminal else {
+            return nil
+        }
+
+        let prefix = "/clear and "
+        guard text.count > prefix.count,
+              text.prefix(prefix.count).lowercased() == prefix
+        else {
+            return nil
+        }
+        let continuation = text.dropFirst(prefix.count)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return continuation.isEmpty ? nil : continuation
     }
 
     private static func compactFollowUpMessage(

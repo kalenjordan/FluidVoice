@@ -2464,6 +2464,27 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isAddSynonymCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running add synonym voice command", source: "ContentView")
+            let succeeded = await VoiceMacroService.openAddSynonymCodexTab()
+            DebugLogger.shared.info(
+                "Add synonym voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast(
+                    "Could not open FluidVoice in a new Codex tab."
+                )
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isEDMFocusPlaylistCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info(

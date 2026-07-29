@@ -1,6 +1,7 @@
 import Foundation
 
 enum PrivateAIMLXUpgradeCoordinator {
+    private static let automaticOfferEnabled = false
     private static let offerVersion = "1.6.3"
     private static let offerHandledKey = "FluidIntelligenceMLXUpgrade163OfferHandled"
     private static let offerPreparedKey = "FluidIntelligenceMLXUpgrade163OfferPrepared"
@@ -19,6 +20,11 @@ enum PrivateAIMLXUpgradeCoordinator {
     ) -> Bool {
         if defaults.bool(forKey: self.upgradePendingKey) {
             self.restorePreviousLlama(settings: settings, defaults: defaults)
+            return false
+        }
+
+        guard self.automaticOfferEnabled else {
+            defaults.set(false, forKey: self.offerPreparedKey)
             return false
         }
 

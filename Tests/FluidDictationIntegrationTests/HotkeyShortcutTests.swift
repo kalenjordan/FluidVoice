@@ -172,6 +172,21 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isCodexStatusCommand(transcript: "Codex stats"))
     }
 
+    func testAddSynonymCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isAddSynonymCommand(
+            transcript: "Add synonym."
+        ))
+        XCTAssertTrue(VoiceMacroService.isAddSynonymCommand(
+            transcript: "ADD SYNONYM!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isAddSynonymCommand(
+            transcript: "Add a synonym"
+        ))
+        XCTAssertFalse(VoiceMacroService.isAddSynonymCommand(
+            transcript: "Add synonyms"
+        ))
+    }
+
     func testRefreshCommandIsScopedToChrome() {
         XCTAssertTrue(VoiceMacroService.isChromeRefreshCommand(
             transcript: "Refresh.",
@@ -484,6 +499,38 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash.localhost:8764")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "SignalFlame Site."),
+            URL(string: "http://signalflame.localhost:8780")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Signal Flame Site."),
+            URL(string: "http://signalflame.localhost:8780")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "HVAC Site."),
+            URL(string: "http://hvac.localhost:8782")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Commerce Leak Site."),
+            URL(string: "http://commerceleak.localhost:8781")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Ordellan Site."),
+            URL(string: "http://ordellan.localhost:8783")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Commerce Land Site."),
+            URL(string: "http://commerce-land.localhost:8784")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Matchbook Site."),
+            URL(string: "http://matchbook.localhost:8786")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Site."),
+            URL(string: "http://outbound.farm.localhost:8787")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Signalflame Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
         )
@@ -553,6 +600,10 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "LinkedIn Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         )
         XCTAssertEqual(

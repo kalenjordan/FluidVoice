@@ -324,6 +324,20 @@ enum VoiceMacroService {
         switch phrase {
         case "outbound dash", "outbound ash":
             return URL(string: "http://outbound-dash.localhost:8764")
+        case "signalflame site", "signal flame site":
+            return URL(string: "http://signalflame.localhost:8780")
+        case "hvac site":
+            return URL(string: "http://hvac.localhost:8782")
+        case "commerce leak site":
+            return URL(string: "http://commerceleak.localhost:8781")
+        case "ordellan site":
+            return URL(string: "http://ordellan.localhost:8783")
+        case "commerce land site", "commerceland site":
+            return URL(string: "http://commerce-land.localhost:8784")
+        case "matchbook site":
+            return URL(string: "http://matchbook.localhost:8786")
+        case "outbound farm site":
+            return URL(string: "http://outbound.farm.localhost:8787")
         case "signalflame dash", "signal flame dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
         case "matchbook dash", "matt s book dash":
@@ -333,7 +347,7 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         case "commerce leak dash", "commerce leaked ash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
-        case "linkedin crm dash":
+        case "linkedin dash", "linkedin crm dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         case "st3 dash", "s t three dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
@@ -429,6 +443,10 @@ enum VoiceMacroService {
     static func isCodexStatusCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "codex status"
             || self.normalizedPhrase(transcript) == "codec status"
+    }
+
+    static func isAddSynonymCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "add synonym"
     }
 
     static func isRestartFluidVoiceCommand(transcript: String) -> Bool {
@@ -849,6 +867,96 @@ enum VoiceMacroService {
                     CGKeyCode(kVK_Return),
                     to: herdrApplication.processIdentifier
                 )
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return false
+    }
+
+    @MainActor
+    static func openAddSynonymCodexTab() async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let listResult = await self.runProcess(executable, arguments: ["workspace", "list"])
+        guard listResult.status == 0,
+              let response = try? JSONDecoder().decode(
+                  HerdrWorkspaceListResponse.self,
+                  from: listResult.output
+              ),
+              let workspace = response.result.workspaces.first(where: {
+                  self.normalizedPhrase($0.label) == "fluidvoice"
+              })
+        else {
+            return false
+        }
+
+        let focusResult = await self.runProcess(
+            executable,
+            arguments: ["workspace", "focus", workspace.workspaceID]
+        )
+        guard focusResult.status == 0 else { return false }
+
+        let createResult = await self.runProcess(
+            executable,
+            arguments: [
+                "tab", "create",
+                "--workspace", workspace.workspaceID,
+                "--cwd", "/Users/kalen/repos/FluidVoice",
+                "--focus",
+            ]
+        )
+        guard createResult.status == 0,
+              let created = try? JSONDecoder().decode(
+                  HerdrTabCreateResponse.self,
+                  from: createResult.output
+              )
+        else {
+            return false
+        }
+
+        let runResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", created.result.rootPane.paneID, "codex"]
+        )
+        guard runResult.status == 0,
+              let herdrApplication = NSRunningApplication.runningApplications(
+                  withBundleIdentifier: self.herdrBundleIDs[0]
+              ).first,
+              herdrApplication.activate(
+                  options: [.activateAllWindows, .activateIgnoringOtherApps]
+              )
+        else {
+            return false
+        }
+
+        let prompt = "Help me add a synonym to the FluidVoice dictionary. Ask me for the synonym."
+        for _ in 0..<60 {
+            let paneListResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "list", "--workspace", workspace.workspaceID]
+            )
+            if paneListResult.status == 0,
+               let paneResponse = try? JSONDecoder().decode(
+                   HerdrPaneListResponse.self,
+                   from: paneListResult.output
+               ),
+               let createdPane = paneResponse.result.panes.first(where: {
+                   $0.paneID == created.result.rootPane.paneID
+               }),
+               createdPane.agent?.lowercased() == "codex",
+               createdPane.agentStatus?.lowercased() == "idle"
+            {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard self.isTargetFrontmost(herdrApplication.processIdentifier),
+                      self.postText(prompt, to: herdrApplication.processIdentifier)
+                else {
+                    return false
+                }
+                try? await Task.sleep(for: .milliseconds(50))
+                return self.isTargetFrontmost(herdrApplication.processIdentifier)
+                    && self.postKey(
+                        CGKeyCode(kVK_Return),
+                        to: herdrApplication.processIdentifier
+                    )
             }
             try? await Task.sleep(for: .milliseconds(250))
         }

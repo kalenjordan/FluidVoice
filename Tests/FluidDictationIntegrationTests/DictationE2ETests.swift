@@ -810,6 +810,36 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
+    func testClearWithFollowUpSubmitsCommandThenMessageInCodexLikeApps() {
+        for bundleID in ["com.openai.codex", "com.mitchellh.ghostty"] {
+            XCTAssertEqual(
+                ASRService.makeDictationLiteralOutputPlan(
+                    for: "/clear and how does Kickbox compare to ZeroBounce?",
+                    appName: bundleID == "com.openai.codex" ? "Codex" : "Ghostty",
+                    bundleID: bundleID
+                ).steps,
+                [
+                    .text("/clear"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text("how does Kickbox compare to ZeroBounce?"),
+                    .pressReturn,
+                ]
+            )
+        }
+    }
+
+    func testClearWithFollowUpRemainsLiteralOutsideCodexLikeApps() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "/clear and keep this text",
+                appName: "Notes",
+                bundleID: "com.apple.Notes"
+            ).steps,
+            [.text("/clear and keep this text")]
+        )
+    }
+
     func testCompactContinuationOnlyRunsInSlashCommandApps() {
         XCTAssertEqual(
             ASRService.makeDictationLiteralOutputPlan(
@@ -865,6 +895,27 @@ final class DictationE2ETests: XCTestCase {
 
         XCTAssertEqual(recordingAppPlan.steps, [.text("git status")])
         XCTAssertEqual(deliveryAppPlan.steps, [.text("git status"), .pressReturn])
+    }
+
+    func testTerminalReturnUsesHIDWhenTargetIsFrontmost() {
+        XCTAssertTrue(
+            TypingService.shouldPostReturnViaHID(
+                preferredTargetPID: 123,
+                frontmostPID: 123
+            )
+        )
+        XCTAssertFalse(
+            TypingService.shouldPostReturnViaHID(
+                preferredTargetPID: 123,
+                frontmostPID: 456
+            )
+        )
+        XCTAssertTrue(
+            TypingService.shouldPostReturnViaHID(
+                preferredTargetPID: nil,
+                frontmostPID: 123
+            )
+        )
     }
 
     func testDictionaryTrainingNormalizesSamplesAndIgnoresIntendedText() {
