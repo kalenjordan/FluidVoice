@@ -303,6 +303,19 @@ enum VoiceMacroService {
         self.postKey(CGKeyCode(kVK_ANSI_W), flags: .maskCommand, to: targetPID)
     }
 
+    static func isCloseWindowCommand(transcript: String) -> Bool {
+        switch self.normalizedPhrase(transcript) {
+        case "close window", "closed window", "window close":
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func closeWindow(targetPID: pid_t) -> Bool {
+        self.postKey(CGKeyCode(kVK_ANSI_W), flags: .maskCommand, to: targetPID)
+    }
+
     @MainActor
     static func copyChromeURL(targetPID: pid_t) -> Bool {
         guard self.isTargetFrontmost(targetPID) else { return false }
@@ -1119,73 +1132,6 @@ enum VoiceMacroService {
         try? await Task.sleep(for: .milliseconds(50))
         return self.isTargetFrontmost(application.processIdentifier)
             && self.postKey(CGKeyCode(kVK_Return), to: application.processIdentifier)
-    }
-
-    @MainActor
-    static func submitClearFollowUpInCurrentHerdrPane(
-        _ message: String,
-        openNextPendingTab: Bool
-    ) async -> Bool {
-        guard let executable = self.herdrExecutableURL() else { return false }
-        let currentResult = await self.runProcess(
-            executable,
-            arguments: ["pane", "current", "--current"],
-            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
-        )
-        guard currentResult.status == 0,
-              let currentPane = try? JSONDecoder().decode(
-                  HerdrCurrentPaneResponse.self,
-                  from: currentResult.output
-              ).result.pane,
-              currentPane.agent?.lowercased() == "codex",
-              let previousSessionID = currentPane.agentSession?.value
-        else {
-            return false
-        }
-
-        let clearResult = await self.runProcess(
-            executable,
-            arguments: ["pane", "run", currentPane.paneID, "/clear"]
-        )
-        guard clearResult.status == 0 else { return false }
-
-        for _ in 0..<48 {
-            try? await Task.sleep(for: .milliseconds(250))
-            let paneResult = await self.runProcess(
-                executable,
-                arguments: ["pane", "get", currentPane.paneID]
-            )
-            guard paneResult.status == 0,
-                  let updatedPane = try? JSONDecoder().decode(
-                      HerdrCurrentPaneResponse.self,
-                      from: paneResult.output
-                  ).result.pane
-            else {
-                continue
-            }
-            guard updatedPane.agentSession?.value != previousSessionID,
-                  updatedPane.agentStatus?.lowercased() == "idle"
-            else {
-                continue
-            }
-
-            let followUpResult = await self.runProcess(
-                executable,
-                arguments: ["pane", "run", currentPane.paneID, message]
-            )
-            guard followUpResult.status == 0 else {
-                self.showStatusToast("New session is ready, but the follow-up was not submitted.")
-                return true
-            }
-            if openNextPendingTab {
-                if !(await self.openNextPendingHerdrTab()) {
-                    self.showStatusToast("Follow-up submitted, but the next pending tab did not open.")
-                }
-            }
-            return true
-        }
-        self.showStatusToast("New Codex session did not become ready. Follow-up was not submitted.")
-        return true
     }
 
     @MainActor

@@ -821,10 +821,11 @@ final class DictationE2ETests: XCTestCase {
                     bundleID: bundleID
                 ).steps,
                 [
-                    .clearSessionThenSubmit(
-                        "how does Kickbox compare to ZeroBounce?",
-                        openNextPendingHerdrTab: false
-                    ),
+                    .text("/clear"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text("how does Kickbox compare to ZeroBounce?"),
+                    .pressReturn,
                 ]
             )
         }
@@ -839,10 +840,13 @@ final class DictationE2ETests: XCTestCase {
                     bundleID: bundleID
                 ).steps,
                 [
-                    .clearSessionThenSubmit(
-                        "review modified files for commit",
-                        openNextPendingHerdrTab: true
-                    ),
+                    .text("/clear"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text("review modified files for commit"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .openNextPendingHerdrTab,
                 ]
             )
         }
@@ -904,6 +908,23 @@ final class DictationE2ETests: XCTestCase {
             submitTerminalCommand: true
         )
         XCTAssertEqual(editorPlan.steps, [.text("git status")])
+    }
+
+    func testChatGPTOutputPlanSubmitsOnlyWhenExplicitlyEnabled() {
+        let enabledPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "Explain this code",
+            appName: "ChatGPT",
+            bundleID: "com.openai.chat",
+            submitTerminalCommand: true
+        )
+        XCTAssertEqual(enabledPlan.steps, [.text("Explain this code"), .pressReturn])
+
+        let disabledPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "Explain this code",
+            appName: "ChatGPT",
+            bundleID: "com.openai.chat"
+        )
+        XCTAssertEqual(disabledPlan.steps, [.text("Explain this code")])
     }
 
     func testTerminalOutputPlanUsesDeliveryAppRatherThanRecordingApp() {

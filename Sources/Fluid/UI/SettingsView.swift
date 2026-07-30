@@ -964,8 +964,8 @@ struct SettingsView: View {
                                     Divider().opacity(0.2)
 
                                     self.optionToggleRow(
-                                        title: "Submit Terminal Dictation",
-                                        description: "Press Return after a finalized dictation in supported terminal apps. This can execute shell commands.",
+                                        title: "Submit Dictation Automatically",
+                                        description: "Press Return after a finalized dictation in ChatGPT and supported terminal apps. In terminals, this can execute shell commands.",
                                         isOn: Binding(
                                             get: { SettingsStore.shared.submitTerminalDictationEnabled },
                                             set: { SettingsStore.shared.submitTerminalDictationEnabled = $0 }

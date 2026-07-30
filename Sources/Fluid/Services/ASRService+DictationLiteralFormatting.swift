@@ -6,7 +6,6 @@ struct DictationLiteralOutputPlan: Equatable {
         case pressReturn
         case pause(milliseconds: UInt32)
         case openNextPendingHerdrTab
-        case clearSessionThenSubmit(String, openNextPendingHerdrTab: Bool)
     }
 
     let steps: [Step]
@@ -15,19 +14,8 @@ struct DictationLiteralOutputPlan: Equatable {
         self.steps.reduce(into: "") { result, step in
             if case let .text(text) = step {
                 result += text
-            } else if case let .clearSessionThenSubmit(message, _) = step {
-                result += "/clear and \(message)"
             }
         }
-    }
-
-    var clearSessionSubmission: (message: String, openNextPendingHerdrTab: Bool)? {
-        guard self.steps.count == 1,
-              case let .clearSessionThenSubmit(message, openNextPendingHerdrTab) = self.steps[0]
-        else {
-            return nil
-        }
-        return (message, openNextPendingHerdrTab)
     }
 
     var singleSubmittedText: String? {
@@ -275,10 +263,13 @@ private enum DictationLiteralFormatter {
         ) {
             return DictationLiteralOutputPlan(
                 steps: [
-                    .clearSessionThenSubmit(
-                        "review modified files for commit",
-                        openNextPendingHerdrTab: true
-                    ),
+                    .text("/clear"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text("review modified files for commit"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .openNextPendingHerdrTab,
                 ]
             )
         }
@@ -305,10 +296,11 @@ private enum DictationLiteralFormatter {
         ) {
             return DictationLiteralOutputPlan(
                 steps: [
-                    .clearSessionThenSubmit(
-                        followUpMessage,
-                        openNextPendingHerdrTab: false
-                    ),
+                    .text("/clear"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text(followUpMessage),
+                    .pressReturn,
                 ]
             )
         }
@@ -344,7 +336,10 @@ private enum DictationLiteralFormatter {
         var steps: [DictationLiteralOutputPlan.Step] = [.text(formattedText)]
         if submitTerminalCommand,
            !formattedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           self.isTerminalApp(appName: appName, bundleID: bundleID)
+           (
+               self.isTerminalApp(appName: appName, bundleID: bundleID) ||
+                   self.isChatGPTApp(appName: appName, bundleID: bundleID)
+           )
         {
             steps.append(.pressReturn)
         }
@@ -697,6 +692,11 @@ private enum DictationLiteralFormatter {
         ]
         let terminalAppNames: Set<String> = ["terminal", "iterm2", "warp", "ghostty", "kitty", "alacritty", "hyper", "wezterm"]
         return terminalBundleIDs.contains(bundleID) || terminalAppNames.contains(appName)
+    }
+
+    private static func isChatGPTApp(appName: String?, bundleID: String?) -> Bool {
+        bundleID?.lowercased() == "com.openai.chat" ||
+            appName?.lowercased() == "chatgpt"
     }
 
     private static func matchesWholeString(_ text: String, regex: NSRegularExpression?) -> Bool {

@@ -2474,6 +2474,26 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isCloseWindowCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running close window voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.closeWindow(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Close window voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not close the window.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isCodexStatusCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running Codex status voice command", source: "ContentView")
@@ -3164,14 +3184,7 @@ struct ContentView: View {
             }
             var submittedThroughHerdr = false
             if outputAppInfo.bundleId.lowercased() == "com.mitchellh.ghostty",
-               let clearSubmission = finalOutputPlan.clearSessionSubmission
-            {
-                submittedThroughHerdr = await VoiceMacroService.submitClearFollowUpInCurrentHerdrPane(
-                    clearSubmission.message,
-                    openNextPendingTab: clearSubmission.openNextPendingHerdrTab
-                )
-            } else if outputAppInfo.bundleId.lowercased() == "com.mitchellh.ghostty",
-                      let submittedText = finalOutputPlan.singleSubmittedText
+               let submittedText = finalOutputPlan.singleSubmittedText
             {
                 submittedThroughHerdr = await VoiceMacroService.submitInCurrentHerdrPane(submittedText)
             }

@@ -243,6 +243,24 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testCloseWindowCommandAcceptsBothWordOrders() {
+        XCTAssertTrue(VoiceMacroService.isCloseWindowCommand(
+            transcript: "Close window."
+        ))
+        XCTAssertTrue(VoiceMacroService.isCloseWindowCommand(
+            transcript: "Window close!"
+        ))
+        XCTAssertTrue(VoiceMacroService.isCloseWindowCommand(
+            transcript: "Closed window."
+        ))
+        XCTAssertFalse(VoiceMacroService.isCloseWindowCommand(
+            transcript: "Close"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCloseWindowCommand(
+            transcript: "Close the window"
+        ))
+    }
+
     func testBackCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isBackCommand(transcript: "Back."))
         XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
