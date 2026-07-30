@@ -24,44 +24,32 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testHerdrWorkspaceCommandExtractsWorkspaceName() {
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Herder comms."
+            transcript: "Edit comms."
         ), "comms.")
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "  HERDER   fluid voice! "
-        ), "fluid voice!")
-        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Herdr commerce land"
-        ), "commerce land")
-        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Herder, herder."
-        ), "herder.")
-        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Herter Commerce Land. Where were we?"
-        ), "Commerce Land. Where were we?")
-        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Heard her fluid voice."
-        ), "fluid voice.")
-        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Terminal comms."
-        ), "comms.")
-        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "TERMINAL, fluid voice!"
+            transcript: "  EDIT   fluid voice! "
         ), "fluid voice!")
         XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Her Fluid Voice",
             bundleID: "com.mitchellh.ghostty"
         ), "Fluid Voice")
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Herder comms."
+        ))
+        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Terminal comms."
+        ))
+        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Her name is Sarah",
             bundleID: "com.google.Chrome"
         ))
     }
 
-    func testHerdrWorkspaceOpenCommandIsScopedToHerdr() {
-        XCTAssertEqual(VoiceMacroService.herdrWorkspaceQuery(
+    func testHerdrWorkspaceOpenCommandIsNotSupported() {
+        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "open comms",
             bundleID: "com.mitchellh.ghostty"
-        ), "comms")
+        ))
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "open comms",
             bundleID: "com.google.Chrome"
@@ -87,6 +75,25 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertNil(
             VoiceMacroService.applicationLaunchQuery(transcript: "Open Key Mapper")
         )
+    }
+
+    func testApplicationLaunchCommandSupportsBareInstalledApplicationName() {
+        let applications = [
+            URL(fileURLWithPath: "/Applications/Key Mapper.app"),
+            URL(fileURLWithPath: "/Applications/Keynote.app"),
+        ]
+
+        XCTAssertEqual(
+            VoiceMacroService.applicationLaunchQuery(
+                transcript: "Key Mapper.",
+                candidates: applications
+            ),
+            "Key Mapper"
+        )
+        XCTAssertNil(VoiceMacroService.applicationLaunchQuery(
+            transcript: "Write a note.",
+            candidates: applications
+        ))
     }
 
     func testApplicationResolutionIgnoresSpacingAndSupportsUniqueTypos() {
@@ -363,6 +370,18 @@ final class HotkeyShortcutTests: XCTestCase {
             transcript: "Right"
         ))
         XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
+            transcript: "Start writing."
+        ))
+        XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
+            transcript: "Start writing draft a launch announcement."
+        ))
+        XCTAssertEqual(
+            VoiceMacroService.writingWorkspacePrompt(
+                transcript: "Start writing, draft a launch announcement."
+            ),
+            "draft a launch announcement."
+        )
+        XCTAssertNil(VoiceMacroService.writingWorkspacePrompt(
             transcript: "Start writing."
         ))
         XCTAssertFalse(VoiceMacroService.isWritingWorkspaceCommand(

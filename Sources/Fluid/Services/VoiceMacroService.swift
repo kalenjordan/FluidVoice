@@ -71,12 +71,24 @@ enum VoiceMacroService {
         }
 
         struct Pane: Decodable {
+            struct AgentSession: Decodable {
+                let value: String
+            }
+
+            let agent: String?
+            let agentSession: AgentSession?
+            let agentStatus: String?
             let cwd: String
+            let paneID: String
             let tabID: String
             let workspaceID: String
 
             enum CodingKeys: String, CodingKey {
+                case agent
+                case agentSession = "agent_session"
+                case agentStatus = "agent_status"
                 case cwd
+                case paneID = "pane_id"
                 case tabID = "tab_id"
                 case workspaceID = "workspace_id"
             }
@@ -147,11 +159,7 @@ enum VoiceMacroService {
 
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
     private static let herdrCommandAliases = [
-        "herder",
-        "herdr",
-        "herter",
-        "heard her",
-        "terminal",
+        "edit",
     ]
     private static let herdrCallerEnvironmentVariables: Set<String> = [
         "HERDR_PANE_ID",
@@ -229,14 +237,13 @@ enum VoiceMacroService {
         ) {
             return query
         }
-        return self.commandArgument(
-            transcript,
-            command: "open",
-            preserveTerminalPunctuation: true
-        )
+        return nil
     }
 
-    static func applicationLaunchQuery(transcript: String) -> String? {
+    static func applicationLaunchQuery(
+        transcript: String,
+        candidates: [URL]? = nil
+    ) -> String? {
         if let applicationName = self.commandArgument(transcript, command: "launch") {
             return applicationName
         }
@@ -252,14 +259,20 @@ enum VoiceMacroService {
         }
 
         let range = NSRange(trimmed.startIndex..., in: trimmed)
-        guard let match = expression.firstMatch(in: trimmed, range: range),
-              let nameRange = Range(match.range(at: 1), in: trimmed)
-        else {
-            return nil
+        if let match = expression.firstMatch(in: trimmed, range: range),
+           let nameRange = Range(match.range(at: 1), in: trimmed)
+        {
+            let applicationName = trimmed[nameRange].trimmingCharacters(in: .whitespacesAndNewlines)
+            return applicationName.isEmpty ? nil : applicationName
         }
 
-        let applicationName = trimmed[nameRange].trimmingCharacters(in: .whitespacesAndNewlines)
-        return applicationName.isEmpty ? nil : applicationName
+        guard self.resolveApplicationURL(
+            query: trimmed,
+            candidates: candidates ?? self.installedApplicationURLs
+        ) != nil else {
+            return nil
+        }
+        return trimmed
     }
 
     static func chromeFindQuery(transcript: String, bundleID: String) -> String? {
@@ -571,12 +584,40 @@ enum VoiceMacroService {
     }
 
     static func isWritingWorkspaceCommand(transcript: String) -> Bool {
+        if self.writingWorkspacePrompt(transcript: transcript) != nil
+            || self.normalizedPhrase(transcript) == "start writing"
+        {
+            return true
+        }
         switch self.normalizedPhrase(transcript) {
-        case "right", "start writing", "write":
+        case "right", "write":
             return true
         default:
             return false
         }
+    }
+
+    static func writingWorkspacePrompt(transcript: String) -> String? {
+        let pattern = #"^start writing\b(.*)$"#
+        guard let expression = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+
+        let range = NSRange(transcript.startIndex..., in: transcript)
+        guard let match = expression.firstMatch(in: transcript, range: range),
+              match.range.location == 0,
+              let trailingRange = Range(match.range(at: 1), in: transcript)
+        else {
+            return nil
+        }
+
+        let trailingText = String(transcript[trailingRange].drop(while: {
+            $0.isWhitespace || $0.isPunctuation
+        }))
+        return trailingText.isEmpty ? nil : trailingText
     }
 
     static func tabDirectionCommand(transcript: String, bundleID: String) -> TabDirection? {
@@ -937,7 +978,7 @@ enum VoiceMacroService {
             return false
         }
 
-        let prompt = "Help me add a synonym to the FluidVoice dictionary. Ask me for the synonym."
+        let prompt = "add synonym: "
         for _ in 0..<60 {
             let paneListResult = await self.runProcess(
                 executable,
@@ -960,12 +1001,7 @@ enum VoiceMacroService {
                 else {
                     return false
                 }
-                try? await Task.sleep(for: .milliseconds(50))
                 return self.isTargetFrontmost(herdrApplication.processIdentifier)
-                    && self.postKey(
-                        CGKeyCode(kVK_Return),
-                        to: herdrApplication.processIdentifier
-                    )
             }
             try? await Task.sleep(for: .milliseconds(250))
         }
@@ -973,7 +1009,7 @@ enum VoiceMacroService {
     }
 
     @MainActor
-    static func openWritingWorkspace() async -> Bool {
+    static func openWritingWorkspace(prompt: String? = nil) async -> Bool {
         guard let executable = self.herdrExecutableURL() else { return false }
         let listResult = await self.runProcess(executable, arguments: ["workspace", "list"])
         guard listResult.status == 0,
@@ -1015,7 +1051,10 @@ enum VoiceMacroService {
                 arguments: ["tab", "focus", emptyCodexPane.tabID]
             )
             guard focusTabResult.status == 0 else { return false }
-            return self.activateHerdr()
+            guard self.activateHerdr() else { return false }
+            guard let prompt else { return true }
+            try? await Task.sleep(for: .milliseconds(150))
+            return await self.submitHerdrPrompt(prompt)
         }
 
         let createResult = await self.runProcess(
@@ -1040,7 +1079,137 @@ enum VoiceMacroService {
             executable,
             arguments: ["pane", "run", created.result.rootPane.paneID, "codex"]
         )
-        return runResult.status == 0 && self.activateHerdr()
+        guard runResult.status == 0, self.activateHerdr() else { return false }
+        guard let prompt else { return true }
+
+        for _ in 0..<60 {
+            let updatedPaneListResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "list", "--workspace", workspace.workspaceID]
+            )
+            if updatedPaneListResult.status == 0,
+               let updatedPaneResponse = try? JSONDecoder().decode(
+                   HerdrPaneListResponse.self,
+                   from: updatedPaneListResult.output
+               ),
+               let createdPane = updatedPaneResponse.result.panes.first(where: {
+                   $0.paneID == created.result.rootPane.paneID
+               }),
+               createdPane.agent?.lowercased() == "codex",
+               createdPane.agentStatus?.lowercased() == "idle"
+            {
+                try? await Task.sleep(for: .milliseconds(150))
+                return await self.submitHerdrPrompt(prompt)
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return false
+    }
+
+    @MainActor
+    private static func submitHerdrPrompt(_ prompt: String) async -> Bool {
+        guard let application = NSRunningApplication.runningApplications(
+            withBundleIdentifier: self.herdrBundleIDs[0]
+        ).first,
+              self.isTargetFrontmost(application.processIdentifier),
+              self.postText(prompt, to: application.processIdentifier)
+        else {
+            return false
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+        return self.isTargetFrontmost(application.processIdentifier)
+            && self.postKey(CGKeyCode(kVK_Return), to: application.processIdentifier)
+    }
+
+    @MainActor
+    static func submitClearFollowUpInCurrentHerdrPane(
+        _ message: String,
+        openNextPendingTab: Bool
+    ) async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let currentPane = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              ).result.pane,
+              currentPane.agent?.lowercased() == "codex",
+              let previousSessionID = currentPane.agentSession?.value
+        else {
+            return false
+        }
+
+        let clearResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", currentPane.paneID, "/clear"]
+        )
+        guard clearResult.status == 0 else { return false }
+
+        for _ in 0..<48 {
+            try? await Task.sleep(for: .milliseconds(250))
+            let paneResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "get", currentPane.paneID]
+            )
+            guard paneResult.status == 0,
+                  let updatedPane = try? JSONDecoder().decode(
+                      HerdrCurrentPaneResponse.self,
+                      from: paneResult.output
+                  ).result.pane
+            else {
+                continue
+            }
+            guard updatedPane.agentSession?.value != previousSessionID,
+                  updatedPane.agentStatus?.lowercased() == "idle"
+            else {
+                continue
+            }
+
+            let followUpResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "run", currentPane.paneID, message]
+            )
+            guard followUpResult.status == 0 else {
+                self.showStatusToast("New session is ready, but the follow-up was not submitted.")
+                return true
+            }
+            if openNextPendingTab {
+                if !(await self.openNextPendingHerdrTab()) {
+                    self.showStatusToast("Follow-up submitted, but the next pending tab did not open.")
+                }
+            }
+            return true
+        }
+        self.showStatusToast("New Codex session did not become ready. Follow-up was not submitted.")
+        return true
+    }
+
+    @MainActor
+    static func submitInCurrentHerdrPane(_ text: String) async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let currentPane = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              ).result.pane
+        else {
+            return false
+        }
+
+        let result = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", currentPane.paneID, text]
+        )
+        return result.status == 0
     }
 
     private static func activateHerdr() -> Bool {

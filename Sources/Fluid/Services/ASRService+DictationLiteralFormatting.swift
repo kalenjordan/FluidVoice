@@ -6,6 +6,7 @@ struct DictationLiteralOutputPlan: Equatable {
         case pressReturn
         case pause(milliseconds: UInt32)
         case openNextPendingHerdrTab
+        case clearSessionThenSubmit(String, openNextPendingHerdrTab: Bool)
     }
 
     let steps: [Step]
@@ -14,8 +15,29 @@ struct DictationLiteralOutputPlan: Equatable {
         self.steps.reduce(into: "") { result, step in
             if case let .text(text) = step {
                 result += text
+            } else if case let .clearSessionThenSubmit(message, _) = step {
+                result += "/clear and \(message)"
             }
         }
+    }
+
+    var clearSessionSubmission: (message: String, openNextPendingHerdrTab: Bool)? {
+        guard self.steps.count == 1,
+              case let .clearSessionThenSubmit(message, openNextPendingHerdrTab) = self.steps[0]
+        else {
+            return nil
+        }
+        return (message, openNextPendingHerdrTab)
+    }
+
+    var singleSubmittedText: String? {
+        guard self.steps.count == 2,
+              case let .text(text) = self.steps[0],
+              case .pressReturn = self.steps[1]
+        else {
+            return nil
+        }
+        return text
     }
 
     static func plain(_ text: String) -> DictationLiteralOutputPlan {
@@ -148,8 +170,8 @@ private enum DictationLiteralFormatter {
         options: []
     )
 
-    private static let andNextSuffixRegex = try? NSRegularExpression(
-        pattern: #"(?is)^(.+?)[,;]?\s+and\s+next\s*[.!?]*\s*$"#,
+    private static let nextSuffixRegex = try? NSRegularExpression(
+        pattern: #"(?is)^(.+?)[,;]?\s+(?:and\s+)?next\s*[.!?]*\s*$"#,
         options: []
     )
 
@@ -245,6 +267,21 @@ private enum DictationLiteralFormatter {
             bundleID: bundleID,
             windowTitle: windowTitle
         )
+        if self.isClearCommitNextCommand(
+            formattedText,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) {
+            return DictationLiteralOutputPlan(
+                steps: [
+                    .clearSessionThenSubmit(
+                        "review modified files for commit",
+                        openNextPendingHerdrTab: true
+                    ),
+                ]
+            )
+        }
         if let message = self.andNextMessage(
             in: formattedText,
             appName: appName,
@@ -268,11 +305,10 @@ private enum DictationLiteralFormatter {
         ) {
             return DictationLiteralOutputPlan(
                 steps: [
-                    .text("/clear"),
-                    .pressReturn,
-                    .pause(milliseconds: 400),
-                    .text(followUpMessage),
-                    .pressReturn,
+                    .clearSessionThenSubmit(
+                        followUpMessage,
+                        openNextPendingHerdrTab: false
+                    ),
                 ]
             )
         }
@@ -315,6 +351,29 @@ private enum DictationLiteralFormatter {
         return DictationLiteralOutputPlan(steps: steps)
     }
 
+    private static func isClearCommitNextCommand(
+        _ text: String,
+        appName: String?,
+        bundleID: String?,
+        windowTitle: String?
+    ) -> Bool {
+        let isCodexLikeApp = self.isSlashCommandAutocompleteApp(
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        )
+        let isHerdrTerminal = bundleID?.lowercased() == "com.mitchellh.ghostty"
+        guard isCodexLikeApp || isHerdrTerminal else {
+            return false
+        }
+
+        let command = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
+            .lowercased()
+        return command == "/clear commit next"
+    }
+
     private static func standaloneSubmittingSlashCommand(
         _ text: String,
         appName: String?,
@@ -348,7 +407,7 @@ private enum DictationLiteralFormatter {
         let isCodexOrHerdr = haystack.contains("codex")
             || bundleID?.lowercased() == "com.mitchellh.ghostty"
         guard isCodexOrHerdr,
-              let regex = self.andNextSuffixRegex
+              let regex = self.nextSuffixRegex
         else {
             return nil
         }

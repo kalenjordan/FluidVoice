@@ -357,6 +357,25 @@ final class TypingService {
                             )
                         }
                     }
+                case let .clearSessionThenSubmit(message, openNextPendingHerdrTab):
+                    self.insertTextInstantly("/clear", preferredTargetPID: preferredTargetPID)
+                    usleep(Self.terminalSubmissionDelayMicros(for: mode))
+                    _ = self.pressReturn(preferredTargetPID: preferredTargetPID)
+                    usleep(400_000)
+                    self.insertTextInstantly(message, preferredTargetPID: preferredTargetPID)
+                    usleep(Self.terminalSubmissionDelayMicros(for: mode))
+                    _ = self.pressReturn(preferredTargetPID: preferredTargetPID)
+                    if openNextPendingHerdrTab {
+                        usleep(400_000)
+                        Task { @MainActor in
+                            let succeeded = await VoiceMacroService.openNextPendingHerdrTab()
+                            if !succeeded {
+                                VoiceMacroService.showStatusToast(
+                                    "Could not open the next pending Herder tab."
+                                )
+                            }
+                        }
+                    }
                 }
             }
             self.bench(

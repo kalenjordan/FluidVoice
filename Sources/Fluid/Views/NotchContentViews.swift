@@ -1094,12 +1094,12 @@ struct NotchWaveformView: View {
     }
 
     private func updateBars(level: CGFloat) {
-        let normalizedLevel = min(max(level, 0), 1)
-        let adjustedLevel = normalizedLevel > self.noiseThreshold
-            ? (normalizedLevel - self.noiseThreshold) / (1.0 - self.noiseThreshold)
-            : 0
+        let visualLevel = AudioVisualizationScale.conversationalSpeechLevel(
+            level,
+            noiseThreshold: self.noiseThreshold
+        )
 
-        guard adjustedLevel > 0 else {
+        guard visualLevel > 0 else {
             self.resetBarsToBaseline(animated: false)
             return
         }
@@ -1108,7 +1108,7 @@ struct NotchWaveformView: View {
             for index in 0..<self.barCount {
                 let centerDistance = abs(CGFloat(index) - CGFloat(self.barCount - 1) / 2)
                 let centerFactor = 1.0 - (centerDistance / CGFloat(self.barCount / 2)) * 0.28
-                self.barHeights[index] = self.minHeight + (self.maxHeight - self.minHeight) * adjustedLevel * centerFactor
+                self.barHeights[index] = self.minHeight + (self.maxHeight - self.minHeight) * visualLevel * centerFactor
             }
         }
     }
@@ -1680,18 +1680,19 @@ struct ExpandedModeWaveformView: View {
     }
 
     private func updateBars(level: CGFloat) {
-        let normalizedLevel = min(max(level, 0), 1)
-        let isActive = normalizedLevel > self.noiseThreshold
+        let visualLevel = AudioVisualizationScale.conversationalSpeechLevel(
+            level,
+            noiseThreshold: self.noiseThreshold
+        )
 
         withAnimation(.spring(response: 0.12, dampingFraction: 0.6)) {
             for i in 0..<self.barCount {
                 let centerDistance = abs(CGFloat(i) - CGFloat(self.barCount - 1) / 2)
                 let centerFactor = 1.0 - (centerDistance / CGFloat(self.barCount / 2)) * 0.35
 
-                if isActive {
-                    let adjustedLevel = (normalizedLevel - self.noiseThreshold) / (1.0 - self.noiseThreshold)
+                if visualLevel > 0 {
                     let randomVariation = CGFloat.random(in: 0.75...1.0)
-                    self.barHeights[i] = self.minHeight + (self.maxHeight - self.minHeight) * adjustedLevel * centerFactor * randomVariation
+                    self.barHeights[i] = self.minHeight + (self.maxHeight - self.minHeight) * visualLevel * centerFactor * randomVariation
                 } else {
                     self.barHeights[i] = self.minHeight
                 }
@@ -1779,12 +1780,12 @@ struct CompactNotchWaveformView: View {
     }
 
     private func updateBars(level: CGFloat) {
-        let normalizedLevel = min(max(level, 0), 1)
-        let adjustedLevel = normalizedLevel > self.noiseThreshold
-            ? (normalizedLevel - self.noiseThreshold) / (1.0 - self.noiseThreshold)
-            : 0
+        let visualLevel = AudioVisualizationScale.conversationalSpeechLevel(
+            level,
+            noiseThreshold: self.noiseThreshold
+        )
 
-        guard adjustedLevel > 0 else {
+        guard visualLevel > 0 else {
             self.resetBarsToBaseline(animated: false)
             return
         }
@@ -1793,7 +1794,7 @@ struct CompactNotchWaveformView: View {
             for index in 0..<self.barCount {
                 let centerDistance = abs(CGFloat(index) - CGFloat(self.barCount - 1) / 2)
                 let centerFactor = 1.0 - (centerDistance / CGFloat(self.barCount / 2)) * 0.28
-                self.barHeights[index] = self.minHeight + (self.maxHeight - self.minHeight) * adjustedLevel * centerFactor
+                self.barHeights[index] = self.minHeight + (self.maxHeight - self.minHeight) * visualLevel * centerFactor
             }
         }
     }

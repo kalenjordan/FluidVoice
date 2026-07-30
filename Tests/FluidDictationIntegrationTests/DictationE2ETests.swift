@@ -717,8 +717,10 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
-    func testAndNextSubmitsMessageBeforeOpeningNextPendingTab() {
+    func testNextSuffixSubmitsMessageBeforeOpeningNextPendingTab() {
         for transcript in [
+            "Fix the login bug next",
+            "Fix the login bug, next.",
             "Fix the login bug and next",
             "Fix the login bug, and next.",
             "Fix the login bug; And Next!",
@@ -819,14 +821,42 @@ final class DictationE2ETests: XCTestCase {
                     bundleID: bundleID
                 ).steps,
                 [
-                    .text("/clear"),
-                    .pressReturn,
-                    .pause(milliseconds: 400),
-                    .text("how does Kickbox compare to ZeroBounce?"),
-                    .pressReturn,
+                    .clearSessionThenSubmit(
+                        "how does Kickbox compare to ZeroBounce?",
+                        openNextPendingHerdrTab: false
+                    ),
                 ]
             )
         }
+    }
+
+    func testClearCommitNextRunsReviewSequenceThenOpensNextPendingTab() {
+        for bundleID in ["com.openai.codex", "com.mitchellh.ghostty"] {
+            XCTAssertEqual(
+                ASRService.makeDictationLiteralOutputPlan(
+                    for: "/clear commit next.",
+                    appName: bundleID == "com.openai.codex" ? "Codex" : "Ghostty",
+                    bundleID: bundleID
+                ).steps,
+                [
+                    .clearSessionThenSubmit(
+                        "review modified files for commit",
+                        openNextPendingHerdrTab: true
+                    ),
+                ]
+            )
+        }
+    }
+
+    func testClearCommitNextRemainsLiteralOutsideCodexLikeApps() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "/clear commit next",
+                appName: "Notes",
+                bundleID: "com.apple.Notes"
+            ).steps,
+            [.text("/clear commit next")]
+        )
     }
 
     func testClearWithFollowUpRemainsLiteralOutsideCodexLikeApps() {

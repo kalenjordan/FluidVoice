@@ -19,6 +19,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     private var pendingBuildCheckTimer: Timer?
     private var launchedExecutableModificationDate: Date?
     private var hasPendingBuild: Bool = false
+    private var isRestartingForPendingBuild: Bool = false
 
     // Cached menu items to avoid rebuilding entire menu
     private var statusMenuItem: NSMenuItem?
@@ -602,7 +603,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         self.allAIEnhancementsMenuItem?.isEnabled = !self.isProcessingActive
         self.microphoneMenuItem?.isEnabled = true
         self.pendingBuildMenuItem?.isHidden = !self.hasPendingBuild
-        self.pendingBuildMenuItem?.isEnabled = !self.isRecording
+        self.pendingBuildMenuItem?.isEnabled = !self.isRecording && !self.isProcessingActive
 
         // Update rollback availability text
         self.rollbackMenuItem?.isEnabled = SimpleUpdater.shared.hasRollbackBackup()
@@ -633,16 +634,43 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     }
 
     private func refreshPendingBuildState() {
-        guard !self.hasPendingBuild,
-              let launchedDate = self.launchedExecutableModificationDate,
-              let currentDate = self.executableModificationDate(),
-              currentDate > launchedDate
+        if !self.hasPendingBuild,
+           let launchedDate = self.launchedExecutableModificationDate,
+           let currentDate = self.executableModificationDate(),
+           currentDate > launchedDate
+        {
+            self.hasPendingBuild = true
+            self.updatePendingBuildIndicator()
+            self.updateMenuItemsText()
+        }
+
+        self.restartForPendingBuildIfIdle()
+    }
+
+    private func restartForPendingBuildIfIdle() {
+        guard self.hasPendingBuild,
+              !self.isRestartingForPendingBuild,
+              !self.isRecording,
+              !self.isProcessingActive
         else {
             return
         }
-        self.hasPendingBuild = true
-        self.updatePendingBuildIndicator()
-        self.updateMenuItemsText()
+
+        self.beginPendingBuildRestart()
+    }
+
+    private func beginPendingBuildRestart() {
+        self.isRestartingForPendingBuild = true
+        DebugLogger.shared.info(
+            "Restarting to use completed build",
+            source: "MenuBarManager"
+        )
+        VoiceMacroService.showStatusToast("Restarting FluidVoice…")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { [weak self] in
+            if !AppRelauncher.restartCurrentApp() {
+                self?.isRestartingForPendingBuild = false
+            }
+        }
     }
 
     private func updatePendingBuildIndicator() {
@@ -941,10 +969,14 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     }
 
     @objc private func restartToUsePendingBuild(_ sender: Any?) {
-        guard self.hasPendingBuild, !self.isRecording else {
+        guard self.hasPendingBuild,
+              !self.isRestartingForPendingBuild,
+              !self.isRecording,
+              !self.isProcessingActive
+        else {
             return
         }
-        _ = AppRelauncher.restartCurrentApp()
+        self.beginPendingBuildRestart()
     }
 
     @objc private func rollbackToPreviousVersion(_ sender: Any?) {

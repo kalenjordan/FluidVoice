@@ -2541,7 +2541,10 @@ struct ContentView: View {
            VoiceMacroService.isWritingWorkspaceCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running writing workspace voice command", source: "ContentView")
-            let succeeded = await VoiceMacroService.openWritingWorkspace()
+            let prompt = VoiceMacroService.writingWorkspacePrompt(
+                transcript: transcribedText
+            )
+            let succeeded = await VoiceMacroService.openWritingWorkspace(prompt: prompt)
             DebugLogger.shared.info(
                 "Writing workspace voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3159,15 +3162,30 @@ struct ContentView: View {
             if typingTarget.shouldRestoreOriginalFocus {
                 await self.restoreFocusToRecordingTarget()
             }
-            self.appBench(
-                "text_ready_to_type_request elapsedMs=\(Int(((ProcessInfo.processInfo.systemUptime - finalTextReadyAt) * 1000).rounded()))"
-            )
-            self.asr.typeOutputPlanToActiveField(
-                finalOutputPlan,
-                preferredTargetPID: typingTarget.pid,
-                textReadyAt: finalTextReadyAt,
-                tracksDictionaryCorrections: true
-            )
+            var submittedThroughHerdr = false
+            if outputAppInfo.bundleId.lowercased() == "com.mitchellh.ghostty",
+               let clearSubmission = finalOutputPlan.clearSessionSubmission
+            {
+                submittedThroughHerdr = await VoiceMacroService.submitClearFollowUpInCurrentHerdrPane(
+                    clearSubmission.message,
+                    openNextPendingTab: clearSubmission.openNextPendingHerdrTab
+                )
+            } else if outputAppInfo.bundleId.lowercased() == "com.mitchellh.ghostty",
+                      let submittedText = finalOutputPlan.singleSubmittedText
+            {
+                submittedThroughHerdr = await VoiceMacroService.submitInCurrentHerdrPane(submittedText)
+            }
+            if !submittedThroughHerdr {
+                self.appBench(
+                    "text_ready_to_type_request elapsedMs=\(Int(((ProcessInfo.processInfo.systemUptime - finalTextReadyAt) * 1000).rounded()))"
+                )
+                self.asr.typeOutputPlanToActiveField(
+                    finalOutputPlan,
+                    preferredTargetPID: typingTarget.pid,
+                    textReadyAt: finalTextReadyAt,
+                    tracksDictionaryCorrections: true
+                )
+            }
             didTypeExternally = true
             if !shouldShowAIProcessingFailure, !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()

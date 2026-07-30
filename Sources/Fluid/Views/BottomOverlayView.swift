@@ -3299,11 +3299,10 @@ struct BottomWaveformView: View {
         // Ensure array is properly sized before modifying
         guard self.barHeights.count >= self.barCount else { return }
 
-        let normalizedLevel = min(max(level, 0), 1)
-        let denominator = max(1.0 - self.noiseThreshold, 0.001)
-        let adjustedLevel = max(min((normalizedLevel - self.noiseThreshold) / denominator, 1.0), 0.0)
-        // Lower exponent => normal speech pushes the bars higher (taller "waves" while talking).
-        let amplifiedLevel = pow(adjustedLevel, 0.55)
+        let amplifiedLevel = AudioVisualizationScale.conversationalSpeechLevel(
+            level,
+            noiseThreshold: self.noiseThreshold
+        )
 
         withAnimation(.easeOut(duration: 0.08)) {
             for i in 0..<self.barCount {
