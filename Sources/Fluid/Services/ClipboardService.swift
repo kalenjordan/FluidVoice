@@ -42,6 +42,6 @@ enum ClipboardService {
         guard !spokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return normalizedClipboardText
         }
-        return spokenText + " " + normalizedClipboardText
+        return spokenText + "\n\n" + normalizedClipboardText
     }
 }

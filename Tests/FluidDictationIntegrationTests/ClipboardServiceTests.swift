@@ -2,13 +2,13 @@ import XCTest
 @testable import FluidVoice_Debug
 
 final class ClipboardServiceTests: XCTestCase {
-    func testAppendingClipboardTextAddsItAfterSpokenText() {
+    func testAppendingClipboardTextAddsItAfterTwoNewlines() {
         XCTAssertEqual(
             ClipboardService.appending(
                 clipboardText: "Copied context",
                 to: "Here is the context:"
             ),
-            "Here is the context: Copied context"
+            "Here is the context:\n\nCopied context"
         )
     }
 
@@ -25,7 +25,7 @@ final class ClipboardServiceTests: XCTestCase {
                 clipboardText: "first line\nsecond\tline",
                 to: "Use this:"
             ),
-            "Use this: first line second line"
+            "Use this:\n\nfirst line second line"
         )
     }
 
