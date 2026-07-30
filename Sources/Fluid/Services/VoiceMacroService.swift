@@ -457,6 +457,15 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "back"
     }
 
+    static func isWindowScreenshotCommand(transcript: String) -> Bool {
+        switch self.normalizedPhrase(transcript) {
+        case "screenshot window", "screen shot window":
+            return true
+        default:
+            return false
+        }
+    }
+
     static func isWindowMiddleCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "window middle"
     }

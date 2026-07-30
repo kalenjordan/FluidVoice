@@ -2230,6 +2230,37 @@ struct ContentView: View {
             ?? self.getCurrentAppInfo()
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isWindowScreenshotCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running selected-window screenshot voice command",
+                source: "ContentView"
+            )
+            do {
+                let url = try await WindowScreenshotService.captureSelectedWindow(
+                    targetPID: targetPID
+                )
+                DebugLogger.shared.info(
+                    "Window screenshot saved successfully",
+                    source: "ContentView"
+                )
+                VoiceMacroService.showStatusToast("Saved \(url.lastPathComponent) to Desktop.")
+            } catch {
+                DebugLogger.shared.error(
+                    "Window screenshot failed: \(error.localizedDescription)",
+                    source: "ContentView"
+                )
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast(error.localizedDescription)
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isDeleteDesktopCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info(

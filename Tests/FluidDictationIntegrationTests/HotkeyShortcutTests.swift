@@ -241,6 +241,21 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
     }
 
+    func testWindowScreenshotCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isWindowScreenshotCommand(
+            transcript: "Screenshot window."
+        ))
+        XCTAssertTrue(VoiceMacroService.isWindowScreenshotCommand(
+            transcript: "Screen shot window!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowScreenshotCommand(
+            transcript: "Screenshot the window"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowScreenshotCommand(
+            transcript: "Screenshot"
+        ))
+    }
+
     func testWindowMiddleCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isWindowMiddleCommand(
             transcript: "Window middle."
