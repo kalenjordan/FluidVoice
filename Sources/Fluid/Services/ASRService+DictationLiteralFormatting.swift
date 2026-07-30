@@ -695,7 +695,7 @@ private enum DictationLiteralFormatter {
     }
 
     private static func isChatGPTApp(appName: String?, bundleID: String?) -> Bool {
-        bundleID?.lowercased() == "com.openai.chat" ||
+        ["com.openai.chat", "com.openai.codex"].contains(bundleID?.lowercased() ?? "") ||
             appName?.lowercased() == "chatgpt"
     }
 

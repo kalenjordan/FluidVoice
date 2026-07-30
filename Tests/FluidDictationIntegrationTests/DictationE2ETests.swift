@@ -911,13 +911,14 @@ final class DictationE2ETests: XCTestCase {
     }
 
     func testChatGPTOutputPlanSubmitsOnlyWhenExplicitlyEnabled() {
-        let enabledPlan = ASRService.makeDictationLiteralOutputPlan(
-            for: "Explain this code",
-            appName: "ChatGPT",
-            bundleID: "com.openai.chat",
-            submitTerminalCommand: true
-        )
-        XCTAssertEqual(enabledPlan.steps, [.text("Explain this code"), .pressReturn])
+        for bundleID in ["com.openai.chat", "com.openai.codex"] {
+            let enabledPlan = ASRService.makeDictationLiteralOutputPlan(
+                for: "Explain this code",
+                bundleID: bundleID,
+                submitTerminalCommand: true
+            )
+            XCTAssertEqual(enabledPlan.steps, [.text("Explain this code"), .pressReturn])
+        }
 
         let disabledPlan = ASRService.makeDictationLiteralOutputPlan(
             for: "Explain this code",
