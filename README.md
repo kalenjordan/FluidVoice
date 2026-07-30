@@ -209,12 +209,7 @@ separate app bundle, so restarting the repo-local app would otherwise run old
 code.
 
 ```bash
-xcodebuild build \
-  -project Fluid.xcodeproj \
-  -scheme Fluid \
-  -configuration Debug \
-  -destination 'platform=macOS' \
-  -derivedDataPath "$PWD/DerivedData"
+./build.sh
 ```
 
 Keep code signing enabled for local builds. The project uses an Apple
@@ -291,14 +286,17 @@ Contributions are welcome! Please create an issue first to discuss major changes
 ## Run Integration Tests
 
 ```bash
-xcodebuild test -project Fluid.xcodeproj -scheme Fluid -destination 'platform=macOS'
+./build.sh test
 ```
 
-CI uses unsigned builds:
+Select a specific test or test suite with an Xcode test identifier:
 
 ```bash
-xcodebuild test -project Fluid.xcodeproj -scheme Fluid -destination 'platform=macOS' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+./build.sh test -only-testing:FluidDictationIntegrationTests/DictationE2ETests
 ```
+
+CI may use unsigned builds in an isolated DerivedData directory. Never run
+unsigned tests against the repository's canonical `DerivedData`.
 
 ---
 
