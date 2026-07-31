@@ -97,6 +97,30 @@ enum VoiceMacroService {
         let result: Result
     }
 
+    private struct HerdrPaneProcessInfoResponse: Decodable {
+        struct Result: Decodable {
+            let processInfo: ProcessInfo
+
+            enum CodingKeys: String, CodingKey {
+                case processInfo = "process_info"
+            }
+        }
+
+        struct ProcessInfo: Decodable {
+            let foregroundProcesses: [ForegroundProcess]
+
+            enum CodingKeys: String, CodingKey {
+                case foregroundProcesses = "foreground_processes"
+            }
+        }
+
+        struct ForegroundProcess: Decodable {
+            let name: String
+        }
+
+        let result: Result
+    }
+
     private struct HerdrTabListResponse: Decodable {
         struct Result: Decodable {
             let tabs: [Tab]
@@ -527,6 +551,11 @@ enum VoiceMacroService {
     static func isCodexStatusCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "codex status"
             || self.normalizedPhrase(transcript) == "codec status"
+    }
+
+    static func isRestartCodexCommand(transcript: String, bundleID: String) -> Bool {
+        self.herdrBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "restart codex"
     }
 
     static func isAddSynonymCommand(transcript: String) -> Bool {
@@ -1312,6 +1341,63 @@ enum VoiceMacroService {
         return result.status == 0
     }
 
+    @MainActor
+    static func restartCodexInCurrentHerdrPane() async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let currentPane = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              ).result.pane,
+              currentPane.agent?.lowercased() == "codex",
+              let sessionID = currentPane.agentSession?.value,
+              sessionID.range(of: #"^[A-Za-z0-9-]+$"#, options: .regularExpression) != nil
+        else {
+            return false
+        }
+
+        let exitResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", currentPane.paneID, "/exit"]
+        )
+        guard exitResult.status == 0 else { return false }
+
+        for _ in 0..<20 {
+            try? await Task.sleep(for: .milliseconds(100))
+            let processResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "process-info", "--pane", currentPane.paneID]
+            )
+            guard processResult.status == 0,
+                  let processInfo = try? JSONDecoder().decode(
+                      HerdrPaneProcessInfoResponse.self,
+                      from: processResult.output
+                  ).result.processInfo
+            else {
+                continue
+            }
+            let codexIsRunning = processInfo.foregroundProcesses.contains {
+                $0.name.lowercased() == "codex"
+            }
+            if !codexIsRunning {
+                let resumeResult = await self.runProcess(
+                    executable,
+                    arguments: [
+                        "pane", "run", currentPane.paneID,
+                        "codex resume \(sessionID)",
+                    ]
+                )
+                return resumeResult.status == 0
+            }
+        }
+        return false
+    }
+
     private static func activateHerdr() -> Bool {
         guard let application = NSRunningApplication.runningApplications(
             withBundleIdentifier: self.herdrBundleIDs[0]
@@ -1689,27 +1775,46 @@ enum VoiceMacroService {
     private static func newCodexTabInvocation(
         transcript: String
     ) -> NewCodexTabInvocation? {
-        let pattern = #"^(new codex tab|codex new tab|new tab)\b(.*)$"#
-        guard let expression = try? NSRegularExpression(
-            pattern: pattern,
+        let leadingPattern = #"^(new codex tab|codex new tab|new tab)\b(.*)$"#
+        guard let leadingExpression = try? NSRegularExpression(
+            pattern: leadingPattern,
             options: [.caseInsensitive]
         ) else {
             return nil
         }
 
         let range = NSRange(transcript.startIndex..., in: transcript)
-        guard let match = expression.firstMatch(in: transcript, range: range),
-              match.range.location == 0,
-              let trailingRange = Range(match.range(at: 2), in: transcript)
+        if let match = leadingExpression.firstMatch(in: transcript, range: range),
+           match.range.location == 0,
+           let trailingRange = Range(match.range(at: 2), in: transcript)
+        {
+            let trailingText = String(transcript[trailingRange].drop(while: {
+                $0.isWhitespace || $0.isPunctuation
+            }))
+            return NewCodexTabInvocation(
+                trailingText: trailingText.isEmpty ? nil : trailingText
+            )
+        }
+
+        let trailingPattern = #"^(.*?)\b(new codex tab|codex new tab|new tab)[\s\p{P}]*$"#
+        guard let trailingExpression = try? NSRegularExpression(
+            pattern: trailingPattern,
+            options: [.caseInsensitive]
+        ),
+        let match = trailingExpression.firstMatch(in: transcript, range: range),
+        let precedingRange = Range(match.range(at: 1), in: transcript)
         else {
             return nil
         }
 
-        let trailingText = String(transcript[trailingRange].drop(while: {
-            $0.isWhitespace || $0.isPunctuation
-        }))
+        let commandSeparators = CharacterSet.whitespacesAndNewlines.union(
+            CharacterSet(charactersIn: ",;:")
+        )
+        let precedingText = String(transcript[precedingRange])
+            .trimmingCharacters(in: commandSeparators)
+        guard self.normalizedPhrase(precedingText) != "open a" else { return nil }
         return NewCodexTabInvocation(
-            trailingText: trailingText.isEmpty ? nil : trailingText
+            trailingText: precedingText.isEmpty ? nil : precedingText
         )
     }
 

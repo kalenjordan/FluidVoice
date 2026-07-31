@@ -2543,6 +2543,32 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isRestartCodexCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running restart Codex voice command",
+                source: "ContentView"
+            )
+            VoiceMacroService.showStatusToast("Restarting Codex…")
+            let succeeded = await VoiceMacroService.restartCodexInCurrentHerdrPane()
+            DebugLogger.shared.info(
+                "Restart Codex voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not restart the current Codex session.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isAddSynonymCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running add synonym voice command", source: "ContentView")
