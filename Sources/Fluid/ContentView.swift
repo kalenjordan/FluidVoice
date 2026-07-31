@@ -2721,6 +2721,24 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let url = VoiceMacroService.googleCalendarURL(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running open Google Calendar voice command",
+                source: "ContentView"
+            )
+            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open Google Calendar.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let url = VoiceMacroService.googleSearchURL(transcript: transcribedText)
         {
             DebugLogger.shared.info(

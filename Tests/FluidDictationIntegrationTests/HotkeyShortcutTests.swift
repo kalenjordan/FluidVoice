@@ -701,6 +701,14 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertNil(VoiceMacroService.gmailURL(transcript: "Open my Gmail"))
     }
 
+    func testGoogleCalendarCommandIsExactAndGlobal() {
+        XCTAssertEqual(
+            VoiceMacroService.googleCalendarURL(transcript: "Google Calendar."),
+            URL(string: "https://calendar.google.com/calendar/u/0/r")
+        )
+        XCTAssertNil(VoiceMacroService.googleCalendarURL(transcript: "Open Google Calendar"))
+    }
+
     func testGoogleSearchCommandUsesRawQueryAndIsGlobal() {
         XCTAssertEqual(
             VoiceMacroService.googleSearchURL(transcript: "Google Most realistic outbound voice agent."),

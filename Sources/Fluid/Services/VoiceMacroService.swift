@@ -433,6 +433,11 @@ enum VoiceMacroService {
         )
     }
 
+    static func googleCalendarURL(transcript: String) -> URL? {
+        guard self.normalizedPhrase(transcript) == "google calendar" else { return nil }
+        return URL(string: "https://calendar.google.com/calendar/u/0/r")
+    }
+
     static func googleSearchURL(transcript: String) -> URL? {
         guard let query = self.commandArgument(transcript, command: "google") else {
             return nil
@@ -1341,6 +1346,7 @@ enum VoiceMacroService {
         let baseURL = url.absoluteString
         let script = """
         tell application "Google Chrome"
+            launch
             repeat with windowIndex from 1 to count of windows
                     set chromeWindow to window windowIndex
                     repeat with tabIndex from 1 to count of tabs of chromeWindow
