@@ -316,6 +316,24 @@ enum VoiceMacroService {
         self.postKey(CGKeyCode(kVK_ANSI_W), flags: .maskCommand, to: targetPID)
     }
 
+    static func isQuitApplicationCommand(transcript: String) -> Bool {
+        switch self.normalizedPhrase(transcript) {
+        case "exit", "quit":
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func quitApplication(targetPID: pid_t) -> Bool {
+        guard let application = NSRunningApplication(processIdentifier: targetPID),
+              application.bundleIdentifier != Bundle.main.bundleIdentifier
+        else {
+            return false
+        }
+        return application.terminate()
+    }
+
     @MainActor
     static func copyChromeURL(targetPID: pid_t) -> Bool {
         guard self.isTargetFrontmost(targetPID) else { return false }

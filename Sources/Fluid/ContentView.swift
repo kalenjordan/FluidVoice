@@ -2475,6 +2475,26 @@ struct ContentView: View {
 
         if route == .normal,
            let targetPID = typingTarget.pid,
+           VoiceMacroService.isQuitApplicationCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running quit application voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.quitApplication(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Quit application voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not quit \(appInfo.name).")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
            VoiceMacroService.isCloseWindowCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running close window voice command", source: "ContentView")

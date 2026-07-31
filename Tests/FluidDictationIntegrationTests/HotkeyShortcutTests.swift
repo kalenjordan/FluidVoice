@@ -816,6 +816,20 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testQuitApplicationCommandAcceptsExitOrQuitExactly() {
+        for transcript in ["Exit.", "QUIT!", "  quit  "] {
+            XCTAssertTrue(VoiceMacroService.isQuitApplicationCommand(
+                transcript: transcript
+            ))
+        }
+        XCTAssertFalse(VoiceMacroService.isQuitApplicationCommand(
+            transcript: "quit application"
+        ))
+        XCTAssertFalse(VoiceMacroService.isQuitApplicationCommand(
+            transcript: "please exit"
+        ))
+    }
+
     func testCoreAudioFrameCountUsesActualBufferChannelLayout() {
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 4, 4, 1), 512)
         XCTAssertEqual(fv_core_audio_buffer_frame_count(512 * 8, 4, 2), 512)
