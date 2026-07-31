@@ -242,6 +242,7 @@ struct ContentView: View {
     @State private var previousSidebarItem: SidebarItem? = nil // Track previous for mode transitions
     @State private var playgroundUsed: Bool = SettingsStore.shared.playgroundUsed
     @State private var recordingAppInfo: (name: String, bundleId: String, windowTitle: String)? = nil
+    @State private var recordingFocusedControlContext: DictationFocusedControlContext?
     @State private var recordingPrecedingText: String = ""
 
     // Command Mode State
@@ -1659,6 +1660,7 @@ struct ContentView: View {
 
         let info = self.getCurrentAppInfo()
         self.recordingAppInfo = info
+        self.recordingFocusedControlContext = TypingService.currentFocusedControlContext(bundleID: info.bundleId)
         self.rewriteModeService.setPromptAppBundleID(info.bundleId)
         DebugLogger.shared.debug(
             "Captured recording app context: app=\(info.name), bundleId=\(info.bundleId), title=\(info.windowTitle)",
@@ -2086,9 +2088,15 @@ struct ContentView: View {
         let stopAppInfo = stopTypingTarget.pid.map { self.getAppInfo(processIdentifier: $0) }
             ?? self.recordingAppInfo
             ?? self.getCurrentAppInfo()
-        let shouldUseAIOnStop = activeDictationSlot.map {
+        let fieldAllowsAIOnStop = self.recordingFocusedControlContext.map { context in
+            guard context.bundleID.caseInsensitiveCompare(stopAppInfo.bundleId) == .orderedSame else {
+                return true
+            }
+            return DictationAIFieldPolicy.allowsEnhancement(in: context)
+        } ?? true
+        let shouldUseAIOnStop = fieldAllowsAIOnStop && (activeDictationSlot.map {
             DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: stopAppInfo.bundleId)
-        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: stopAppInfo.bundleId)
+        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: stopAppInfo.bundleId))
         let shouldHideOverlayOnStop = route == .normal &&
             !wasRewriteMode &&
             !wasCommandMode &&
@@ -2994,9 +3002,19 @@ struct ContentView: View {
             windowTitle: appInfo.windowTitle
         )
 
-        let shouldUseAI = activeDictationSlot.map {
+        let focusedControlContext = self.recordingFocusedControlContext.flatMap { context in
+            context.bundleID.caseInsensitiveCompare(appInfo.bundleId) == .orderedSame ? context : nil
+        }
+        let fieldAllowsAI = DictationAIFieldPolicy.allowsEnhancement(in: focusedControlContext)
+        let shouldUseAI = fieldAllowsAI && (activeDictationSlot.map {
             DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: appInfo.bundleId)
-        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: appInfo.bundleId)
+        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: appInfo.bundleId))
+        if !fieldAllowsAI {
+            DebugLogger.shared.info(
+                "Skipping dictation AI for Chrome address bar",
+                source: "ContentView"
+            )
+        }
         let transcriptionModelInfo = self.currentTranscriptionModelInfo()
 
         if shouldUseAI {

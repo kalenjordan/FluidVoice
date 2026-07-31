@@ -1945,6 +1945,51 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testDictationAIFieldPolicyDisablesChromeAddressBarEnhancement() {
+        let context = DictationFocusedControlContext(
+            bundleID: "com.google.Chrome",
+            role: "AXTextField",
+            subrole: "AXSearchField",
+            title: nil,
+            accessibilityDescription: "Address and search bar",
+            identifier: nil,
+            help: nil
+        )
+
+        XCTAssertTrue(DictationAIFieldPolicy.isChromeAddressBar(context))
+        XCTAssertFalse(DictationAIFieldPolicy.allowsEnhancement(in: context))
+    }
+
+    func testDictationAIFieldPolicyKeepsChromeWebFieldsEnabled() {
+        let context = DictationFocusedControlContext(
+            bundleID: "com.google.Chrome",
+            role: "AXTextArea",
+            subrole: nil,
+            title: "Reply",
+            accessibilityDescription: "Message",
+            identifier: "reply-body",
+            help: nil
+        )
+
+        XCTAssertFalse(DictationAIFieldPolicy.isChromeAddressBar(context))
+        XCTAssertTrue(DictationAIFieldPolicy.allowsEnhancement(in: context))
+    }
+
+    func testDictationAIFieldPolicyFailsOpenForUnknownControls() {
+        XCTAssertTrue(DictationAIFieldPolicy.allowsEnhancement(in: nil))
+
+        let nonChromeContext = DictationFocusedControlContext(
+            bundleID: "com.example.Editor",
+            role: "AXTextField",
+            subrole: nil,
+            title: "Address bar",
+            accessibilityDescription: nil,
+            identifier: nil,
+            help: nil
+        )
+        XCTAssertTrue(DictationAIFieldPolicy.allowsEnhancement(in: nonChromeContext))
+    }
+
     func testDictationProviderRouteReturnsEmptyRouteForUnverifiedPrivateAI() {
         self.withPromptAndProviderSettingsRestored {
             let settings = SettingsStore.shared

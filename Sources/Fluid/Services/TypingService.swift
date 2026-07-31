@@ -172,6 +172,33 @@ final class TypingService {
         return pid
     }
 
+    /// Best-effort metadata for the currently focused control. Call before presenting
+    /// FluidVoice UI so browser chrome can be distinguished from webpage fields.
+    static func currentFocusedControlContext(bundleID: String) -> DictationFocusedControlContext? {
+        guard AXIsProcessTrusted() else { return nil }
+
+        let systemWideElement = AXUIElementCreateSystemWide()
+        guard let element = Self.copyAXElementAttribute(
+            from: systemWideElement,
+            attribute: kAXFocusedUIElementAttribute as CFString
+        ) else {
+            return nil
+        }
+
+        return DictationFocusedControlContext(
+            bundleID: bundleID,
+            role: Self.stringAXAttribute(from: element, attribute: kAXRoleAttribute as CFString),
+            subrole: Self.stringAXAttribute(from: element, attribute: kAXSubroleAttribute as CFString),
+            title: Self.stringAXAttribute(from: element, attribute: kAXTitleAttribute as CFString),
+            accessibilityDescription: Self.stringAXAttribute(
+                from: element,
+                attribute: kAXDescriptionAttribute as CFString
+            ),
+            identifier: Self.stringAXAttribute(from: element, attribute: kAXIdentifierAttribute as CFString),
+            help: Self.stringAXAttribute(from: element, attribute: kAXHelpAttribute as CFString)
+        )
+    }
+
     /// Best-effort: returns the text immediately before the caret in the currently focused
     /// text field. Used by Continuous Dictation Mode to decide capitalization when chaining
     /// transcribed segments. Returns "" when the focused field/context is unavailable.
