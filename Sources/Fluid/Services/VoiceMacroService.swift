@@ -157,6 +157,28 @@ enum VoiceMacroService {
         let result: Result
     }
 
+    private struct HerdrWorkspaceCreateResponse: Decodable {
+        struct Result: Decodable {
+            let workspace: Workspace
+            let rootPane: HerdrTabCreateResponse.RootPane
+
+            enum CodingKeys: String, CodingKey {
+                case workspace
+                case rootPane = "root_pane"
+            }
+        }
+
+        struct Workspace: Decodable {
+            let workspaceID: String
+
+            enum CodingKeys: String, CodingKey {
+                case workspaceID = "workspace_id"
+            }
+        }
+
+        let result: Result
+    }
+
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
     private static let herdrCommandAliases = [
         "edit",
@@ -829,13 +851,21 @@ enum VoiceMacroService {
               let response = try? JSONDecoder().decode(
                   HerdrWorkspaceListResponse.self,
                   from: listResult.output
-              ),
-              let invocation = self.resolveWorkspaceInvocation(
-                  query: query,
-                  workspaces: response.result.workspaces
               )
         else {
             return false
+        }
+
+        guard let invocation = self.resolveWorkspaceInvocation(
+            query: query,
+            workspaces: response.result.workspaces
+        ) else {
+            guard let repoURL = self.localRepoURL(query: query) else { return false }
+            return await self.createHerdrWorkspace(
+                executable: executable,
+                repoURL: repoURL,
+                label: repoURL.lastPathComponent.lowercased()
+            )
         }
 
         let focusResult = await self.runProcess(
@@ -1052,12 +1082,22 @@ enum VoiceMacroService {
               let response = try? JSONDecoder().decode(
                   HerdrWorkspaceListResponse.self,
                   from: listResult.output
-              ),
-              let workspace = response.result.workspaces.first(where: {
-                  self.normalizedPhrase($0.label) == "writing"
-              })
+              )
         else {
             return false
+        }
+
+        guard let workspace = response.result.workspaces.first(where: {
+            self.normalizedPhrase($0.label) == "writing"
+        }) else {
+            let repoURL = URL(fileURLWithPath: "/Users/kalen/repos/writing", isDirectory: true)
+            guard FileManager.default.fileExists(atPath: repoURL.path) else { return false }
+            return await self.createHerdrWorkspace(
+                executable: executable,
+                repoURL: repoURL,
+                label: "writing",
+                prompt: prompt
+            )
         }
 
         let paneListResult = await self.runProcess(
@@ -1130,6 +1170,84 @@ enum VoiceMacroService {
                ),
                let createdPane = updatedPaneResponse.result.panes.first(where: {
                    $0.paneID == created.result.rootPane.paneID
+               }),
+               createdPane.agent?.lowercased() == "codex",
+               createdPane.agentStatus?.lowercased() == "idle"
+            {
+                try? await Task.sleep(for: .milliseconds(150))
+                return await self.submitHerdrPrompt(prompt)
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return false
+    }
+
+    private static func localRepoURL(query: String) -> URL? {
+        let reposURL = URL(fileURLWithPath: "/Users/kalen/repos", isDirectory: true)
+        guard let repoURLs = try? FileManager.default.contentsOfDirectory(
+            at: reposURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        let normalizedQuery = self.normalizedPhrase(query)
+        return repoURLs.first { repoURL in
+            guard (try? repoURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            else {
+                return false
+            }
+            return self.normalizedPhrase(repoURL.lastPathComponent) == normalizedQuery
+        }
+    }
+
+    @MainActor
+    private static func createHerdrWorkspace(
+        executable: URL,
+        repoURL: URL,
+        label: String,
+        prompt: String? = nil
+    ) async -> Bool {
+        let createResult = await self.runProcess(
+            executable,
+            arguments: [
+                "workspace", "create",
+                "--cwd", repoURL.path,
+                "--label", label,
+                "--focus",
+            ]
+        )
+        guard createResult.status == 0,
+              let created = try? JSONDecoder().decode(
+                  HerdrWorkspaceCreateResponse.self,
+                  from: createResult.output
+              )
+        else {
+            return false
+        }
+
+        let paneID = created.result.rootPane.paneID
+        let workspaceID = created.result.workspace.workspaceID
+        let runResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", paneID, "codex"]
+        )
+        guard runResult.status == 0, self.activateHerdr() else { return false }
+        guard let prompt else { return true }
+
+        for _ in 0..<60 {
+            let paneListResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "list", "--workspace", workspaceID]
+            )
+            if paneListResult.status == 0,
+               let paneResponse = try? JSONDecoder().decode(
+                   HerdrPaneListResponse.self,
+                   from: paneListResult.output
+               ),
+               let createdPane = paneResponse.result.panes.first(where: {
+                   $0.paneID == paneID
                }),
                createdPane.agent?.lowercased() == "codex",
                createdPane.agentStatus?.lowercased() == "idle"
