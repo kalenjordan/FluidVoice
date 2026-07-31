@@ -273,6 +273,24 @@ private enum DictationLiteralFormatter {
                 ]
             )
         }
+        if let followUpMessage = self.compactNextMessage(
+            in: formattedText,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) {
+            return DictationLiteralOutputPlan(
+                steps: [
+                    .text("/compact"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text(followUpMessage),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .openNextPendingHerdrTab,
+                ]
+            )
+        }
         if let message = self.andNextMessage(
             in: formattedText,
             appName: appName,
@@ -417,6 +435,42 @@ private enum DictationLiteralFormatter {
             .substring(with: match.range(at: 1))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return message.isEmpty ? nil : message
+    }
+
+    private static func compactNextMessage(
+        in text: String,
+        appName: String?,
+        bundleID: String?,
+        windowTitle: String?
+    ) -> String? {
+        guard let messageBeforeNext = self.andNextMessage(
+            in: text,
+            appName: appName,
+            bundleID: bundleID,
+            windowTitle: windowTitle
+        ) else {
+            return nil
+        }
+
+        let prefix = "/compact"
+        guard messageBeforeNext.count > prefix.count,
+              messageBeforeNext.prefix(prefix.count).lowercased() == prefix
+        else {
+            return nil
+        }
+        let boundaryIndex = messageBeforeNext.index(
+            messageBeforeNext.startIndex,
+            offsetBy: prefix.count
+        )
+        guard messageBeforeNext[boundaryIndex].isWhitespace else { return nil }
+
+        var continuation = messageBeforeNext[boundaryIndex...]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if continuation.lowercased().hasPrefix("and ") {
+            continuation = continuation.dropFirst(4)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return continuation.isEmpty ? nil : continuation
     }
 
     private static func clearFollowUpMessage(

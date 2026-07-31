@@ -744,6 +744,27 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testCompactFollowUpNextRunsAllThreeActionsSeparately() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "/compact and continue next",
+            appName: "Codex",
+            bundleID: "com.openai.codex"
+        )
+
+        XCTAssertEqual(
+            plan.steps,
+            [
+                .text("/compact"),
+                .pressReturn,
+                .pause(milliseconds: 400),
+                .text("continue"),
+                .pressReturn,
+                .pause(milliseconds: 400),
+                .openNextPendingHerdrTab,
+            ]
+        )
+    }
+
     func testAndNextRunsInHerdrTerminal() {
         let plan = ASRService.makeDictationLiteralOutputPlan(
             for: "Review these changes and next.",
