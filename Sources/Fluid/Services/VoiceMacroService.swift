@@ -183,6 +183,10 @@ enum VoiceMacroService {
     private static let herdrCommandAliases = [
         "edit",
     ]
+    private static let bareHerdrWorkspaceAliases: [String: String] = [
+        "fluidvoice": "fluidvoice",
+        "nudges": "nudges",
+    ]
     private static let herdrCallerEnvironmentVariables: Set<String> = [
         "HERDR_PANE_ID",
         "HERDR_TAB_ID",
@@ -243,6 +247,10 @@ enum VoiceMacroService {
     ]
 
     static func herdrWorkspaceQuery(transcript: String, bundleID: String = "") -> String? {
+        if let query = self.bareHerdrWorkspaceAliases[self.normalizedPhrase(transcript)] {
+            return query
+        }
+
         let globalQuery = self.herdrCommandArgument(
             transcript,
             preserveTerminalPunctuation: true

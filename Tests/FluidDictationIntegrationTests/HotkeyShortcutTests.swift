@@ -9,6 +9,7 @@ final class HotkeyShortcutTests: XCTestCase {
     private let pasteLastTranscriptionShortcutKey = "PasteLastTranscriptionHotkeyShortcut"
     private let pasteLastTranscriptionEnabledKey = "PasteLastTranscriptionShortcutEnabled"
 
+    @MainActor
     func testRecentTranscriptMenuTitleCollapsesWhitespaceAndTruncatesLongText() {
         XCTAssertEqual(
             MenuBarManager.recentTranscriptMenuTitle(for: "First line\n  second\tline"),
@@ -42,6 +43,23 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Her name is Sarah",
             bundleID: "com.google.Chrome"
+        ))
+    }
+
+    func testBareFluidVoiceAndNudgesCommandsOpenTheirWorkspaces() {
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "FluidVoice."),
+            "fluidvoice"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "NUDGES!"),
+            "nudges"
+        )
+        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "FluidVoice is working"
+        ))
+        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
+            transcript: "Nudges are enabled"
         ))
     }
 
