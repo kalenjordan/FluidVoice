@@ -1775,46 +1775,27 @@ enum VoiceMacroService {
     private static func newCodexTabInvocation(
         transcript: String
     ) -> NewCodexTabInvocation? {
-        let leadingPattern = #"^(new codex tab|codex new tab|new tab)\b(.*)$"#
-        guard let leadingExpression = try? NSRegularExpression(
-            pattern: leadingPattern,
+        let pattern = #"^(new codex tab|codex new tab|new tab)\b(.*)$"#
+        guard let expression = try? NSRegularExpression(
+            pattern: pattern,
             options: [.caseInsensitive]
         ) else {
             return nil
         }
 
         let range = NSRange(transcript.startIndex..., in: transcript)
-        if let match = leadingExpression.firstMatch(in: transcript, range: range),
-           match.range.location == 0,
-           let trailingRange = Range(match.range(at: 2), in: transcript)
-        {
-            let trailingText = String(transcript[trailingRange].drop(while: {
-                $0.isWhitespace || $0.isPunctuation
-            }))
-            return NewCodexTabInvocation(
-                trailingText: trailingText.isEmpty ? nil : trailingText
-            )
-        }
-
-        let trailingPattern = #"^(.*?)\b(new codex tab|codex new tab|new tab)[\s\p{P}]*$"#
-        guard let trailingExpression = try? NSRegularExpression(
-            pattern: trailingPattern,
-            options: [.caseInsensitive]
-        ),
-        let match = trailingExpression.firstMatch(in: transcript, range: range),
-        let precedingRange = Range(match.range(at: 1), in: transcript)
+        guard let match = expression.firstMatch(in: transcript, range: range),
+              match.range.location == 0,
+              let trailingRange = Range(match.range(at: 2), in: transcript)
         else {
             return nil
         }
 
-        let commandSeparators = CharacterSet.whitespacesAndNewlines.union(
-            CharacterSet(charactersIn: ",;:")
-        )
-        let precedingText = String(transcript[precedingRange])
-            .trimmingCharacters(in: commandSeparators)
-        guard self.normalizedPhrase(precedingText) != "open a" else { return nil }
+        let trailingText = String(transcript[trailingRange].drop(while: {
+            $0.isWhitespace || $0.isPunctuation
+        }))
         return NewCodexTabInvocation(
-            trailingText: precedingText.isEmpty ? nil : precedingText
+            trailingText: trailingText.isEmpty ? nil : trailingText
         )
     }
 
