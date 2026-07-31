@@ -71,6 +71,19 @@ final class HotkeyShortcutTests: XCTestCase {
         )
     }
 
+    func testRecordMeetingCommandLaunchesAnarlog() {
+        XCTAssertEqual(
+            VoiceMacroService.applicationLaunchQuery(transcript: "Record meeting."),
+            "Anarlog"
+        )
+        XCTAssertNil(
+            VoiceMacroService.applicationLaunchQuery(
+                transcript: "Record meeting notes",
+                candidates: []
+            )
+        )
+    }
+
     func testApplicationLaunchCommandDoesNotClaimWorkspacePhrase() {
         XCTAssertNil(
             VoiceMacroService.applicationLaunchQuery(transcript: "Open Key Mapper")
@@ -652,6 +665,10 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM."),
             URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         )
         XCTAssertEqual(

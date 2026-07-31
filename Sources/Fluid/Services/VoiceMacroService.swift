@@ -266,6 +266,10 @@ enum VoiceMacroService {
         transcript: String,
         candidates: [URL]? = nil
     ) -> String? {
+        if self.normalizedPhrase(transcript) == "record meeting" {
+            return "Anarlog"
+        }
+
         if let applicationName = self.commandArgument(transcript, command: "launch") {
             return applicationName
         }
@@ -413,7 +417,7 @@ enum VoiceMacroService {
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
         case "commerce leak dash", "commerce leaked ash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
-        case "linkedin dash", "linkedin crm dash":
+        case "linkedin crm", "linkedin dash", "linkedin crm dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
         case "st3 dash", "s t three dash":
             return URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
