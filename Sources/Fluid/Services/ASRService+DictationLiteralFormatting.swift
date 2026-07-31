@@ -153,8 +153,8 @@ private enum DictationLiteralFormatter {
         options: []
     )
 
-    private static let compactFirstSuffixRegex = try? NSRegularExpression(
-        pattern: #"(?is)^(.+?)[,;]?\s+but\s+first[,\s]+(?:/|(?:forward\s+)?slash\s+)compact\s*[.!?]*\s*$"#,
+    private static let compactSuffixRegex = try? NSRegularExpression(
+        pattern: #"(?is)^(.+?)[,;]?\s+(?:but\s+first[,\s]+)?(?:/|(?:forward\s+)?slash\s+)compact\s*[.!?]*\s*$"#,
         options: []
     )
 
@@ -516,7 +516,7 @@ private enum DictationLiteralFormatter {
             return nil
         }
 
-        if let suffixMessage = self.compactFirstSuffixMessage(in: text) {
+        if let suffixMessage = self.compactSuffixMessage(in: text) {
             return suffixMessage
         }
 
@@ -533,8 +533,8 @@ private enum DictationLiteralFormatter {
         return continuation.isEmpty ? nil : continuation
     }
 
-    private static func compactFirstSuffixMessage(in text: String) -> String? {
-        guard let regex = self.compactFirstSuffixRegex else { return nil }
+    private static func compactSuffixMessage(in text: String) -> String? {
+        guard let regex = self.compactSuffixRegex else { return nil }
         let source = text as NSString
         let match = regex.firstMatch(
             in: text,

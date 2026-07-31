@@ -706,6 +706,32 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testTrailingCompactSubmitsCommandBeforeMessage() {
+        for transcript in [
+            "Come back to the notification work /compact",
+            "Come back to the notification work, slash compact.",
+            "Come back to the notification work forward slash compact",
+        ] {
+            let plan = ASRService.makeDictationLiteralOutputPlan(
+                for: transcript,
+                appName: "Ghostty",
+                bundleID: "com.mitchellh.ghostty"
+            )
+
+            XCTAssertEqual(
+                plan.steps,
+                [
+                    .text("/compact"),
+                    .pressReturn,
+                    .pause(milliseconds: 400),
+                    .text("Come back to the notification work"),
+                    .pressReturn,
+                ],
+                transcript
+            )
+        }
+    }
+
     func testButFirstCompactOnlyRunsInSlashCommandApps() {
         XCTAssertEqual(
             ASRService.makeDictationLiteralOutputPlan(
