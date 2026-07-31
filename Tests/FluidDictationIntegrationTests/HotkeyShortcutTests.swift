@@ -52,6 +52,10 @@ final class HotkeyShortcutTests: XCTestCase {
             "fluidvoice"
         )
         XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Fluid voice."),
+            "fluidvoice"
+        )
+        XCTAssertEqual(
             VoiceMacroService.herdrWorkspaceQuery(transcript: "NUDGES!"),
             "nudges"
         )

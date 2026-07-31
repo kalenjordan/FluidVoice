@@ -184,6 +184,7 @@ enum VoiceMacroService {
         "edit",
     ]
     private static let bareHerdrWorkspaceAliases: [String: String] = [
+        "fluid voice": "fluidvoice",
         "fluidvoice": "fluidvoice",
         "nudges": "nudges",
     ]
