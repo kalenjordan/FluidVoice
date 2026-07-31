@@ -211,6 +211,7 @@ final class HotkeyShortcutTests: XCTestCase {
     func testCodexStatusCommandSupportsCommonRecognitionVariant() {
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codex status."))
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codec status"))
+        XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codecs status"))
         XCTAssertFalse(VoiceMacroService.isCodexStatusCommand(transcript: "Codex stats"))
     }
 
@@ -888,10 +889,15 @@ final class HotkeyShortcutTests: XCTestCase {
     }
 
     func testRestartCodexCommandIsExactAndHerdrScoped() {
-        XCTAssertTrue(VoiceMacroService.isRestartCodexCommand(
-            transcript: "Restart Codex.",
-            bundleID: "com.mitchellh.ghostty"
-        ))
+        for transcript in [
+            "Restart Codex.", "Restart codec", "Restart codecs",
+            "Codex restart", "codec restart", "codecs restart",
+        ] {
+            XCTAssertTrue(VoiceMacroService.isRestartCodexCommand(
+                transcript: transcript,
+                bundleID: "com.mitchellh.ghostty"
+            ))
+        }
         XCTAssertFalse(VoiceMacroService.isRestartCodexCommand(
             transcript: "Please restart Codex",
             bundleID: "com.mitchellh.ghostty"
@@ -899,6 +905,28 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isRestartCodexCommand(
             transcript: "restart codex",
             bundleID: "com.openai.codex"
+        ))
+    }
+
+    func testCodexTabsLaunchWithPersistentShell() {
+        XCTAssertEqual(
+            VoiceMacroService.shellBackedCodexLaunchCommand,
+            "zsh -il -c 'codex; exec zsh -il'"
+        )
+    }
+
+    func testCodexResumeSessionIDParsesExitMessage() {
+        let output = """
+        Token usage: total=6,159 input=6,146 output=13
+        To continue this session, run codex resume, then select General Testing Task (019fba37-bfea-7aa1-890a-d541c0f90e2f)
+        """
+        XCTAssertEqual(
+            VoiceMacroService.newCodexResumeSessionID(beforeExit: "", afterExit: output),
+            "019fba37-bfea-7aa1-890a-d541c0f90e2f"
+        )
+        XCTAssertNil(VoiceMacroService.newCodexResumeSessionID(
+            beforeExit: output,
+            afterExit: output + "\nBare Codex exited"
         ))
     }
 

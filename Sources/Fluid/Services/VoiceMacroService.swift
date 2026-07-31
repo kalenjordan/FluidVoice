@@ -116,6 +116,7 @@ enum VoiceMacroService {
 
         struct ForegroundProcess: Decodable {
             let name: String
+            let pid: Int
         }
 
         let result: Result
@@ -270,6 +271,16 @@ enum VoiceMacroService {
     private static let applicationAliases: [String: String] = [
         "chatgpt": "chatgptclassic",
     ]
+    private static let speechRecognitionWordAliases: [String: Set<String>] = [
+        "codex": ["codec", "codecs"],
+    ]
+    static let shellBackedCodexLaunchCommand = "zsh -il -c 'codex; exec zsh -il'"
+
+    enum RestartCodexResult: Equatable {
+        case restarted
+        case noThreadToResume
+        case failed
+    }
 
     static func herdrWorkspaceQuery(transcript: String, bundleID: String = "") -> String? {
         if let query = self.bareHerdrWorkspaceAliases[self.normalizedPhrase(transcript)] {
@@ -549,13 +560,13 @@ enum VoiceMacroService {
     }
 
     static func isCodexStatusCommand(transcript: String) -> Bool {
-        self.normalizedPhrase(transcript) == "codex status"
-            || self.normalizedPhrase(transcript) == "codec status"
+        self.normalizedCommandPhrase(transcript) == "codex status"
     }
 
     static func isRestartCodexCommand(transcript: String, bundleID: String) -> Bool {
-        self.herdrBundleIDs.contains(bundleID.lowercased())
-            && self.normalizedPhrase(transcript) == "restart codex"
+        guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return false }
+        let phrase = self.normalizedCommandPhrase(transcript)
+        return phrase == "restart codex" || phrase == "codex restart"
     }
 
     static func isAddSynonymCommand(transcript: String) -> Bool {
@@ -978,7 +989,10 @@ enum VoiceMacroService {
 
         let runResult = await self.runProcess(
             executable,
-            arguments: ["pane", "run", created.result.rootPane.paneID, "codex"]
+            arguments: [
+                "pane", "run", created.result.rootPane.paneID,
+                self.shellBackedCodexLaunchCommand,
+            ]
         )
         guard runResult.status == 0,
               let herdrApplication = NSRunningApplication.runningApplications(
@@ -1073,7 +1087,10 @@ enum VoiceMacroService {
 
         let runResult = await self.runProcess(
             executable,
-            arguments: ["pane", "run", created.result.rootPane.paneID, "codex"]
+            arguments: [
+                "pane", "run", created.result.rootPane.paneID,
+                self.shellBackedCodexLaunchCommand,
+            ]
         )
         guard runResult.status == 0,
               let herdrApplication = NSRunningApplication.runningApplications(
@@ -1195,7 +1212,10 @@ enum VoiceMacroService {
 
         let runResult = await self.runProcess(
             executable,
-            arguments: ["pane", "run", created.result.rootPane.paneID, "codex"]
+            arguments: [
+                "pane", "run", created.result.rootPane.paneID,
+                self.shellBackedCodexLaunchCommand,
+            ]
         )
         guard runResult.status == 0, self.activateHerdr() else { return false }
         guard let prompt else { return true }
@@ -1273,7 +1293,7 @@ enum VoiceMacroService {
         let workspaceID = created.result.workspace.workspaceID
         let runResult = await self.runProcess(
             executable,
-            arguments: ["pane", "run", paneID, "codex"]
+            arguments: ["pane", "run", paneID, self.shellBackedCodexLaunchCommand]
         )
         guard runResult.status == 0, self.activateHerdr() else { return false }
         guard let prompt else { return true }
@@ -1342,60 +1362,235 @@ enum VoiceMacroService {
     }
 
     @MainActor
-    static func restartCodexInCurrentHerdrPane() async -> Bool {
-        guard let executable = self.herdrExecutableURL() else { return false }
+    static func restartCodexInCurrentHerdrPane() async -> RestartCodexResult {
+        let logSource = "VoiceMacroService"
+        DebugLogger.shared.info("Restart Codex started", source: logSource)
+        guard let executable = self.herdrExecutableURL() else {
+            DebugLogger.shared.error("Restart Codex could not find the Herdr executable", source: logSource)
+            return .failed
+        }
         let currentResult = await self.runProcess(
             executable,
             arguments: ["pane", "current", "--current"],
             removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
         )
-        guard currentResult.status == 0,
-              let currentPane = try? JSONDecoder().decode(
-                  HerdrCurrentPaneResponse.self,
-                  from: currentResult.output
-              ).result.pane,
-              currentPane.agent?.lowercased() == "codex",
-              let sessionID = currentPane.agentSession?.value,
-              sessionID.range(of: #"^[A-Za-z0-9-]+$"#, options: .regularExpression) != nil
-        else {
-            return false
-        }
-
-        let exitResult = await self.runProcess(
-            executable,
-            arguments: ["pane", "run", currentPane.paneID, "/exit"]
-        )
-        guard exitResult.status == 0 else { return false }
-
-        for _ in 0..<20 {
-            try? await Task.sleep(for: .milliseconds(100))
-            let processResult = await self.runProcess(
-                executable,
-                arguments: ["pane", "process-info", "--pane", currentPane.paneID]
+        guard currentResult.status == 0 else {
+            DebugLogger.shared.error(
+                "Restart Codex pane lookup failed with status \(currentResult.status): \(self.logSafeOutput(currentResult.output))",
+                source: logSource
             )
-            guard processResult.status == 0,
-                  let processInfo = try? JSONDecoder().decode(
-                      HerdrPaneProcessInfoResponse.self,
-                      from: processResult.output
-                  ).result.processInfo
-            else {
-                continue
-            }
-            let codexIsRunning = processInfo.foregroundProcesses.contains {
-                $0.name.lowercased() == "codex"
-            }
-            if !codexIsRunning {
-                let resumeResult = await self.runProcess(
-                    executable,
-                    arguments: [
-                        "pane", "run", currentPane.paneID,
-                        "codex resume \(sessionID)",
-                    ]
-                )
-                return resumeResult.status == 0
-            }
+            return .failed
         }
-        return false
+        guard let currentPane = try? JSONDecoder().decode(
+            HerdrCurrentPaneResponse.self,
+            from: currentResult.output
+        ).result.pane else {
+            DebugLogger.shared.error(
+                "Restart Codex could not decode the current pane: \(self.logSafeOutput(currentResult.output))",
+                source: logSource
+            )
+            return .failed
+        }
+        guard currentPane.agent?.lowercased() == "codex" else {
+            DebugLogger.shared.error(
+                "Restart Codex current pane \(currentPane.paneID) has agent \(currentPane.agent ?? "nil")",
+                source: logSource
+            )
+            return .failed
+        }
+        DebugLogger.shared.info(
+            "Restart Codex found pane \(currentPane.paneID); session present=\(currentPane.agentSession?.value != nil)",
+            source: logSource
+        )
+
+        let reportedSessionID: String?
+        if let value = currentPane.agentSession?.value,
+           value.range(of: #"^[A-Za-z0-9-]+$"#, options: .regularExpression) != nil
+        {
+            reportedSessionID = value
+        } else {
+            reportedSessionID = nil
+        }
+
+        guard let originalCodexPID = await self.codexProcesses(
+            inPane: currentPane.paneID,
+            executable: executable
+        )?.first?.pid else {
+            DebugLogger.shared.error(
+                "Restart Codex found no foreground Codex process in pane \(currentPane.paneID)",
+                source: logSource
+            )
+            return .failed
+        }
+        DebugLogger.shared.info(
+            "Restart Codex will interrupt PID \(originalCodexPID) in pane \(currentPane.paneID)",
+            source: logSource
+        )
+        let terminalBeforeExit = await self.readRecentPaneText(
+            currentPane.paneID,
+            executable: executable
+        ) ?? ""
+
+        // When Codex is generating, the first Ctrl-C only interrupts the turn.
+        // Send another only if the same Codex process remains in the foreground.
+        for interruptAttempt in 0..<3 {
+            DebugLogger.shared.info(
+                "Restart Codex sending Ctrl-C attempt \(interruptAttempt + 1) to pane \(currentPane.paneID)",
+                source: logSource
+            )
+            let interruptResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "send-keys", currentPane.paneID, "ctrl+c"]
+            )
+            guard interruptResult.status == 0 else {
+                DebugLogger.shared.error(
+                    "Restart Codex failed to send Ctrl-C (attempt \(interruptAttempt + 1))",
+                    source: "VoiceMacroService"
+                )
+                return .failed
+            }
+
+            for _ in 0..<15 {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let runningProcesses = await self.codexProcesses(
+                    inPane: currentPane.paneID,
+                    executable: executable
+                ) else {
+                    continue
+                }
+                let runningPID = runningProcesses.first?.pid
+                if runningPID == nil {
+                    var sessionID = reportedSessionID
+                    if sessionID == nil {
+                        if let terminalAfterExit = await self.readRecentPaneText(
+                            currentPane.paneID,
+                            executable: executable
+                        ) {
+                            sessionID = self.newCodexResumeSessionID(
+                                beforeExit: terminalBeforeExit,
+                                afterExit: terminalAfterExit
+                            )
+                        }
+                    }
+                    guard let sessionID else {
+                        DebugLogger.shared.info(
+                            "Restart Codex exited a bare session with no thread ID to resume",
+                            source: logSource
+                        )
+                        return .noThreadToResume
+                    }
+                    DebugLogger.shared.info(
+                        "Restart Codex process exited after Ctrl-C attempt \(interruptAttempt + 1); sending resume",
+                        source: logSource
+                    )
+                    let resumeResult = await self.runProcess(
+                        executable,
+                        arguments: [
+                            "pane", "run", currentPane.paneID,
+                            "codex resume \(sessionID)",
+                        ]
+                    )
+                    guard resumeResult.status == 0 else {
+                        DebugLogger.shared.error(
+                            "Restart Codex resume command failed with status \(resumeResult.status)",
+                            source: "VoiceMacroService"
+                        )
+                        return .failed
+                    }
+
+                    for _ in 0..<30 {
+                        try? await Task.sleep(for: .milliseconds(100))
+                        if let resumedPID = await self.codexProcesses(
+                            inPane: currentPane.paneID,
+                            executable: executable
+                        )?.first?.pid, resumedPID != originalCodexPID {
+                            DebugLogger.shared.info(
+                                "Restart Codex resumed successfully as PID \(resumedPID)",
+                                source: logSource
+                            )
+                            return .restarted
+                        }
+                    }
+                    DebugLogger.shared.error(
+                        "Restart Codex could not verify the resumed process",
+                        source: "VoiceMacroService"
+                    )
+                    return .failed
+                }
+            }
+            let remainingPID = await self.codexProcesses(
+                inPane: currentPane.paneID,
+                executable: executable
+            )?.first?.pid
+            DebugLogger.shared.info(
+                "Restart Codex Ctrl-C attempt \(interruptAttempt + 1) completed; foreground Codex PID=\(remainingPID.map(String.init) ?? "nil")",
+                source: logSource
+            )
+        }
+        DebugLogger.shared.error(
+            "Restart Codex process remained after three Ctrl-C attempts",
+            source: "VoiceMacroService"
+        )
+        return .failed
+    }
+
+    static func newCodexResumeSessionID(beforeExit: String, afterExit: String) -> String? {
+        var priorCounts: [String: Int] = [:]
+        for sessionID in self.codexResumeSessionIDs(in: beforeExit) {
+            priorCounts[sessionID, default: 0] += 1
+        }
+        var seenCounts: [String: Int] = [:]
+        return self.codexResumeSessionIDs(in: afterExit).last { sessionID in
+            seenCounts[sessionID, default: 0] += 1
+            return seenCounts[sessionID, default: 0] > priorCounts[sessionID, default: 0]
+        }
+    }
+
+    private static func codexResumeSessionIDs(in terminalText: String) -> [String] {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"(?i)To continue this session, run codex resume[^\n]*\(([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)"#
+        ) else { return [] }
+        let range = NSRange(terminalText.startIndex..., in: terminalText)
+        return expression.matches(in: terminalText, range: range).compactMap { match in
+            guard let sessionRange = Range(match.range(at: 1), in: terminalText) else { return nil }
+            return String(terminalText[sessionRange])
+        }
+    }
+
+    private static func readRecentPaneText(_ paneID: String, executable: URL) async -> String? {
+        let result = await self.runProcess(
+            executable,
+            arguments: [
+                "pane", "read", paneID,
+                "--source", "recent", "--lines", "30", "--format", "text",
+            ]
+        )
+        guard result.status == 0 else { return nil }
+        return String(data: result.output, encoding: .utf8)
+    }
+
+    private static func logSafeOutput(_ data: Data) -> String {
+        let output = String(data: data, encoding: .utf8) ?? "<non-UTF8 output>"
+        return String(output.replacingOccurrences(of: "\n", with: " ").prefix(500))
+    }
+
+    private static func codexProcesses(
+        inPane paneID: String,
+        executable: URL
+    ) async -> [HerdrPaneProcessInfoResponse.ForegroundProcess]? {
+        let processResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "process-info", "--pane", paneID]
+        )
+        guard processResult.status == 0,
+              let foregroundProcesses = try? JSONDecoder().decode(
+                  HerdrPaneProcessInfoResponse.self,
+                  from: processResult.output
+              ).result.processInfo.foregroundProcesses
+        else {
+            return nil
+        }
+        return foregroundProcesses.filter { $0.name.lowercased() == "codex" }
     }
 
     private static func activateHerdr() -> Bool {
@@ -1770,6 +1965,18 @@ enum VoiceMacroService {
             $0.isWhitespace || $0.isPunctuation
         }
         return words.joined(separator: " ")
+    }
+
+    private static func normalizedCommandPhrase(_ text: String) -> String {
+        self.normalizedPhrase(text)
+            .split(separator: " ")
+            .map { word in
+                let word = String(word)
+                return self.speechRecognitionWordAliases.first {
+                    $0.value.contains(word)
+                }?.key ?? word
+            }
+            .joined(separator: " ")
     }
 
     private static func newCodexTabInvocation(

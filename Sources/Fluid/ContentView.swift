@@ -2552,13 +2552,17 @@ struct ContentView: View {
                 "Running restart Codex voice command",
                 source: "ContentView"
             )
-            VoiceMacroService.showStatusToast("Restarting Codex…")
-            let succeeded = await VoiceMacroService.restartCodexInCurrentHerdrPane()
+            let result = await VoiceMacroService.restartCodexInCurrentHerdrPane()
             DebugLogger.shared.info(
-                "Restart Codex voice command finished: success=\(succeeded)",
+                "Restart Codex voice command finished: result=\(result)",
                 source: "ContentView"
             )
-            if !succeeded {
+            switch result {
+            case .restarted:
+                break
+            case .noThreadToResume:
+                VoiceMacroService.showStatusToast("Closed bare Codex session; no thread to resume.")
+            case .failed:
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not restart the current Codex session.")
             }
