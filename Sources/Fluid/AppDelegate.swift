@@ -16,8 +16,11 @@ import UserNotifications
 /// both the Dock and Command-Tab, so they cannot be controlled independently.
 @MainActor
 enum AppActivationPolicyController {
+    static var suppressMainWindowActivation = false
+
     static func showForMainWindow() {
-        guard SettingsStore.shared.showInDock,
+        guard !self.suppressMainWindowActivation,
+              SettingsStore.shared.showInDock,
               SettingsStore.shared.hideFromAppSwitcherWhenMainWindowClosed
         else {
             self.applyCurrentPolicy()
@@ -31,7 +34,7 @@ enum AppActivationPolicyController {
         let settings = SettingsStore.shared
         let policy: NSApplication.ActivationPolicy
 
-        if !settings.showInDock {
+        if self.suppressMainWindowActivation || !settings.showInDock {
             policy = .accessory
         } else if settings.hideFromAppSwitcherWhenMainWindowClosed,
                   !self.hasVisibleMainWindow
@@ -66,6 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var didRequestMainWindowReopen = false
     private var shouldSuppressNextReopenActivation = false
     private var wasLaunchedAsLoginItem = false
+    private var shouldSuppressMainWindowOnLaunch = false
     private var hasDeferredMLXUpgradeOffer = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -74,8 +78,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Must be read during the launch callback - the current Apple Event identifies
         // login-item launches (used to optionally start silently, see issue #369).
         self.wasLaunchedAsLoginItem = Self.detectLoginItemLaunch()
+        self.shouldSuppressMainWindowOnLaunch = UserDefaults.standard.bool(
+            forKey: AppRelauncher.suppressMainWindowOnNextLaunchKey
+        )
+        UserDefaults.standard.removeObject(forKey: AppRelauncher.suppressMainWindowOnNextLaunchKey)
+        AppActivationPolicyController.suppressMainWindowActivation = self.shouldLaunchWithMainWindowHidden
+        AppActivationPolicyController.applyCurrentPolicy()
         DebugLogger.shared.info(
-            "Application launched [loginItemLaunch=\(self.wasLaunchedAsLoginItem)]",
+            "Application launched [loginItemLaunch=\(self.wasLaunchedAsLoginItem), suppressMainWindow=\(self.shouldSuppressMainWindowOnLaunch)]",
             source: "AppDelegate"
         )
         UNUserNotificationCenter.current().delegate = self
@@ -116,7 +126,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         self.openMainWindowOnLaunch()
 
         if shouldOfferMLXUpgrade {
-            if self.wasLaunchedAsLoginItem, !SettingsStore.shared.showMainWindowAtLoginLaunch {
+            if self.shouldLaunchWithMainWindowHidden {
                 self.hasDeferredMLXUpgradeOffer = true
             } else {
                 self.scheduleMLXUpgradeOffer()
@@ -287,7 +297,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // The window must still be CREATED either way - ContentView's appearance
         // bootstraps the menu bar and services - so the silent path realizes it
         // invisibly instead of skipping it.
-        let revealWindow = !self.wasLaunchedAsLoginItem || SettingsStore.shared.showMainWindowAtLoginLaunch
+        let revealWindow = !self.shouldLaunchWithMainWindowHidden
 
         for delay in [0.1, 0.6, 1.2, 2.5, 4.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -313,6 +323,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 }
             }
         }
+    }
+
+    private var shouldLaunchWithMainWindowHidden: Bool {
+        self.shouldSuppressMainWindowOnLaunch
+            || (self.wasLaunchedAsLoginItem && !SettingsStore.shared.showMainWindowAtLoginLaunch)
     }
 
     private func scheduleMLXUpgradeOffer() {
@@ -356,6 +371,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             guard let mainWindow, mainWindow.alphaValue <= 0.01 else { return }
             mainWindow.orderOut(nil)
             mainWindow.alphaValue = originalAlpha
+            AppActivationPolicyController.suppressMainWindowActivation = false
+            AppActivationPolicyController.applyCurrentPolicy()
             DebugLogger.shared.info(
                 "Main window booted hidden (show-at-login-launch disabled)",
                 source: "AppDelegate"

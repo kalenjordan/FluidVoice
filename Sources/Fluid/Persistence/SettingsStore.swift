@@ -2174,13 +2174,11 @@ final class SettingsStore: ObservableObject {
         #if os(macOS)
         self.refreshLaunchAtStartupStatus(clearError: true)
 
-        // Apply dock visibility setting on app launch
-        let dockVisible = self.showInDock
-        DebugLogger.shared.info("Initializing app with dock visibility: \(dockVisible)", source: "SettingsStore")
+        DebugLogger.shared.info("Initializing app with dock visibility: \(self.showInDock)", source: "SettingsStore")
 
-        // Set activation policy based on saved preference
+        // Respect both the saved preference and transient menu-bar-only launches.
         DispatchQueue.main.async {
-            NSApp.setActivationPolicy(dockVisible ? .regular : .accessory)
+            AppActivationPolicyController.applyCurrentPolicy()
         }
         #endif
     }

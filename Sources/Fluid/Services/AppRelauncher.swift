@@ -1,6 +1,8 @@
 import AppKit
 
 enum AppRelauncher {
+    static let suppressMainWindowOnNextLaunchKey = "SuppressMainWindowOnNextLaunch"
+
     private static let waitForExitScript = """
     while kill -0 "$1" 2>/dev/null; do
         sleep 0.1
@@ -18,6 +20,8 @@ enum AppRelauncher {
             )
             return false
         }
+
+        UserDefaults.standard.set(true, forKey: self.suppressMainWindowOnNextLaunchKey)
 
         NotificationService.showAppRestarting {
             Task { @MainActor in
