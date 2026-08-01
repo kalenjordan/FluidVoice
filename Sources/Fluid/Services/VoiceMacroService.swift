@@ -18,11 +18,6 @@ enum VoiceMacroService {
         let trailingText: String?
     }
 
-    struct HerdrWorkspaceOpenResult {
-        let query: String
-        let succeeded: Bool
-    }
-
     private struct NewCodexTabInvocation {
         let trailingText: String?
     }
@@ -233,6 +228,7 @@ enum VoiceMacroService {
         "fluid voice": "fluidvoice",
         "fluidvoice": "fluidvoice",
         "nudges": "nudges",
+        "skills": "skills",
     ]
     private static let herdrCallerEnvironmentVariables: Set<String> = [
         "HERDR_PANE_ID",
@@ -311,6 +307,27 @@ enum VoiceMacroService {
 
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         if let expression = try? NSRegularExpression(
+            pattern: #"^(.+)\s+edit\s+(.+)$"#,
+            options: [.caseInsensitive]
+        ) {
+            let range = NSRange(trimmedTranscript.startIndex..., in: trimmedTranscript)
+            if let match = expression.firstMatch(in: trimmedTranscript, range: range),
+               let promptRange = Range(match.range(at: 1), in: trimmedTranscript),
+               let workspaceRange = Range(match.range(at: 2), in: trimmedTranscript)
+            {
+                let prompt = trimmedTranscript[promptRange]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let workspace = trimmedTranscript[workspaceRange]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !prompt.isEmpty, !workspace.isEmpty {
+                    return workspace + ", " + prompt
+                }
+            }
+        }
+
+        if let expression = try? NSRegularExpression(
             pattern: #"^herd(?:e)?r\b(.*)$"#,
             options: [.caseInsensitive]
         ) {
@@ -327,21 +344,28 @@ enum VoiceMacroService {
             }
         }
 
-        if let expression = try? NSRegularExpression(
-            pattern: #"^fluid\s*voice\b(.*)$"#,
-            options: [.caseInsensitive]
-        ) {
-            let range = NSRange(trimmedTranscript.startIndex..., in: trimmedTranscript)
-            if let match = expression.firstMatch(in: trimmedTranscript, range: range),
-               let trailingRange = Range(match.range(at: 1), in: trimmedTranscript)
-            {
-                let trailingText = trimmedTranscript[trailingRange]
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trailingText.isEmpty else { return "fluidvoice" }
-                return "fluidvoice " + trailingText
+        for (alias, workspace) in self.bareHerdrWorkspaceAliases.sorted(by: {
+            $0.key.count > $1.key.count
+        }) {
+            let pattern = #"^"# + NSRegularExpression.escapedPattern(for: alias) + #"\b(.*)$"#
+            guard let expression = try? NSRegularExpression(
+                pattern: pattern,
+                options: [.caseInsensitive]
+            ) else {
+                continue
             }
+            let range = NSRange(trimmedTranscript.startIndex..., in: trimmedTranscript)
+            guard let match = expression.firstMatch(in: trimmedTranscript, range: range),
+                  let trailingRange = Range(match.range(at: 1), in: trimmedTranscript)
+            else {
+                continue
+            }
+            let trailingText = trimmedTranscript[trailingRange]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trailingText.isEmpty else { return workspace }
+            return workspace + " " + trailingText
         }
 
         let globalQuery = self.herdrCommandArgument(
@@ -1317,40 +1341,6 @@ enum VoiceMacroService {
             workspace: invocation.workspace,
             executable: executable
         )
-    }
-
-    @MainActor
-    static func openBareHerdrWorkspace(transcript: String) async -> HerdrWorkspaceOpenResult? {
-        guard let executable = self.herdrExecutableURL() else { return nil }
-        let listResult = await self.runProcess(executable, arguments: ["workspace", "list"])
-        guard listResult.status == 0,
-              let response = try? JSONDecoder().decode(
-                  HerdrWorkspaceListResponse.self,
-                  from: listResult.output
-              ),
-              let invocation = self.resolveWorkspaceInvocation(
-                  query: transcript,
-                  workspaces: response.result.workspaces
-              )
-        else {
-            return nil
-        }
-
-        let succeeded: Bool
-        if let trailingText = invocation.trailingText {
-            succeeded = await self.openHerdrWorkspacePrompt(
-                trailingText,
-                workspace: invocation.workspace,
-                executable: executable
-            )
-        } else {
-            let focusResult = await self.runProcess(
-                executable,
-                arguments: ["workspace", "focus", invocation.workspace.workspaceID]
-            )
-            succeeded = focusResult.status == 0 && self.activateHerdr()
-        }
-        return HerdrWorkspaceOpenResult(query: transcript, succeeded: succeeded)
     }
 
     @MainActor

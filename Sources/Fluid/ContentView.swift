@@ -2958,32 +2958,6 @@ struct ContentView: View {
         }
 
         if route == .normal,
-           let result = await VoiceMacroService.openBareHerdrWorkspace(
-               transcript: transcribedText
-           )
-        {
-            DebugLogger.shared.info(
-                "Running bare Herdr workspace voice command: \(result.query)",
-                source: "ContentView"
-            )
-            self.recordVoiceAction(
-                command: transcribedText,
-                succeeded: result.succeeded,
-                targetPID: typingTarget.pid,
-                appInfo: appInfo,
-                additionalContext: "Workspace Query: \(result.query)"
-            )
-            if !result.succeeded {
-                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
-                VoiceMacroService.showStatusToast("Could not open that Herder workspace.")
-            }
-            if !didRequestOverlayHideOnStop {
-                self.hideOverlayAfterOutput()
-            }
-            return
-        }
-
-        if route == .normal,
            VoiceMacroService.isRestartFluidVoiceCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info(

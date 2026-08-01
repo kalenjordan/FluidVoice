@@ -55,7 +55,7 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
-    func testBareFluidVoiceAndNudgesCommandsOpenTheirWorkspaces() {
+    func testBareFrequentWorkspaceCommandsSupportTrailingPrompts() {
         XCTAssertEqual(
             VoiceMacroService.herdrWorkspaceQuery(transcript: "FluidVoice."),
             "fluidvoice"
@@ -69,6 +69,10 @@ final class HotkeyShortcutTests: XCTestCase {
             "nudges"
         )
         XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Skills, add a release checklist"),
+            "skills add a release checklist"
+        )
+        XCTAssertEqual(
             VoiceMacroService.herdrWorkspaceQuery(transcript: "FluidVoice is working"),
             "fluidvoice is working"
         )
@@ -78,9 +82,39 @@ final class HotkeyShortcutTests: XCTestCase {
             ),
             "fluidvoice investigate the focus issue."
         )
-        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Nudges are enabled"
-        ))
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Nudges are enabled"),
+            "nudges are enabled"
+        )
+        XCTAssertNil(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "SignalFlame Dash")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(
+                transcript: "Edit Signal Flame, investigate the dashboard"
+            ),
+            "Signal Flame, investigate the dashboard"
+        )
+        XCTAssertNil(
+            VoiceMacroService.herdrWorkspaceQuery(
+                transcript: "Add a release checklist skills"
+            )
+        )
+    }
+
+    func testTrailingEditRoutesPrecedingPromptToWorkspace() {
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(
+                transcript: "Investigate the dashboard, edit Signal Flame"
+            ),
+            "Signal Flame, Investigate the dashboard"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(
+                transcript: "Add a release checklist edit skills."
+            ),
+            "skills., Add a release checklist"
+        )
     }
 
     func testHerdrWorkspaceOpenCommandIsNotSupported() {
