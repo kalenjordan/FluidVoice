@@ -1221,6 +1221,83 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testCodexReasoningCommandSupportsLowMediumAndHighInHerdr() {
+        let bundleID = "com.mitchellh.ghostty"
+        XCTAssertEqual(
+            VoiceMacroService.codexReasoningLevelCommand(
+                transcript: "Codex low.",
+                bundleID: bundleID
+            ),
+            .low
+        )
+        XCTAssertEqual(
+            VoiceMacroService.codexReasoningLevelCommand(
+                transcript: "Codex medium.",
+                bundleID: bundleID
+            ),
+            .medium
+        )
+        XCTAssertEqual(
+            VoiceMacroService.codexReasoningLevelCommand(
+                transcript: "Set codecs reasoning high",
+                bundleID: bundleID
+            ),
+            .high
+        )
+        XCTAssertNil(VoiceMacroService.codexReasoningLevelCommand(
+            transcript: "Codex minimal",
+            bundleID: bundleID
+        ))
+        XCTAssertNil(VoiceMacroService.codexReasoningLevelCommand(
+            transcript: "Codex high",
+            bundleID: "com.openai.codex"
+        ))
+    }
+
+    func testCodexReasoningShortcutAdjustmentUsesVisiblePaneStatus() {
+        let paneText = """
+        ╭─────────────────────────────────────────────────╮
+        │ model:       gpt-5.6-sol low   /model to change │
+        ╰─────────────────────────────────────────────────╯
+
+          FluidVoice · gpt-5.6-sol high · Existing Thread
+        """
+
+        XCTAssertEqual(
+            VoiceMacroService.codexReasoningShortcutAdjustment(
+                paneText: paneText,
+                requestedLevel: .medium
+            ),
+            -1
+        )
+        XCTAssertEqual(
+            VoiceMacroService.codexReasoningShortcutAdjustment(
+                paneText: paneText,
+                requestedLevel: .high
+            ),
+            0
+        )
+    }
+
+    func testCodexReasoningShortcutAdjustmentSupportsBrandNewPane() {
+        let paneText = """
+        │ model:       gpt-5.6-sol low   /model to change │
+        │ directory:   ~/repos/FluidVoice                 │
+        """
+
+        XCTAssertEqual(
+            VoiceMacroService.codexReasoningShortcutAdjustment(
+                paneText: paneText,
+                requestedLevel: .high
+            ),
+            2
+        )
+        XCTAssertNil(VoiceMacroService.codexReasoningShortcutAdjustment(
+            paneText: "Codex is starting",
+            requestedLevel: .low
+        ))
+    }
+
     func testCodexTabsLaunchWithPersistentShell() {
         XCTAssertEqual(
             VoiceMacroService.shellBackedCodexLaunchCommand,

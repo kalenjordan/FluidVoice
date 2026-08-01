@@ -2711,6 +2711,54 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
+           let reasoningLevel = VoiceMacroService.codexReasoningLevelCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info(
+                "Running Codex reasoning voice command: level=\(reasoningLevel.rawValue)",
+                source: "ContentView"
+            )
+            let result = await VoiceMacroService.setCodexReasoningLevel(
+                reasoningLevel,
+                targetPID: targetPID
+            )
+            switch result {
+            case .set:
+                recordAction(
+                    true,
+                    "Action Type: Set Codex reasoning\nLevel: \(reasoningLevel.rawValue)"
+                )
+                VoiceMacroService.showStatusToast(
+                    "Codex reasoning set to \(reasoningLevel.rawValue)."
+                )
+            case .busy:
+                recordAction(
+                    false,
+                    "Action Type: Set Codex reasoning\nLevel: \(reasoningLevel.rawValue)\nReason: Codex is working"
+                )
+                VoiceMacroService.showStatusToast(
+                    "Wait for Codex to finish, then try again."
+                )
+            case .failed:
+                recordAction(
+                    false,
+                    "Action Type: Set Codex reasoning\nLevel: \(reasoningLevel.rawValue)"
+                )
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast(
+                    "Could not set reasoning in the current Codex pane."
+                )
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isAddSynonymCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running add synonym voice command", source: "ContentView")

@@ -37,6 +37,18 @@ enum VoiceMacroService {
         case right
     }
 
+    enum CodexReasoningLevel: String, Equatable {
+        case low
+        case medium
+        case high
+    }
+
+    enum CodexReasoningSetResult: Equatable {
+        case set
+        case busy
+        case failed
+    }
+
     struct CodexWeeklyStatus: Equatable {
         let usedPercent: Double
         let windowDurationMinutes: Double
@@ -665,6 +677,23 @@ enum VoiceMacroService {
         guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return false }
         let phrase = self.normalizedCommandPhrase(transcript)
         return phrase == "restart codex" || phrase == "codex restart"
+    }
+
+    static func codexReasoningLevelCommand(
+        transcript: String,
+        bundleID: String
+    ) -> CodexReasoningLevel? {
+        guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
+        switch self.normalizedCommandPhrase(transcript) {
+        case "codex low", "codex reasoning low", "set codex reasoning low":
+            return .low
+        case "codex medium", "codex reasoning medium", "set codex reasoning medium":
+            return .medium
+        case "codex high", "codex reasoning high", "set codex reasoning high":
+            return .high
+        default:
+            return nil
+        }
     }
 
     static func isAddSynonymCommand(transcript: String) -> Bool {
@@ -1856,6 +1885,37 @@ enum VoiceMacroService {
         }
     }
 
+    static func codexReasoningShortcutAdjustment(
+        paneText: String,
+        requestedLevel: CodexReasoningLevel
+    ) -> Int? {
+        let orderedEfforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
+        guard let currentEffort = self.currentCodexReasoningEffort(inPaneText: paneText),
+              let currentIndex = orderedEfforts.firstIndex(of: currentEffort),
+              let requestedIndex = orderedEfforts.firstIndex(of: requestedLevel.rawValue)
+        else {
+            return nil
+        }
+        return requestedIndex - currentIndex
+    }
+
+    static func currentCodexReasoningEffort(inPaneText paneText: String) -> String? {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"\b(?:gpt|o)[a-z0-9._-]*\s+(low|medium|high|xhigh|extra high|max|ultra)\b"#,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+        let range = NSRange(paneText.startIndex..., in: paneText)
+        guard let match = expression.matches(in: paneText, range: range).last,
+              let effortRange = Range(match.range(at: 1), in: paneText)
+        else {
+            return nil
+        }
+        let effort = paneText[effortRange].lowercased()
+        return effort == "extra high" ? "xhigh" : effort
+    }
+
     private static func codexSessionContents(sessionID: String) -> String? {
         let codexURL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex", isDirectory: true)
@@ -2251,6 +2311,109 @@ enum VoiceMacroService {
         DebugLogger.shared.error(
             "Restart Codex process remained after three Ctrl-C attempts",
             source: "VoiceMacroService"
+        )
+        return .failed
+    }
+
+    @MainActor
+    static func setCodexReasoningLevel(
+        _ level: CodexReasoningLevel,
+        targetPID: pid_t
+    ) async -> CodexReasoningSetResult {
+        let logSource = "VoiceMacroService"
+        guard self.isTargetFrontmost(targetPID),
+              let executable = self.herdrExecutableURL()
+        else {
+            return .failed
+        }
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let currentPane = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              ).result.pane,
+              currentPane.agent?.lowercased() == "codex",
+              self.isTargetFrontmost(targetPID)
+        else {
+            return .failed
+        }
+        guard currentPane.agentStatus?.lowercased() != "working" else {
+            DebugLogger.shared.info(
+                "Codex reasoning command deferred: pane=\(currentPane.paneID) status=working requested=\(level.rawValue)",
+                source: logSource
+            )
+            return .busy
+        }
+
+        let readArguments = [
+            "pane", "read", currentPane.paneID,
+            "--source", "visible", "--format", "text",
+        ]
+        let paneRead = await self.runProcess(
+            executable,
+            arguments: readArguments,
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard paneRead.status == 0,
+              let adjustment = self.codexReasoningShortcutAdjustment(
+                  paneText: String(decoding: paneRead.output, as: UTF8.self),
+                  requestedLevel: level
+              )
+        else {
+            DebugLogger.shared.error(
+                "Codex reasoning command could not read current effort: pane=\(currentPane.paneID) requested=\(level.rawValue)",
+                source: logSource
+            )
+            return .failed
+        }
+
+        DebugLogger.shared.info(
+            "Codex reasoning adjustment: pane=\(currentPane.paneID) requested=\(level.rawValue) steps=\(adjustment)",
+            source: logSource
+        )
+        if adjustment != 0 {
+            let key = adjustment < 0 ? "alt+comma" : "alt+period"
+            let sendResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "send-keys", currentPane.paneID]
+                    + Array(repeating: key, count: abs(adjustment)),
+                removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+            )
+            guard sendResult.status == 0 else {
+                DebugLogger.shared.error(
+                    "Codex reasoning key delivery failed: pane=\(currentPane.paneID) requested=\(level.rawValue)",
+                    source: logSource
+                )
+                return .failed
+            }
+        }
+
+        for _ in 0..<10 {
+            let verification = await self.runProcess(
+                executable,
+                arguments: readArguments,
+                removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+            )
+            if verification.status == 0,
+               self.currentCodexReasoningEffort(
+                   inPaneText: String(decoding: verification.output, as: UTF8.self)
+               ) == level.rawValue
+            {
+                DebugLogger.shared.info(
+                    "Codex reasoning verified: pane=\(currentPane.paneID) level=\(level.rawValue)",
+                    source: logSource
+                )
+                return .set
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        DebugLogger.shared.error(
+            "Codex reasoning verification failed: pane=\(currentPane.paneID) requested=\(level.rawValue)",
+            source: logSource
         )
         return .failed
     }
