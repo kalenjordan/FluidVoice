@@ -2291,6 +2291,26 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isEnterCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running enter voice command", source: "ContentView")
+            if typingTarget.shouldRestoreOriginalFocus {
+                await self.restoreFocusToRecordingTarget()
+            }
+            let succeeded = VoiceMacroService.pressEnter(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Press Enter")
+            DebugLogger.shared.info(
+                "Enter voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isPlayCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running play voice command", source: "ContentView")

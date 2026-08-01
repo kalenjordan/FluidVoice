@@ -750,6 +750,14 @@ enum VoiceMacroService {
         return phrase == "copy last result" || phrase == "copy last action"
     }
 
+    static func isEnterCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "enter"
+    }
+
+    static func pressEnter(targetPID: pid_t) -> Bool {
+        self.postKey(CGKeyCode(kVK_Return), to: targetPID)
+    }
+
     static func isCodexClearLineCommand(transcript: String, bundleID: String) -> Bool {
         guard self.codexBundleIDs.contains(bundleID.lowercased()) else { return false }
         let phrase = self.normalizedPhrase(transcript)

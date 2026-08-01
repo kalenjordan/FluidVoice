@@ -1193,6 +1193,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testEnterCommandIsExactAndGlobal() {
+        XCTAssertTrue(VoiceMacroService.isEnterCommand(
+            transcript: "Enter."
+        ))
+        XCTAssertTrue(VoiceMacroService.isEnterCommand(
+            transcript: "ENTER!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isEnterCommand(
+            transcript: "press enter"
+        ))
+        XCTAssertFalse(VoiceMacroService.isEnterCommand(
+            transcript: "enter the room"
+        ))
+    }
+
     func testCodexClearLineCommandAcceptsSpokenSlashAndIsAppScoped() {
         for transcript in ["Clear line.", "slash clear line", "/clear line"] {
             for bundleID in ["com.mitchellh.ghostty", "com.openai.codex"] {
