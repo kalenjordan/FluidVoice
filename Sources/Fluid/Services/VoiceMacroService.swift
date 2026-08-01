@@ -2817,11 +2817,39 @@ enum VoiceMacroService {
             return false
         }
 
+        let listResult = await self.runProcess(
+            executable,
+            arguments: ["tab", "list", "--workspace", currentPane.workspaceID]
+        )
+        guard listResult.status == 0,
+              let response = try? JSONDecoder().decode(
+                  HerdrTabListResponse.self,
+                  from: listResult.output
+              )
+        else {
+            return false
+        }
+
         let closeResult = await self.runProcess(
             executable,
-            arguments: ["tab", "close", currentPane.tabID]
+            arguments: self.herdrCloseArguments(
+                tabID: currentPane.tabID,
+                workspaceID: currentPane.workspaceID,
+                tabCount: response.result.tabs.count
+            )
         )
         return closeResult.status == 0
+    }
+
+    static func herdrCloseArguments(
+        tabID: String,
+        workspaceID: String,
+        tabCount: Int
+    ) -> [String] {
+        if tabCount == 1 {
+            return ["workspace", "close", workspaceID]
+        }
+        return ["tab", "close", tabID]
     }
 
     @MainActor

@@ -750,6 +750,28 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testCloseCommandClosesWorkspaceForItsOnlyTab() {
+        XCTAssertEqual(
+            VoiceMacroService.herdrCloseArguments(
+                tabID: "w1:t1",
+                workspaceID: "w1",
+                tabCount: 1
+            ),
+            ["workspace", "close", "w1"]
+        )
+    }
+
+    func testCloseCommandClosesTabWhenWorkspaceHasMultipleTabs() {
+        XCTAssertEqual(
+            VoiceMacroService.herdrCloseArguments(
+                tabID: "w1:t2",
+                workspaceID: "w1",
+                tabCount: 2
+            ),
+            ["tab", "close", "w1:t2"]
+        )
+    }
+
     func testNextPendingCommandUsesExactPhrase() {
         XCTAssertTrue(VoiceMacroService.isNextPendingCommand(
             transcript: "Next."
