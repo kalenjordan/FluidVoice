@@ -646,8 +646,9 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "delete desktop"
     }
 
-    static func isCopyLastActionCommand(transcript: String) -> Bool {
-        self.normalizedPhrase(transcript) == "copy last action"
+    static func isCopyLastResultCommand(transcript: String) -> Bool {
+        let phrase = self.normalizedPhrase(transcript)
+        return phrase == "copy last result" || phrase == "copy last action"
     }
 
     static func isCodexClearLineCommand(transcript: String, bundleID: String) -> Bool {
@@ -1283,6 +1284,15 @@ enum VoiceMacroService {
     static func showCopiedActionToast(_ text: String) {
         VoiceMacroStatusToast.shared.show(
             text,
+            maximumLines: 16,
+            textWidth: 420
+        )
+    }
+
+    @MainActor
+    static func showCopiedResultToast(_ text: String) {
+        VoiceMacroStatusToast.shared.show(
+            "Copied last result:\n\n\(text)",
             maximumLines: 16,
             textWidth: 420
         )

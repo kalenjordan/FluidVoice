@@ -2,6 +2,58 @@ import XCTest
 @testable import FluidVoice_Debug
 
 final class ClipboardServiceTests: XCTestCase {
+    func testLatestCopyableResultSelectsNewerAction() throws {
+        let transcription = TranscriptionHistoryEntry(
+            timestamp: Date(timeIntervalSinceReferenceDate: 100),
+            rawText: "Raw transcript",
+            processedText: "Enhanced transcript",
+            appName: "Notes",
+            windowTitle: "Note",
+            wasAIProcessed: true
+        )
+        let action = RecentActionEntry(
+            id: UUID(),
+            timestamp: Date(timeIntervalSinceReferenceDate: 200),
+            command: "Open Gmail",
+            succeeded: true,
+            context: "Action Type: Open Gmail"
+        )
+
+        let result = try XCTUnwrap(CopyableResult.latest(
+            transcriptions: [transcription],
+            actions: [action]
+        ))
+
+        XCTAssertEqual(result.kind, .action)
+        XCTAssertEqual(result.text, action.troubleshootingClipboardText)
+    }
+
+    func testLatestCopyableResultSelectsNewerEnhancedTranscription() throws {
+        let transcription = TranscriptionHistoryEntry(
+            timestamp: Date(timeIntervalSinceReferenceDate: 200),
+            rawText: "Raw transcript",
+            processedText: "Enhanced transcript",
+            appName: "Notes",
+            windowTitle: "Note",
+            wasAIProcessed: true
+        )
+        let action = RecentActionEntry(
+            id: UUID(),
+            timestamp: Date(timeIntervalSinceReferenceDate: 100),
+            command: "Open Gmail",
+            succeeded: true,
+            context: "Action Type: Open Gmail"
+        )
+
+        let result = try XCTUnwrap(CopyableResult.latest(
+            transcriptions: [transcription],
+            actions: [action]
+        ))
+
+        XCTAssertEqual(result.kind, .transcription)
+        XCTAssertEqual(result.text, "Enhanced transcript")
+    }
+
     func testRecentActionTroubleshootingTextIncludesActionResultTimeAndContext() {
         let entry = RecentActionEntry(
             id: UUID(),

@@ -2267,21 +2267,23 @@ struct ContentView: View {
         }
 
         if route == .normal,
-           VoiceMacroService.isCopyLastActionCommand(transcript: transcribedText)
+           VoiceMacroService.isCopyLastResultCommand(transcript: transcribedText)
         {
-            let lastAction = RecentActionStore.shared.entries.first
-            let succeeded = lastAction.map {
-                ClipboardService.copyToClipboard($0.troubleshootingClipboardText)
+            // Resolve the result before recording this voice action so the command
+            // cannot become the result that it copies.
+            let lastResult = CopyableResult.latest
+            let succeeded = lastResult.map {
+                ClipboardService.copyToClipboard($0.text)
             } ?? false
-            let details = lastAction.map {
-                "Action Type: Copy last action troubleshooting context\nCopied Action: \($0.command)"
-            } ?? "Action Type: Copy last action troubleshooting context\nError: No recent actions"
+            let details = lastResult.map {
+                "Action Type: Copy last result\nCopied Result Type: \($0.kind)"
+            } ?? "Action Type: Copy last result\nError: No recent results"
             recordAction(succeeded, details)
-            VoiceMacroService.showCopiedActionToast(
-                succeeded
-                    ? lastAction?.troubleshootingClipboardText ?? "Copied last action."
-                    : "No recent actions to copy."
-            )
+            if succeeded, let copiedText = lastResult?.text {
+                VoiceMacroService.showCopiedResultToast(copiedText)
+            } else {
+                VoiceMacroService.showStatusToast("Nothing available to copy.")
+            }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
             }

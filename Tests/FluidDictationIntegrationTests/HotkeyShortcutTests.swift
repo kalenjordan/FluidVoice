@@ -1156,14 +1156,17 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
-    func testCopyLastActionCommandRequiresExactPhrase() {
-        XCTAssertTrue(VoiceMacroService.isCopyLastActionCommand(
+    func testCopyLastResultCommandRequiresExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isCopyLastResultCommand(
+            transcript: "Copy last result."
+        ))
+        XCTAssertTrue(VoiceMacroService.isCopyLastResultCommand(
             transcript: "Copy last action."
         ))
-        XCTAssertFalse(VoiceMacroService.isCopyLastActionCommand(
-            transcript: "Can you copy last action"
+        XCTAssertFalse(VoiceMacroService.isCopyLastResultCommand(
+            transcript: "Can you copy last result"
         ))
-        XCTAssertFalse(VoiceMacroService.isCopyLastActionCommand(
+        XCTAssertFalse(VoiceMacroService.isCopyLastResultCommand(
             transcript: "copy the last action"
         ))
     }

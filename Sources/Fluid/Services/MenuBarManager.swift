@@ -23,7 +23,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
 
     // Cached menu items to avoid rebuilding entire menu
     private var statusMenuItem: NSMenuItem?
-    private var copyLastTranscriptMenuItem: NSMenuItem?
+    private var copyLastResultMenuItem: NSMenuItem?
     private var recentTranscriptsMenuItem: NSMenuItem?
     private var recentTranscriptsSubmenu: NSMenu?
     private var recentActionsMenuItem: NSMenuItem?
@@ -483,14 +483,14 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
             menu.addItem(statusItem)
         }
 
-        let copyLastTranscriptItem = NSMenuItem(
-            title: "Copy Last Transcript",
-            action: #selector(copyLastTranscript(_:)),
+        let copyLastResultItem = NSMenuItem(
+            title: "Copy Last Result",
+            action: #selector(copyLastResult(_:)),
             keyEquivalent: ""
         )
-        copyLastTranscriptItem.target = self
-        menu.addItem(copyLastTranscriptItem)
-        self.copyLastTranscriptMenuItem = copyLastTranscriptItem
+        copyLastResultItem.target = self
+        menu.addItem(copyLastResultItem)
+        self.copyLastResultMenuItem = copyLastResultItem
 
         let recentTranscriptsSubmenu = NSMenu(title: "Recent Transcripts")
         let recentTranscriptsMenuItem = NSMenuItem(
@@ -611,7 +611,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         let hotkeyInfo = hotkeyDisplay.isEmpty ? "" : " (\(hotkeyDisplay))"
         let statusTitle = self.isRecording ? "Recording...\(hotkeyInfo)" : "Ready to Record\(hotkeyInfo)"
         self.statusMenuItem?.title = statusTitle
-        self.copyLastTranscriptMenuItem?.isEnabled = self.canCopyLastTranscript
+        self.copyLastResultMenuItem?.isEnabled = self.canCopyLastResult
         self.recentTranscriptsMenuItem?.isEnabled = !self.isProcessingActive
         self.recentActionsMenuItem?.isEnabled = !self.isProcessingActive
         self.recentAIEnhancementsMenuItem?.isEnabled = !self.isProcessingActive
@@ -913,20 +913,30 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         return SettingsStore.shared.preferredInputDeviceUID ?? defaultInputUID
     }
 
-    private var canCopyLastTranscript: Bool {
-        !self.isProcessingActive && TranscriptionHistoryStore.shared.latestClipboardText != nil
+    private var canCopyLastResult: Bool {
+        !self.isProcessingActive && CopyableResult.latest != nil
     }
 
-    @objc private func copyLastTranscript(_ sender: Any?) {
-        guard self.canCopyLastTranscript,
-              let text = TranscriptionHistoryStore.shared.latestClipboardText
+    @objc private func copyLastResult(_ sender: Any?) {
+        guard self.canCopyLastResult,
+              let result = CopyableResult.latest
         else {
-            DebugLogger.shared.info("Menu action: Copy last transcript requested but history is empty", source: "MenuBarManager")
+            DebugLogger.shared.info("Menu action: Copy last result requested but history is empty", source: "MenuBarManager")
             return
         }
 
-        _ = ClipboardService.copyToClipboard(text)
-        DebugLogger.shared.info("Menu action: Copied latest transcription to clipboard", source: "MenuBarManager")
+        let succeeded = ClipboardService.copyToClipboard(result.text)
+        if succeeded {
+            VoiceMacroService.showCopiedResultToast(result.text)
+        } else {
+            VoiceMacroService.showStatusToast("Could not copy the last result.")
+        }
+        DebugLogger.shared.info(
+            succeeded
+                ? "Menu action: Copied latest result to clipboard"
+                : "Menu action: Could not copy latest result to clipboard",
+            source: "MenuBarManager"
+        )
     }
 
     @objc private func copyRecentTranscript(_ sender: NSMenuItem) {

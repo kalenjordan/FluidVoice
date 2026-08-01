@@ -24,6 +24,54 @@ struct RecentActionEntry: Codable, Identifiable, Equatable {
     }
 }
 
+struct CopyableResult: Equatable {
+    enum Kind: Equatable {
+        case transcription
+        case action
+    }
+
+    let timestamp: Date
+    let text: String
+    let kind: Kind
+
+    static func latest(
+        transcriptions: [TranscriptionHistoryEntry],
+        actions: [RecentActionEntry]
+    ) -> CopyableResult? {
+        let transcription = transcriptions.first(where: { $0.clipboardText != nil }).flatMap { entry in
+            entry.clipboardText.map {
+                CopyableResult(timestamp: entry.timestamp, text: $0, kind: .transcription)
+            }
+        }
+        let action = actions.first.map {
+            CopyableResult(
+                timestamp: $0.timestamp,
+                text: $0.troubleshootingClipboardText,
+                kind: .action
+            )
+        }
+
+        switch (transcription, action) {
+        case let (transcription?, action?):
+            return action.timestamp > transcription.timestamp ? action : transcription
+        case let (transcription?, nil):
+            return transcription
+        case let (nil, action?):
+            return action
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    @MainActor
+    static var latest: CopyableResult? {
+        self.latest(
+            transcriptions: TranscriptionHistoryStore.shared.entries,
+            actions: RecentActionStore.shared.entries
+        )
+    }
+}
+
 @MainActor
 final class RecentActionStore {
     static let shared = RecentActionStore()
