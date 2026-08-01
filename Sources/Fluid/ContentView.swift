@@ -2427,6 +2427,36 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isWindowMiddleAllCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running window middle all voice command", source: "ContentView")
+            let result = VoiceMacroService.moveAllApplicationWindowsToMiddle()
+            let succeeded = result.succeededCount > 0
+            recordAction(
+                succeeded,
+                "Action Type: Window middle all\n" +
+                    "Succeeded: \(result.succeededCount)\nFailed: \(result.failedCount)"
+            )
+            DebugLogger.shared.info(
+                "Window middle all voice command finished: " +
+                    "succeeded=\(result.succeededCount) failed=\(result.failedCount)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not move any application windows to the middle.")
+            } else if result.failedCount > 0 {
+                VoiceMacroService.showStatusToast(
+                    "Moved \(result.succeededCount) windows; \(result.failedCount) could not be moved."
+                )
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let targetPID = typingTarget.pid,
            VoiceMacroService.isWindowMiddleCommand(transcript: transcribedText)
         {

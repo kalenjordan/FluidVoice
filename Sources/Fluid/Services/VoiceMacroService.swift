@@ -27,6 +27,11 @@ enum VoiceMacroService {
         let failedCount: Int
     }
 
+    struct WindowOperationResult: Equatable {
+        let succeededCount: Int
+        let failedCount: Int
+    }
+
     enum TabDirection {
         case left
         case right
@@ -705,6 +710,10 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "window middle"
     }
 
+    static func isWindowMiddleAllCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "window middle all"
+    }
+
     private static let windowMiddlePreferredSize = NSSize(width: 1294, height: 901)
     private static let windowMiddleTopLeftInset = NSPoint(x: 396, y: 103)
     private static let windowMiddleReferenceScreenSize = NSSize(width: 1920, height: 1080)
@@ -725,6 +734,42 @@ enum VoiceMacroService {
             ),
             screen: screen,
             primaryScreenMaxY: primaryScreen.frame.maxY
+        )
+    }
+
+    static func moveAllApplicationWindowsToMiddle() -> WindowOperationResult {
+        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
+              let primaryScreen = NSScreen.screens.first
+        else {
+            return WindowOperationResult(succeededCount: 0, failedCount: 0)
+        }
+
+        let frame = self.windowMiddleFrame(
+            in: screen.visibleFrame,
+            screenFrame: screen.frame
+        )
+        let applications = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isTerminated
+        }
+        var succeededCount = 0
+        var failedCount = 0
+        for application in applications {
+            if self.moveFocusedWindow(
+                operation: "middle-all",
+                targetPID: application.processIdentifier,
+                to: frame,
+                screen: screen,
+                primaryScreenMaxY: primaryScreen.frame.maxY,
+                allowMainWindowFallback: true
+            ) {
+                succeededCount += 1
+            } else {
+                failedCount += 1
+            }
+        }
+        return WindowOperationResult(
+            succeededCount: succeededCount,
+            failedCount: failedCount
         )
     }
 
@@ -841,7 +886,8 @@ enum VoiceMacroService {
         targetPID: pid_t,
         to frame: NSRect,
         screen: NSScreen,
-        primaryScreenMaxY: CGFloat
+        primaryScreenMaxY: CGFloat,
+        allowMainWindowFallback: Bool = false
     ) -> Bool {
         let logSource = "WindowResize"
         DebugLogger.shared.info(
@@ -854,18 +900,27 @@ enum VoiceMacroService {
         )
         let application = AXUIElementCreateApplication(targetPID)
         var focusedWindowValue: CFTypeRef?
-        let focusedWindowResult = AXUIElementCopyAttributeValue(
+        var windowResult = AXUIElementCopyAttributeValue(
             application,
             kAXFocusedWindowAttribute as CFString,
             &focusedWindowValue
         )
-        guard focusedWindowResult == .success,
+        if allowMainWindowFallback,
+           (windowResult != .success || focusedWindowValue == nil)
+        {
+            windowResult = AXUIElementCopyAttributeValue(
+                application,
+                kAXMainWindowAttribute as CFString,
+                &focusedWindowValue
+            )
+        }
+        guard windowResult == .success,
             let focusedWindowValue,
             CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID()
         else {
             DebugLogger.shared.error(
                 "Resize failed: operation=\(operation) targetPID=\(targetPID) " +
-                    "focusedWindowResult=\(focusedWindowResult.rawValue) " +
+                    "windowResult=\(windowResult.rawValue) " +
                     "hasValue=\(focusedWindowValue != nil)",
                 source: logSource
             )

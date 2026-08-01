@@ -410,6 +410,24 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isWindowMiddleCommand(
             transcript: "window"
         ))
+        XCTAssertFalse(VoiceMacroService.isWindowMiddleCommand(
+            transcript: "window middle all"
+        ))
+    }
+
+    func testWindowMiddleAllCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isWindowMiddleAllCommand(
+            transcript: "Window middle all."
+        ))
+        XCTAssertTrue(VoiceMacroService.isWindowMiddleAllCommand(
+            transcript: "WINDOW MIDDLE ALL!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowMiddleAllCommand(
+            transcript: "window middle"
+        ))
+        XCTAssertFalse(VoiceMacroService.isWindowMiddleAllCommand(
+            transcript: "middle all windows"
+        ))
     }
 
     func testWindowMiddleFrameMatchesLargeChromeLayoutOnSelectedScreen() {
