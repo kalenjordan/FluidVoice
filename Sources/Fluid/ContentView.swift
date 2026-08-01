@@ -1883,6 +1883,7 @@ struct ContentView: View {
         _ inputText: String,
         overrideSystemPrompt: String? = nil,
         dictationSlot: SettingsStore.DictationShortcutSlot? = nil,
+        appPromptRoutingEnabled: Bool = true,
         streamHandler: PrivateAIStreamHandler? = nil,
         promptCapture: ((String) -> Void)? = nil
     ) async throws -> String {
@@ -1890,7 +1891,7 @@ struct ContentView: View {
         let route = DictationProviderRoute.resolve(
             settings: SettingsStore.shared,
             dictationSlot: dictationSlot,
-            appBundleID: appInfo.bundleId
+            appBundleID: appPromptRoutingEnabled ? appInfo.bundleId : nil
         )
         let currentSelectedProviderID = route.providerID
         let derivedCurrentProvider = route.providerKey
@@ -3475,29 +3476,25 @@ struct ContentView: View {
             windowTitle: appInfo.windowTitle
         )
 
+        let enhancementInput = DictationEnhancementSuffix.strippingTrigger(from: normalizedTranscribedText)
+        let textForPostProcessing = enhancementInput ?? normalizedTranscribedText
+
         let focusedControlContext = self.recordingFocusedControlContext.flatMap { context in
             context.bundleID.caseInsensitiveCompare(appInfo.bundleId) == .orderedSame ? context : nil
         }
-        let fieldAllowsAI = DictationAIFieldPolicy.allowsEnhancement(in: focusedControlContext)
-        let shouldUseAI = fieldAllowsAI && (activeDictationSlot.map {
-            DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: appInfo.bundleId)
-        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: appInfo.bundleId))
-        if !fieldAllowsAI {
-            DebugLogger.shared.info(
-                "Skipping dictation AI for Chrome address bar",
-                source: "ContentView"
-            )
-        }
+        let shouldUseAI = enhancementInput != nil && (activeDictationSlot.map {
+            DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: nil)
+        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: nil))
         let transcriptionModelInfo = self.currentTranscriptionModelInfo()
 
         if shouldUseAI {
             DebugLogger.shared.debug("Routing transcription through AI post-processing", source: "ContentView")
             let postProcessingModelInfo = self.currentDictationAIModelInfo(
                 dictationSlot: activeDictationSlot,
-                appBundleID: appInfo.bundleId
+                appBundleID: nil
             )
             postProcessingModel = postProcessingModelInfo.model
-            let postProcessingInputChars = normalizedTranscribedText.count
+            let postProcessingInputChars = textForPostProcessing.count
             let postProcessingStart = Date()
 
             // Update overlay text to show we're now refining (processing already true)
@@ -3517,9 +3514,13 @@ struct ContentView: View {
 
             do {
                 finalText = try await self.processTextWithAI(
-                    normalizedTranscribedText,
-                    overrideSystemPrompt: promptOverride,
+                    textForPostProcessing,
+                    overrideSystemPrompt: promptOverride ?? SettingsStore.shared.effectiveDictationSystemPrompt(
+                        for: activeDictationSlot ?? .primary,
+                        appBundleID: nil
+                    ),
                     dictationSlot: activeDictationSlot,
+                    appPromptRoutingEnabled: false,
                     streamHandler: streamHandler,
                     promptCapture: { aiEnhancementPrompt = $0 }
                 )
@@ -3543,7 +3544,7 @@ struct ContentView: View {
                 } else {
                     NotificationService.showAIProcessingFallback(error: error.localizedDescription)
                 }
-                finalText = normalizedTranscribedText
+                finalText = textForPostProcessing
             }
             let postProcessingLatencyMs = Int((Date().timeIntervalSince(postProcessingStart) * 1000).rounded())
             if aiFallbackReason == nil {
@@ -3574,7 +3575,7 @@ struct ContentView: View {
             NotchOverlayManager.shared.updateTranscriptionText("")
 
         } else {
-            finalText = normalizedTranscribedText
+            finalText = textForPostProcessing
         }
 
         // Normalize literal command and mention syntax after AI cleanup and before final user preferences.
@@ -3699,13 +3700,16 @@ struct ContentView: View {
             // press Return from the app that will receive the text rather than the
             // app that happened to be focused when recording began.
             let outputAppInfo = typingTarget.pid.map { self.getAppInfo(processIdentifier: $0) } ?? appInfo
-            let finalOutputPlan = ASRService.makeDictationLiteralOutputPlan(
+            let baseOutputPlan = ASRService.makeDictationLiteralOutputPlan(
                 for: finalText,
                 appName: outputAppInfo.name,
                 bundleID: outputAppInfo.bundleId,
                 windowTitle: outputAppInfo.windowTitle,
                 submitTerminalCommand: self.settings.submitTerminalDictationEnabled
             )
+            let finalOutputPlan = focusedControlContext.map(DictationAIFieldPolicy.isChromeAddressBar) == true
+                ? baseOutputPlan.submittingWithReturn()
+                : baseOutputPlan
             // Dispatch insertion as soon as the destination app is ready; the
             // overlay hides asynchronously after output so it cannot delay paste.
             if typingTarget.shouldRestoreOriginalFocus {
@@ -3768,7 +3772,7 @@ struct ContentView: View {
             let wordsBucket = AnalyticsBuckets.bucketWords(AnalyticsBuckets.wordCount(in: finalText))
             let modelInfo = self.currentDictationAIModelInfo(
                 dictationSlot: activeDictationSlot,
-                appBundleID: appInfo.bundleId
+                appBundleID: shouldUseAI ? nil : appInfo.bundleId
             )
             await PostTranscriptionEditTracker.shared.markTranscriptionCompleted(
                 mode: AnalyticsMode.dictation.rawValue,

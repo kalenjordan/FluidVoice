@@ -86,6 +86,11 @@ struct DictationLiteralOutputPlan: Equatable {
     static func plain(_ text: String) -> DictationLiteralOutputPlan {
         DictationLiteralOutputPlan(steps: [.text(text)])
     }
+
+    func submittingWithReturn() -> DictationLiteralOutputPlan {
+        guard self.steps.last != .pressReturn else { return self }
+        return DictationLiteralOutputPlan(steps: self.steps + [.pressReturn])
+    }
 }
 
 extension ASRService {

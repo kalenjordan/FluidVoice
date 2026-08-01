@@ -2030,6 +2030,10 @@ final class SettingsStore: ObservableObject {
         case fluidSfx2 = "fluid_sfx_2"
         case fluidSfx3 = "fluid_sfx_3"
         case fluidSfx4 = "fluid_sfx_4"
+        case fluidSfx5 = "fluid_sfx_5"
+        case fluidSfx6 = "fluid_sfx_6"
+        case fluidSfx7 = "fluid_sfx_7"
+        case fluidSfx8 = "fluid_sfx_8"
 
         var id: String {
             self.rawValue
@@ -2043,6 +2047,10 @@ final class SettingsStore: ObservableObject {
             case .fluidSfx2: return "Fluid SFX 2"
             case .fluidSfx3: return "Fluid SFX 3"
             case .fluidSfx4: return "Fluid SFX 4"
+            case .fluidSfx5: return "Fluid SFX 5"
+            case .fluidSfx6: return "Fluid SFX 6"
+            case .fluidSfx7: return "Fluid SFX 7"
+            case .fluidSfx8: return "Fluid SFX 8"
             }
         }
 
@@ -2054,13 +2062,18 @@ final class SettingsStore: ObservableObject {
             case .fluidSfx2: return "FV_start_2"
             case .fluidSfx3: return "sfx_3"
             case .fluidSfx4: return "sfx_4"
+            case .fluidSfx5: return "sfx_5"
+            case .fluidSfx6: return "sfx_6"
+            case .fluidSfx7: return "sfx_7"
+            case .fluidSfx8: return "sfx_8"
             }
         }
 
         var stopSoundFileName: String? {
             switch self {
             case .fluidSfx0: return "FV_end_0"
-            case .none, .fluidSfx1, .fluidSfx2, .fluidSfx3, .fluidSfx4: return nil
+            case .none, .fluidSfx1, .fluidSfx2, .fluidSfx3, .fluidSfx4, .fluidSfx5, .fluidSfx6,
+                 .fluidSfx7, .fluidSfx8: return nil
             }
         }
     }

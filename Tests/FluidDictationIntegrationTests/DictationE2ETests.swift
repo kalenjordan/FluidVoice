@@ -2072,6 +2072,29 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertFalse(DictationAIFieldPolicy.allowsEnhancement(in: context))
     }
 
+    func testDictationEnhancementSuffixStripsFinalTrigger() {
+        XCTAssertEqual(
+            DictationEnhancementSuffix.strippingTrigger(from: "make this clearer enhance."),
+            "make this clearer"
+        )
+        XCTAssertEqual(
+            DictationEnhancementSuffix.strippingTrigger(from: "Enhance"),
+            ""
+        )
+    }
+
+    func testDictationEnhancementSuffixIgnoresNonFinalWord() {
+        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhance this sentence"))
+        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhancement"))
+    }
+
+    func testDictationOutputPlanCanAppendChromeAddressBarSubmission() {
+        let plan = DictationLiteralOutputPlan.plain("fluidvoice").submittingWithReturn()
+
+        XCTAssertEqual(plan.steps, [.text("fluidvoice"), .pressReturn])
+        XCTAssertEqual(plan.submittingWithReturn(), plan)
+    }
+
     func testDictationAIFieldPolicyKeepsChromeWebFieldsEnabled() {
         let context = DictationFocusedControlContext(
             bundleID: "com.google.Chrome",

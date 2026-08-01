@@ -888,13 +888,8 @@ struct NotchExpandedView: View {
                     color: self.modeColor
                 )
                 .frame(width: 48, height: 18)
-
-                self.promptSelectorControl
             }
             .frame(maxWidth: .infinity, alignment: .center)
-            .offset(x: 4, y: 0)
-
-            self.promptHoverMenuRow
 
             if self.contentState.isAIProcessingFailureVisible && !self.contentState.isProcessing {
                 HStack(spacing: 6) {

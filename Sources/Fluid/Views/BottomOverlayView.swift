@@ -2745,7 +2745,6 @@ struct BottomOverlayView: View {
             if self.layout.showsTopControls {
                 HStack(spacing: self.isCompactControls ? 6 : 8) {
                     self.modeSelectorView
-                    self.promptSelectorView
                     Spacer(minLength: 4)
                     self.actionsSelectorView
                     if !self.isCompactControls {
