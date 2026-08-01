@@ -585,8 +585,8 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "restart fluid voice"
     }
 
-    static func isBackCommand(transcript: String) -> Bool {
-        self.normalizedPhrase(transcript) == "back"
+    static func isSwitchCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "switch"
     }
 
     static func textBeforeTrailingPasteCommand(transcript: String) -> String? {
@@ -1010,6 +1010,15 @@ enum VoiceMacroService {
         default:
             return nil
         }
+    }
+
+    static func isBackCommand(transcript: String, bundleID: String) -> Bool {
+        self.herdrBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "back"
+    }
+
+    static func returnToPreviousHerdrTab(targetPID: pid_t) -> Bool {
+        self.postKey(CGKeyCode(kVK_ANSI_E), flags: .maskCommand, to: targetPID)
     }
 
     static func isRunHerdrCommand(transcript: String) -> Bool {

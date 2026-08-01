@@ -2373,7 +2373,7 @@ struct ContentView: View {
         }
 
         if route == .normal,
-           VoiceMacroService.isBackCommand(transcript: transcribedText)
+           VoiceMacroService.isSwitchCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running previous application voice command", source: "ContentView")
             let succeeded = VoiceMacroService.switchToPreviousApplication()
@@ -2777,6 +2777,29 @@ struct ContentView: View {
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not move to another Herder tab.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isBackCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Herdr previous tab voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.returnToPreviousHerdrTab(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Herdr previous tab voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not return to the previous Herder tab.")
             }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()

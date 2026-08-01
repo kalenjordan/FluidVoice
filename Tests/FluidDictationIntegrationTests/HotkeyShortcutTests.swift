@@ -322,9 +322,10 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
-    func testBackCommandUsesExactPhrase() {
-        XCTAssertTrue(VoiceMacroService.isBackCommand(transcript: "Back."))
-        XCTAssertFalse(VoiceMacroService.isBackCommand(transcript: "Go back"))
+    func testSwitchCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isSwitchCommand(transcript: "Switch."))
+        XCTAssertFalse(VoiceMacroService.isSwitchCommand(transcript: "Back"))
+        XCTAssertFalse(VoiceMacroService.isSwitchCommand(transcript: "Switch apps"))
     }
 
     func testWindowScreenshotCommandUsesExactPhrase() {
@@ -544,6 +545,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
         XCTAssertNil(VoiceMacroService.tabDirectionCommand(
             transcript: "Tab right",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
+    func testBackCommandIsScopedToHerdrAndUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isBackCommand(
+            transcript: "Back.",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+        XCTAssertFalse(VoiceMacroService.isBackCommand(
+            transcript: "Go back",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+        XCTAssertFalse(VoiceMacroService.isBackCommand(
+            transcript: "Back",
             bundleID: "com.google.Chrome"
         ))
     }
