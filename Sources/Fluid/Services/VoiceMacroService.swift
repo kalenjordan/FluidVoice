@@ -993,6 +993,35 @@ enum VoiceMacroService {
         }
     }
 
+    static func isRunHerdrCommand(transcript: String) -> Bool {
+        switch self.normalizedPhrase(transcript) {
+        case "run herder", "run herdr":
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func typeHerdrCommand(targetPID: pid_t) -> Bool {
+        self.postText("herdr", to: targetPID)
+    }
+
+    static func isDetachHerdrCommand(transcript: String, bundleID: String) -> Bool {
+        self.herdrBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "detach"
+    }
+
+    static func detachHerdr(targetPID: pid_t) -> Bool {
+        guard self.postKey(
+            CGKeyCode(kVK_ANSI_B),
+            flags: .maskControl,
+            to: targetPID
+        ) else {
+            return false
+        }
+        return self.postKey(CGKeyCode(kVK_ANSI_Q), to: targetPID)
+    }
+
     static func isCloseTabCommand(transcript: String, bundleID: String) -> Bool {
         self.herdrBundleIDs.contains(bundleID.lowercased())
             && self.normalizedPhrase(transcript) == "close tab"

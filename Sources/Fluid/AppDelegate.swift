@@ -78,10 +78,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Must be read during the launch callback - the current Apple Event identifies
         // login-item launches (used to optionally start silently, see issue #369).
         self.wasLaunchedAsLoginItem = Self.detectLoginItemLaunch()
-        self.shouldSuppressMainWindowOnLaunch = UserDefaults.standard.bool(
-            forKey: AppRelauncher.suppressMainWindowOnNextLaunchKey
+        let processInfo = ProcessInfo.processInfo
+        self.shouldSuppressMainWindowOnLaunch = AppRelauncher.shouldSuppressMainWindow(
+            arguments: processInfo.arguments
         )
-        UserDefaults.standard.removeObject(forKey: AppRelauncher.suppressMainWindowOnNextLaunchKey)
+        if !AppRelauncher.isXCTestHost(environment: processInfo.environment) {
+            // Compatibility for one handoff from builds that used a shared one-shot preference.
+            // Test hosts must not consume it before the intended replacement launches.
+            self.shouldSuppressMainWindowOnLaunch = self.shouldSuppressMainWindowOnLaunch
+                || UserDefaults.standard.bool(
+                    forKey: AppRelauncher.legacySuppressMainWindowOnNextLaunchKey
+                )
+            UserDefaults.standard.removeObject(
+                forKey: AppRelauncher.legacySuppressMainWindowOnNextLaunchKey
+            )
+        }
         AppActivationPolicyController.suppressMainWindowActivation = self.shouldLaunchWithMainWindowHidden
         AppActivationPolicyController.applyCurrentPolicy()
         DebugLogger.shared.info(

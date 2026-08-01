@@ -1,14 +1,24 @@
 import AppKit
 
 enum AppRelauncher {
-    static let suppressMainWindowOnNextLaunchKey = "SuppressMainWindowOnNextLaunch"
+    static let suppressMainWindowLaunchArgument = "--fluidvoice-suppress-main-window"
+    static let legacySuppressMainWindowOnNextLaunchKey = "SuppressMainWindowOnNextLaunch"
 
     private static let waitForExitScript = """
     while kill -0 "$1" 2>/dev/null; do
         sleep 0.1
     done
-    exec /usr/bin/open -n "$2"
+    exec /usr/bin/open -n "$2" --args "$3"
     """
+
+    static func shouldSuppressMainWindow(arguments: [String]) -> Bool {
+        arguments.contains(self.suppressMainWindowLaunchArgument)
+    }
+
+    static func isXCTestHost(environment: [String: String]) -> Bool {
+        environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
+    }
 
     @MainActor
     static func restartCurrentApp() -> Bool {
@@ -20,8 +30,6 @@ enum AppRelauncher {
             )
             return false
         }
-
-        UserDefaults.standard.set(true, forKey: self.suppressMainWindowOnNextLaunchKey)
 
         NotificationService.showAppRestarting {
             Task { @MainActor in
@@ -41,6 +49,7 @@ enum AppRelauncher {
             "fluidvoice-relauncher",
             String(ProcessInfo.processInfo.processIdentifier),
             appPath,
+            self.suppressMainWindowLaunchArgument,
         ]
 
         do {

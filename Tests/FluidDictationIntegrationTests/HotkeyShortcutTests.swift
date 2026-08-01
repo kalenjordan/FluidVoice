@@ -523,6 +523,48 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testRunHerdrCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isRunHerdrCommand(transcript: "Run Herder."))
+        XCTAssertTrue(VoiceMacroService.isRunHerdrCommand(transcript: "run herdr"))
+        XCTAssertFalse(VoiceMacroService.isRunHerdrCommand(transcript: "run Herder now"))
+    }
+
+    func testRelaunchMainWindowSuppressionRequiresLaunchArgument() {
+        XCTAssertTrue(AppRelauncher.shouldSuppressMainWindow(arguments: [
+            "/Applications/FluidVoice.app/Contents/MacOS/FluidVoice",
+            AppRelauncher.suppressMainWindowLaunchArgument,
+        ]))
+        XCTAssertFalse(AppRelauncher.shouldSuppressMainWindow(arguments: [
+            "/Applications/FluidVoice.app/Contents/MacOS/FluidVoice",
+            "-XCTest",
+        ]))
+    }
+
+    func testXCTestHostDetectionProtectsLegacyRelaunchState() {
+        XCTAssertTrue(AppRelauncher.isXCTestHost(environment: [
+            "XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration",
+        ]))
+        XCTAssertTrue(AppRelauncher.isXCTestHost(environment: [
+            "XCTestBundlePath": "/tmp/FluidDictationIntegrationTests.xctest",
+        ]))
+        XCTAssertFalse(AppRelauncher.isXCTestHost(environment: [:]))
+    }
+
+    func testDetachCommandIsScopedToHerdr() {
+        XCTAssertTrue(VoiceMacroService.isDetachHerdrCommand(
+            transcript: "Detach.",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+        XCTAssertFalse(VoiceMacroService.isDetachHerdrCommand(
+            transcript: "Detach",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isDetachHerdrCommand(
+            transcript: "Detach Herdr",
+            bundleID: "com.mitchellh.ghostty"
+        ))
+    }
+
     func testCloseTabCommandIsScopedToHerdr() {
         XCTAssertTrue(VoiceMacroService.isCloseTabCommand(
             transcript: "Close tab.",

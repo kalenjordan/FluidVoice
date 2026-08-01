@@ -2700,6 +2700,49 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isRunHerdrCommand(transcript: transcribedText),
+           let targetPID = typingTarget.pid
+        {
+            DebugLogger.shared.info("Running type Herdr voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.typeHerdrCommand(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Type Herdr voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not type herdr.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
+           VoiceMacroService.isDetachHerdrCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Herdr detach voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.detachHerdr(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Herdr detach voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not detach Herdr.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let direction = VoiceMacroService.tabDirectionCommand(
                transcript: transcribedText,
                bundleID: appInfo.bundleId
