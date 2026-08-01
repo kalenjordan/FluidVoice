@@ -419,10 +419,12 @@ struct NotchExpandedView: View {
     private static let transientOverlayStatusTexts: Set<String> = [
         "Transcribing",
         "Refining",
+        "Enhancing",
         "Thinking",
         "Working",
         "Transcribing...",
         "Refining...",
+        "Enhancing...",
         "Thinking...",
         "Working...",
     ]
@@ -433,6 +435,11 @@ struct NotchExpandedView: View {
         let t = self.contentState.transcriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard Self.transientOverlayStatusTexts.contains(t) else { return self.processingLabel }
         return t
+    }
+
+    private var isExplicitlyEnhancing: Bool {
+        self.contentState.isProcessing &&
+            self.processingStatusText.hasPrefix("Enhancing")
     }
 
     private var hasTranscription: Bool {
@@ -891,6 +898,13 @@ struct NotchExpandedView: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
 
+            if self.isExplicitlyEnhancing {
+                Text("Enhancing")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
+            }
+
             if self.contentState.isAIProcessingFailureVisible && !self.contentState.isProcessing {
                 HStack(spacing: 6) {
                     Text("AI Enhancement failed")
@@ -1152,10 +1166,12 @@ struct NotchCompactBottomView: View {
     private static let transientOverlayStatusTexts: Set<String> = [
         "Transcribing",
         "Refining",
+        "Enhancing",
         "Thinking",
         "Working",
         "Transcribing...",
         "Refining...",
+        "Enhancing...",
         "Thinking...",
         "Working...",
     ]
@@ -1165,6 +1181,9 @@ struct NotchCompactBottomView: View {
             ? self.contentState.transcriptionText
             : self.contentState.cachedPreviewText
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if self.contentState.isProcessing && trimmed.hasPrefix("Enhancing") {
+            return "Enhancing"
+        }
         guard !Self.transientOverlayStatusTexts.contains(trimmed) else { return "" }
         return trimmed
     }

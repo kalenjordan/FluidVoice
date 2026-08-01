@@ -130,6 +130,34 @@ struct TranscriptionHistoryEntry: Codable, Identifiable, Equatable {
         return text.isEmpty ? nil : text
     }
 
+    var troubleshootingClipboardText: String? {
+        guard self.clipboardText != nil else { return nil }
+
+        let model = self.processingModel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = self.aiEnhancementPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let error = self.aiProcessingError?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return """
+        Dictation Troubleshooting Context
+
+        Time: \(self.timestamp.formatted(date: .abbreviated, time: .standard))
+        Destination App: \(self.appName)
+        Destination Window: \(self.windowTitle.isEmpty ? "Not recorded" : self.windowTitle)
+        AI Enhanced: \(self.wasAIProcessed ? "Yes" : "No")
+        AI Model: \(model?.isEmpty == false ? model! : "Not used")
+        AI Processing Time: \(self.aiProcessingDurationMs.map { "\($0) ms" } ?? "Not recorded")
+        AI Error: \(error?.isEmpty == false ? error! : "None")
+
+        Raw Transcription:
+        \(self.rawText)
+
+        AI Prompt:
+        \(prompt?.isEmpty == false ? prompt! : "Not recorded")
+
+        Delivered Text:
+        \(self.processedText)
+        """
+    }
+
     /// Relative time string for display
     var relativeTimeString: String {
         let formatter = RelativeDateTimeFormatter()

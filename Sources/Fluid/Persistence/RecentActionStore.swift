@@ -38,8 +38,8 @@ struct CopyableResult: Equatable {
         transcriptions: [TranscriptionHistoryEntry],
         actions: [RecentActionEntry]
     ) -> CopyableResult? {
-        let transcription = transcriptions.first(where: { $0.clipboardText != nil }).flatMap { entry in
-            entry.clipboardText.map {
+        let transcription = transcriptions.first(where: { $0.troubleshootingClipboardText != nil }).flatMap { entry in
+            entry.troubleshootingClipboardText.map {
                 CopyableResult(timestamp: entry.timestamp, text: $0, kind: .transcription)
             }
         }

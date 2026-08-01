@@ -823,35 +823,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     }
 
     static func aiEnhancementClipboardText(for entry: TranscriptionHistoryEntry) -> String {
-        let prompt = entry.aiEnhancementPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let model = entry.processingModel?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let duration = entry.aiProcessingDurationMs.map(Self.formatAIDuration) ?? "Not recorded"
-        return """
-        Recorded At:
-        \(entry.fullDateString)
-
-        Model:
-        \(model?.isEmpty == false ? model! : "Not recorded")
-
-        AI Processing Time:
-        \(duration)
-
-        Original Text:
-        \(entry.rawText)
-
-        Prompt:
-        \(prompt?.isEmpty == false ? prompt! : "Not recorded for this history entry.")
-
-        Enhanced Text:
-        \(entry.processedText)
-        """
-    }
-
-    private static func formatAIDuration(_ milliseconds: Int) -> String {
-        if milliseconds < 1_000 {
-            return "\(milliseconds) ms"
-        }
-        return String(format: "%.2f seconds", Double(milliseconds) / 1_000)
+        entry.troubleshootingClipboardText ?? entry.processedText
     }
 
     private func refreshMicrophoneMenu() {

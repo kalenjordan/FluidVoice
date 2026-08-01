@@ -107,10 +107,12 @@ final class NotchOverlayManager {
     private static let transientOverlayStatusTexts: Set<String> = [
         "Transcribing",
         "Refining",
+        "Enhancing",
         "Thinking",
         "Working",
         "Transcribing...",
         "Refining...",
+        "Enhancing...",
         "Thinking...",
         "Working...",
         "Reprocessing...",

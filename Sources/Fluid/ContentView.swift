@@ -2158,9 +2158,17 @@ struct ContentView: View {
             }
             return DictationAIFieldPolicy.allowsEnhancement(in: context)
         } ?? true
-        let shouldUseAIOnStop = fieldAllowsAIOnStop && (activeDictationSlot.map {
+        let ordinaryEnhancementConfigured = fieldAllowsAIOnStop && (activeDictationSlot.map {
             DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: stopAppInfo.bundleId)
         } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: stopAppInfo.bundleId))
+        // The final ASR result is the first reliable point where we can detect
+        // the spoken "polish" suffix. Keep the overlay alive until then when
+        // a verified provider could service that explicit request.
+        let spokenEnhancementAvailable = route == .normal &&
+            !wasRewriteMode &&
+            !wasCommandMode &&
+            DictationAIPostProcessingGate.isProviderConfigured()
+        let shouldUseAIOnStop = ordinaryEnhancementConfigured || spokenEnhancementAvailable
         let shouldHideOverlayOnStop = route == .normal &&
             !wasRewriteMode &&
             !wasCommandMode &&
@@ -3507,30 +3515,38 @@ struct ContentView: View {
         )
 
         let enhancementInput = DictationEnhancementSuffix.strippingTrigger(from: normalizedTranscribedText)
-        let textForPostProcessing = enhancementInput ?? normalizedTranscribedText
+        let shouldUseAI = enhancementInput != nil && DictationAIPostProcessingGate.isProviderConfigured()
+        // Only consume the spoken trigger when it can actually invoke AI. The
+        // suffix is an explicit override, so it uses the globally selected
+        // provider even when ordinary enhancement is Off for this shortcut.
+        let textForPostProcessing = shouldUseAI
+            ? (enhancementInput ?? normalizedTranscribedText)
+            : normalizedTranscribedText
 
         let focusedControlContext = self.recordingFocusedControlContext.flatMap { context in
             context.bundleID.caseInsensitiveCompare(appInfo.bundleId) == .orderedSame ? context : nil
         }
-        let shouldUseAI = enhancementInput != nil && (activeDictationSlot.map {
-            DictationAIPostProcessingGate.isConfigured(for: $0, appBundleID: nil)
-        } ?? DictationAIPostProcessingGate.isConfigured(for: .primary, appBundleID: nil))
         let transcriptionModelInfo = self.currentTranscriptionModelInfo()
 
         if shouldUseAI {
             DebugLogger.shared.debug("Routing transcription through AI post-processing", source: "ContentView")
             let postProcessingModelInfo = self.currentDictationAIModelInfo(
-                dictationSlot: activeDictationSlot,
+                dictationSlot: nil,
                 appBundleID: nil
             )
             postProcessingModel = postProcessingModelInfo.model
             let postProcessingInputChars = textForPostProcessing.count
             let postProcessingStart = Date()
 
-            // Update overlay text to show we're now refining (processing already true)
-            self.appBench("processing_ui_request status=Refining")
-            NotchOverlayManager.shared.updateTranscriptionText("Refining")
-            self.appBench("processing_ui_requested status=Refining")
+            // Enhancement may have been discovered after an optimistic stop-path
+            // hide. From this point onward, completion owns the final hide.
+            didRequestOverlayHideOnStop = false
+
+            // Update overlay text to show the explicit enhancement state.
+            self.appBench("processing_ui_request status=Enhancing")
+            self.menuBarManager.setProcessing(true)
+            NotchOverlayManager.shared.updateTranscriptionText("Enhancing")
+            self.appBench("processing_ui_requested status=Enhancing")
 
             // Ensure the status label becomes visible immediately.
             await Task.yield()
@@ -3549,7 +3565,7 @@ struct ContentView: View {
                         for: activeDictationSlot ?? .primary,
                         appBundleID: nil
                     ),
-                    dictationSlot: activeDictationSlot,
+                    dictationSlot: nil,
                     appPromptRoutingEnabled: false,
                     streamHandler: streamHandler,
                     promptCapture: { aiEnhancementPrompt = $0 }
@@ -3601,11 +3617,18 @@ struct ContentView: View {
             )
 
             // Clear transient status text before leaving processing state to avoid
-            // a brief non-shimmer "Refining..." preview flash.
+            // a brief non-shimmer "Enhancing" preview flash.
             NotchOverlayManager.shared.updateTranscriptionText("")
 
         } else {
             finalText = textForPostProcessing
+            // The overlay may have stayed in its generic processing state while
+            // final ASR was checked for the spoken "polish" suffix. Once that
+            // check is negative, stop the dots immediately instead of waiting
+            // for the asynchronous post-delivery hide.
+            if !didRequestOverlayHideOnStop {
+                self.menuBarManager.setProcessing(false)
+            }
         }
 
         // Normalize literal command and mention syntax after AI cleanup and before final user preferences.

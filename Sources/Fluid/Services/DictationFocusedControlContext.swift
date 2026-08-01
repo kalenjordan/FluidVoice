@@ -42,7 +42,7 @@ enum DictationAIFieldPolicy {
 
 enum DictationEnhancementSuffix {
     static func strippingTrigger(from text: String) -> String? {
-        let pattern = #"(?i)(?:^|\s)enhance[\p{P}\p{S}]*\s*$"#
+        let pattern = #"(?i)(?:^|\s)polish[\p{P}\p{S}]*\s*$"#
         guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
 
         return String(text[..<range.lowerBound])

@@ -2074,18 +2074,19 @@ final class DictationE2ETests: XCTestCase {
 
     func testDictationEnhancementSuffixStripsFinalTrigger() {
         XCTAssertEqual(
-            DictationEnhancementSuffix.strippingTrigger(from: "make this clearer enhance."),
+            DictationEnhancementSuffix.strippingTrigger(from: "make this clearer polish."),
             "make this clearer"
         )
         XCTAssertEqual(
-            DictationEnhancementSuffix.strippingTrigger(from: "Enhance"),
+            DictationEnhancementSuffix.strippingTrigger(from: "Polish"),
             ""
         )
     }
 
     func testDictationEnhancementSuffixIgnoresNonFinalWord() {
-        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhance this sentence"))
-        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhancement"))
+        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "polish this sentence"))
+        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "polished"))
+        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhance"))
     }
 
     func testDictationOutputPlanCanAppendChromeAddressBarSubmission() {

@@ -2017,6 +2017,9 @@ struct BottomOverlayView: View {
     }
 
     private var modeLabel: String {
+        if self.isExplicitlyEnhancing {
+            return "Enhancing"
+        }
         switch self.contentState.mode {
         case .dictation: return "Dictate"
         case .edit, .rewrite, .write: return "Edit"
@@ -2039,10 +2042,12 @@ struct BottomOverlayView: View {
     private static let transientOverlayStatusTexts: Set<String> = [
         "Transcribing",
         "Refining",
+        "Enhancing",
         "Thinking",
         "Working",
         "Transcribing...",
         "Refining...",
+        "Enhancing...",
         "Thinking...",
         "Working...",
     ]
@@ -2053,6 +2058,11 @@ struct BottomOverlayView: View {
         let t = self.contentState.transcriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard Self.transientOverlayStatusTexts.contains(t) else { return self.processingLabel }
         return t
+    }
+
+    private var isExplicitlyEnhancing: Bool {
+        self.contentState.isProcessing &&
+            self.processingStatusText.hasPrefix("Enhancing")
     }
 
     private var hasTranscription: Bool {

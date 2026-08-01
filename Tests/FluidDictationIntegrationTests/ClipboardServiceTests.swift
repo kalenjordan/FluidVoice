@@ -51,7 +51,10 @@ final class ClipboardServiceTests: XCTestCase {
         ))
 
         XCTAssertEqual(result.kind, .transcription)
-        XCTAssertEqual(result.text, "Enhanced transcript")
+        XCTAssertTrue(result.text.hasPrefix("Dictation Troubleshooting Context\n\n"))
+        XCTAssertTrue(result.text.contains("AI Enhanced: Yes"))
+        XCTAssertTrue(result.text.contains("Raw Transcription:\nRaw transcript"))
+        XCTAssertTrue(result.text.contains("Delivered Text:\nEnhanced transcript"))
     }
 
     func testRecentActionTroubleshootingTextIncludesActionResultTimeAndContext() {
