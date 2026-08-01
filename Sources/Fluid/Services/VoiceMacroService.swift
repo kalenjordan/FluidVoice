@@ -343,14 +343,14 @@ enum VoiceMacroService {
             ),
             (
                 ["st3 dash", "s t three dash"],
-                "http://outbound-dash.localhost:8764/clients/st3aero?view=targets"
+                "http://outbound-dash.localhost:8764/clients/st3aero"
             ),
             (
                 ["layers dash"],
-                "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
+                "http://outbound-dash.localhost:8764/clients/layers"
             ),
             (["outbound farm dash"], "http://outbound-dash.localhost:8764/clients/outbound-farm"),
-            (["hvac dash"], "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"),
+            (["hvac dash"], "http://outbound-dash.localhost:8764/clients/hvac"),
         ]
     )
     private static let herdrCallerEnvironmentVariables: Set<String> = [
@@ -684,9 +684,7 @@ enum VoiceMacroService {
         }
         switch projectName {
         case "hvac":
-            return URL(
-                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
-            )
+            return URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
         case "ordellan":
             return URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
         default:
@@ -733,12 +731,6 @@ enum VoiceMacroService {
 
         let slug = self.canonicalProjectName(for: clientName)
             ?? clientName.replacingOccurrences(of: " ", with: "-")
-        if slug == "hvac" {
-            return "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
-        }
-        if slug == "layers" {
-            return "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
-        }
         return "http://outbound-dash.localhost:8764/clients/\(slug)"
     }
 

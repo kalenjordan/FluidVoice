@@ -1088,23 +1088,19 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "ST3 Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
+            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "S T three dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
+            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "HVAC Dash."),
-            URL(
-                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
-            )
+            URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Layers Dash."),
-            URL(
-                string: "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
-            )
+            URL(string: "http://outbound-dash.localhost:8764/clients/layers")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Dash."),
@@ -1112,9 +1108,7 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "H fact dash."),
-            URL(
-                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
-            )
+            URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
         )
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"
@@ -1152,7 +1146,7 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "Open layers dash.",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
+            "http://outbound-dash.localhost:8764/clients/layers"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
@@ -1180,7 +1174,7 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "open h fact dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
+            "http://outbound-dash.localhost:8764/clients/hvac"
         )
         XCTAssertNil(VoiceMacroService.chromeURL(
             transcript: "open layers dash",
