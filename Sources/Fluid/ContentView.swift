@@ -2587,6 +2587,36 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isWindowMaxAllCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running window max all voice command", source: "ContentView")
+            let result = VoiceMacroService.maximizeAllApplicationWindows()
+            let succeeded = result.succeededCount > 0
+            recordAction(
+                succeeded,
+                "Action Type: Window max all\n" +
+                    "Succeeded: \(result.succeededCount)\nFailed: \(result.failedCount)"
+            )
+            DebugLogger.shared.info(
+                "Window max all voice command finished: " +
+                    "succeeded=\(result.succeededCount) failed=\(result.failedCount)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not maximize any application windows.")
+            } else if result.failedCount > 0 {
+                VoiceMacroService.showStatusToast(
+                    "Maximized \(result.succeededCount) windows; \(result.failedCount) could not be maximized."
+                )
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let targetPID = typingTarget.pid,
            VoiceMacroService.isWindowMaxCommand(transcript: transcribedText)
         {

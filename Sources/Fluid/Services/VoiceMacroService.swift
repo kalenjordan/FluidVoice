@@ -1049,17 +1049,20 @@ enum VoiceMacroService {
         var succeededCount = 0
         var failedCount = 0
         for application in applications {
-            if self.moveFocusedWindow(
-                operation: "middle-all",
-                targetPID: application.processIdentifier,
-                to: frame,
-                screen: screen,
-                primaryScreenMaxY: primaryScreen.frame.maxY,
-                allowMainWindowFallback: true
-            ) {
-                succeededCount += 1
-            } else {
-                failedCount += 1
+            let targetPID = application.processIdentifier
+            for window in self.applicationWindows(targetPID: targetPID) {
+                if self.moveWindow(
+                    window,
+                    operation: "middle-all",
+                    targetPID: targetPID,
+                    to: frame,
+                    screen: screen,
+                    primaryScreenMaxY: primaryScreen.frame.maxY
+                ) {
+                    succeededCount += 1
+                } else {
+                    failedCount += 1
+                }
             }
         }
         return WindowOperationResult(
@@ -1094,6 +1097,15 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "window max"
     }
 
+    static func isWindowMaxAllCommand(transcript: String) -> Bool {
+        switch self.normalizedPhrase(transcript) {
+        case "window max all", "all windows max":
+            return true
+        default:
+            return false
+        }
+    }
+
     static func maximizeWindow(targetPID: pid_t) -> Bool {
         guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
               let primaryScreen = NSScreen.screens.first
@@ -1106,6 +1118,42 @@ enum VoiceMacroService {
             to: self.windowMaxFrame(on: screen, primaryScreen: primaryScreen),
             screen: screen,
             primaryScreenMaxY: primaryScreen.frame.maxY
+        )
+    }
+
+    static func maximizeAllApplicationWindows() -> WindowOperationResult {
+        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
+              let primaryScreen = NSScreen.screens.first
+        else {
+            return WindowOperationResult(succeededCount: 0, failedCount: 0)
+        }
+
+        let frame = self.windowMaxFrame(on: screen, primaryScreen: primaryScreen)
+        let applications = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isTerminated
+        }
+        var succeededCount = 0
+        var failedCount = 0
+        for application in applications {
+            let targetPID = application.processIdentifier
+            for window in self.applicationWindows(targetPID: targetPID) {
+                if self.moveWindow(
+                    window,
+                    operation: "max-all",
+                    targetPID: targetPID,
+                    to: frame,
+                    screen: screen,
+                    primaryScreenMaxY: primaryScreen.frame.maxY
+                ) {
+                    succeededCount += 1
+                } else {
+                    failedCount += 1
+                }
+            }
+        }
+        return WindowOperationResult(
+            succeededCount: succeededCount,
+            failedCount: failedCount
         )
     }
 
@@ -1223,6 +1271,44 @@ enum VoiceMacroService {
         }
 
         let window = unsafeBitCast(focusedWindowValue, to: AXUIElement.self)
+        return self.moveWindow(
+            window,
+            operation: operation,
+            targetPID: targetPID,
+            to: frame,
+            screen: screen,
+            primaryScreenMaxY: primaryScreenMaxY
+        )
+    }
+
+    private static func applicationWindows(targetPID: pid_t) -> [AXUIElement] {
+        let application = AXUIElementCreateApplication(targetPID)
+        var windowsValue: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            application,
+            kAXWindowsAttribute as CFString,
+            &windowsValue
+        )
+        guard result == .success, let windows = windowsValue as? [AXUIElement] else {
+            DebugLogger.shared.info(
+                "Window enumeration skipped: targetPID=\(targetPID) " +
+                    "windowResult=\(result.rawValue) hasValue=\(windowsValue != nil)",
+                source: "WindowResize"
+            )
+            return []
+        }
+        return windows
+    }
+
+    private static func moveWindow(
+        _ window: AXUIElement,
+        operation: String,
+        targetPID: pid_t,
+        to frame: NSRect,
+        screen: NSScreen,
+        primaryScreenMaxY: CGFloat
+    ) -> Bool {
+        let logSource = "WindowResize"
         let beforePosition = self.windowAXPoint(window, attribute: kAXPositionAttribute)
         let beforeSize = self.windowAXSize(window, attribute: kAXSizeAttribute)
         var size = frame.size

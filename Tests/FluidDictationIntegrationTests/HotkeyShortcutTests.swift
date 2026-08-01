@@ -489,6 +489,15 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertTrue(VoiceMacroService.isWindowMaxCommand(transcript: "WINDOW MAX!"))
         XCTAssertFalse(VoiceMacroService.isWindowMaxCommand(transcript: "maximize window"))
         XCTAssertFalse(VoiceMacroService.isWindowMaxCommand(transcript: "window maximum"))
+        XCTAssertFalse(VoiceMacroService.isWindowMaxCommand(transcript: "window max all"))
+    }
+
+    func testWindowMaxAllCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isWindowMaxAllCommand(transcript: "Window max all."))
+        XCTAssertTrue(VoiceMacroService.isWindowMaxAllCommand(transcript: "WINDOW MAX ALL!"))
+        XCTAssertTrue(VoiceMacroService.isWindowMaxAllCommand(transcript: "All windows max."))
+        XCTAssertFalse(VoiceMacroService.isWindowMaxAllCommand(transcript: "window max"))
+        XCTAssertFalse(VoiceMacroService.isWindowMaxAllCommand(transcript: "max all windows"))
     }
 
     func testWindowMaxFrameAppliesSharedMenuBarToExternalScreen() {
