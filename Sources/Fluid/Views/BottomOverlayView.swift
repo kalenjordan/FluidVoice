@@ -30,6 +30,7 @@ final class BottomOverlayWindowController {
 
     private var window: NSPanel?
     private var audioSubscription: AnyCancellable?
+    private let waveformAudioLevel = CurrentValueSubject<CGFloat, Never>(0)
     private var pendingResizeWorkItem: DispatchWorkItem?
     private var pendingReleaseTransitionResetWorkItem: DispatchWorkItem?
     private var localMouseDownMonitor: Any?
@@ -76,7 +77,7 @@ final class BottomOverlayWindowController {
         case .command: break
         }
         NotchContentState.shared.updateTranscription("")
-        NotchContentState.shared.bottomOverlayAudioLevel = 0
+        self.waveformAudioLevel.send(0)
         NotchContentState.shared.setBottomOverlayDismissOffsetY(8)
         NotchContentState.shared.setBottomOverlayDismissing(false)
 
@@ -84,8 +85,8 @@ final class BottomOverlayWindowController {
         self.audioSubscription?.cancel()
         self.audioSubscription = audioPublisher
             .receive(on: DispatchQueue.main)
-            .sink { level in
-                NotchContentState.shared.bottomOverlayAudioLevel = level
+            .sink { [weak self] level in
+                self?.waveformAudioLevel.send(level)
             }
 
         // Create window if needed
@@ -183,7 +184,7 @@ final class BottomOverlayWindowController {
         BottomOverlayModeMenuController.shared.hide()
         BottomOverlayActionsMenuController.shared.hide()
         NotchContentState.shared.setProcessing(false)
-        NotchContentState.shared.bottomOverlayAudioLevel = 0
+        self.waveformAudioLevel.send(0)
     }
 
     func setProcessing(_ processing: Bool) {
@@ -215,7 +216,7 @@ final class BottomOverlayWindowController {
 
         self.audioSubscription?.cancel()
         self.audioSubscription = nil
-        NotchContentState.shared.bottomOverlayAudioLevel = 0
+        self.waveformAudioLevel.send(0)
         NotchContentState.shared.setBottomOverlayReleaseTransitioning(true)
     }
 
@@ -305,7 +306,9 @@ final class BottomOverlayWindowController {
         panel.hidesOnDeactivate = false
         panel.animationBehavior = .none
 
-        let contentView = BottomOverlayView()
+        let contentView = BottomOverlayView(
+            audioPublisher: self.waveformAudioLevel.eraseToAnyPublisher()
+        )
         let hostingView = BottomOverlayHostingView(rootView: contentView)
 
         // Let SwiftUI determine the size
@@ -1846,6 +1849,8 @@ private struct DynamicPreviewHeightPreferenceKey: PreferenceKey {
 // MARK: - Bottom Overlay SwiftUI View
 
 struct BottomOverlayView: View {
+    let audioPublisher: AnyPublisher<CGFloat, Never>
+
     @ObservedObject private var contentState = NotchContentState.shared
     @ObservedObject private var appServices = AppServices.shared
     @ObservedObject private var activeAppMonitor = ActiveAppMonitor.shared
@@ -2902,7 +2907,11 @@ struct BottomOverlayView: View {
                     .opacity((appIcon != nil || showModelLoading || !self.layout.showsModeLabel) ? 1 : 0)
 
                     // Waveform visualization
-                    BottomWaveformView(color: self.modeColor, layout: self.layout)
+                    BottomWaveformView(
+                        audioPublisher: self.audioPublisher,
+                        color: self.modeColor,
+                        layout: self.layout
+                    )
                         .frame(width: self.layout.waveformWidth, height: self.layout.waveformHeight)
 
                     // Mode label + model load hint
@@ -3125,16 +3134,29 @@ struct BottomOverlayView: View {
     }
 }
 
-// MARK: - Bottom Waveform View (reads from NotchContentState)
+// MARK: - Bottom Waveform View
 
 struct BottomWaveformView: View {
+    let audioPublisher: AnyPublisher<CGFloat, Never>
     let color: Color
     let layout: BottomOverlayView.LayoutConstants
 
+    @StateObject private var data: AudioVisualizationData
     @ObservedObject private var contentState = NotchContentState.shared
     // Initialize with max possible bar count (11 for large) to prevent index-out-of-range before onAppear
     @State private var barHeights: [CGFloat] = Array(repeating: 6, count: 11)
     @State private var noiseThreshold: CGFloat = .init(SettingsStore.shared.visualizerNoiseThreshold)
+
+    init(
+        audioPublisher: AnyPublisher<CGFloat, Never>,
+        color: Color,
+        layout: BottomOverlayView.LayoutConstants
+    ) {
+        self.audioPublisher = audioPublisher
+        self.color = color
+        self.layout = layout
+        _data = StateObject(wrappedValue: AudioVisualizationData(audioLevelPublisher: audioPublisher))
+    }
 
     private var barCount: Int {
         self.layout.barCount
@@ -3154,6 +3176,10 @@ struct BottomWaveformView: View {
 
     private var maxHeight: CGFloat {
         self.layout.maxBarHeight
+    }
+
+    private var effectiveNoiseThreshold: CGFloat {
+        max(0.01, self.noiseThreshold * 0.4)
     }
 
     private var isPillStyle: Bool {
@@ -3210,7 +3236,7 @@ struct BottomWaveformView: View {
                     .shadow(color: .white.opacity(0.28), radius: 2.5, x: 0, y: 0)
             }
         }
-        .onChange(of: self.contentState.bottomOverlayAudioLevel) { _, level in
+        .onChange(of: self.data.audioLevel) { _, level in
             guard !self.isReleaseAnimationActive else { return }
             if !self.contentState.isProcessing {
                 self.updateBars(level: level)
@@ -3301,7 +3327,7 @@ struct BottomWaveformView: View {
 
         let amplifiedLevel = AudioVisualizationScale.conversationalSpeechLevel(
             level,
-            noiseThreshold: self.noiseThreshold
+            noiseThreshold: self.effectiveNoiseThreshold
         )
 
         withAnimation(.easeOut(duration: 0.08)) {

@@ -1324,6 +1324,9 @@ final class GlobalHotkeyManager: NSObject {
         if startsPrimaryFunctionToggleOnPress {
             guard !behavior.isModeKeyPressed() else { return }
             behavior.setModeKeyPressed(true)
+            if !self.asrService.isRunning {
+                OverlayPresentationBenchmark.shared.begin(trigger: "function_modifier")
+            }
             DebugLogger.shared.info("Transcription Function modifier pressed (toggle) - triggering immediately", source: "GlobalHotkeyManager")
             behavior.onToggleRelease()
             return
@@ -1341,6 +1344,12 @@ final class GlobalHotkeyManager: NSObject {
         }
 
         guard self.hotkeyMode != .automatic || !wasTargetActive else { return }
+        if behavior.holdModeType == .transcription,
+           behavior.shortcut.normalizedModifierKeyCodes == [63],
+           !self.asrService.isRunning
+        {
+            OverlayPresentationBenchmark.shared.begin(trigger: "function_modifier")
+        }
         DebugLogger.shared.info(behavior.holdStartMessage, source: "GlobalHotkeyManager")
         if self.hotkeyMode == .hold {
             self.markHoldModeStartTriggered(for: behavior.holdModeType)

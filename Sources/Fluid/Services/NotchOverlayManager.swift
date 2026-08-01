@@ -24,6 +24,13 @@ enum OverlayMode: String {
 final class NotchOverlayManager {
     static let shared = NotchOverlayManager()
 
+    private typealias RecordingNotch = DynamicNotch<
+        NotchExpandedView,
+        NotchCompactLeadingView,
+        NotchCompactTrailingView,
+        NotchCompactBottomView
+    >
+
     struct NotchPresentationPolicy: Equatable {
         let usesCompactPresentation: Bool
         let showsPromptSelector: Bool
@@ -34,7 +41,9 @@ final class NotchOverlayManager {
         let allowsExpandedCommandOutput: Bool
     }
 
-    private var notch: DynamicNotch<NotchExpandedView, NotchCompactLeadingView, NotchCompactTrailingView, NotchCompactBottomView>?
+    private var notch: RecordingNotch?
+    private var presentationTask: Task<Void, Never>?
+    private var nextPresentationCommittedAction: (@MainActor () -> Void)?
     private var commandOutputNotch: DynamicNotch<
         NotchCommandOutputExpandedView,
         NotchCompactLeadingView,
@@ -110,6 +119,20 @@ final class NotchOverlayManager {
     private init() {
         self.refreshNotchPresentationPolicy()
         self.setupEscapeKeyMonitors()
+    }
+
+    func onNextPresentationCommitted(_ action: @escaping @MainActor () -> Void) {
+        self.nextPresentationCommittedAction = action
+    }
+
+    func cancelNextPresentationCommittedAction() {
+        self.nextPresentationCommittedAction = nil
+    }
+
+    private func completeNextPresentationCommittedAction() {
+        let action = self.nextPresentationCommittedAction
+        self.nextPresentationCommittedAction = nil
+        action?()
     }
 
     deinit {
@@ -216,6 +239,8 @@ final class NotchOverlayManager {
         let startedAt = ProcessInfo.processInfo.systemUptime
         Self.overlayBench("bottom_route_start mode=\(mode.rawValue)")
         self.generation &+= 1
+        let currentGeneration = self.generation
+        let latencyMeasurement = OverlayPresentationBenchmark.shared.currentToken()
 
         // Hide any existing notch first
         if self.notch != nil {
@@ -227,7 +252,24 @@ final class NotchOverlayManager {
 
         BottomOverlayWindowController.shared.show(audioPublisher: audioLevelPublisher, mode: self.currentMode)
         self.isBottomOverlayVisible = true
+        OverlayPresentationBenchmark.shared.mark("window_ordered_front", token: latencyMeasurement)
         Self.overlayBench("bottom_route_return elapsedMs=\(Self.elapsedMs(since: startedAt))")
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.generation == currentGeneration else {
+                OverlayPresentationBenchmark.shared.mark(
+                    "presentation_cancelled_before_first_main_runloop",
+                    token: latencyMeasurement,
+                    completesMeasurement: true
+                )
+                return
+            }
+            OverlayPresentationBenchmark.shared.mark(
+                "first_main_runloop_after_order_front",
+                token: latencyMeasurement,
+                completesMeasurement: true
+            )
+            self.completeNextPresentationCommittedAction()
+        }
     }
 
     /// Show notch overlay (original behavior)
@@ -255,6 +297,10 @@ final class NotchOverlayManager {
         self.syncPromptPickerMode(for: self.currentMode)
         NotchContentState.shared.updateTranscription("")
 
+        let shouldUseCompactPresentation = self.currentNotchPresentationPolicy.usesCompactPresentation
+        let presentation = shouldUseCompactPresentation ? "compact" : "expanded"
+        let latencyMeasurement = OverlayPresentationBenchmark.shared.currentToken()
+
         // Create notch with SwiftUI views
         let newNotch = DynamicNotch(
             hoverBehavior: [], // Recording overlays should dismiss even if hover state gets stale.
@@ -276,55 +322,108 @@ final class NotchOverlayManager {
         )
 
         self.notch = newNotch
-        let shouldUseCompactPresentation = self.currentNotchPresentationPolicy.usesCompactPresentation
-        let presentation = shouldUseCompactPresentation ? "compact" : "expanded"
         Self.overlayBench("notch_task_scheduled mode=\(self.currentMode.rawValue) presentation=\(presentation) screen=\(targetScreen.localizedName)")
 
         // Resolve presentation from policy so future notch modes don't require call-site changes.
-        Task { [weak self] in
+        self.presentationTask?.cancel()
+        self.presentationTask = Task { @MainActor [weak self] in
             Self.overlayBench("notch_animation_start presentation=\(presentation)")
-            let presentationTask = Task { @MainActor in
-                if shouldUseCompactPresentation {
-                    await newNotch.compact(on: targetScreen)
-                } else {
-                    await newNotch.expand(on: targetScreen)
-                }
+            if shouldUseCompactPresentation {
+                await newNotch.compact(on: targetScreen)
+            } else {
+                await newNotch.expand(on: targetScreen)
             }
-
-            // DynamicNotchKit applies a separate hard-coded window fade after its
-            // SwiftUI transition. Wait here until presentation creates the window,
-            // then force it opaque before allowing the presentation task to finish.
-            for _ in 0 ..< 16 {
-                await Task.yield()
-                guard self?.generation == currentGeneration else {
-                    presentationTask.cancel()
-                    return
-                }
-                if let window = newNotch.windowController?.window {
-                    window.animationBehavior = .none
-                    await NSAnimationContext.runAnimationGroup { context in
-                        context.duration = 0
-                        context.allowsImplicitAnimation = false
-                        window.alphaValue = 1
-                    }
-                    Self.overlayBench("notch_window_fade_bypassed presentation=\(presentation)")
-                    break
-                }
-            }
-            await presentationTask.value
             Self.overlayBench("notch_animation_complete presentation=\(presentation) elapsedMs=\(Self.elapsedMs(since: startedAt))")
-            // Only update state if we're still the active generation
-            guard let self = self, self.generation == currentGeneration else {
+            guard !Task.isCancelled, let self, self.generation == currentGeneration else {
                 Self.overlayBench("notch_visible_drop reason=stale_generation")
                 return
             }
+
+            // Expanded presentation returns as soon as its short opening animation
+            // completes. Make the floating window fully opaque at that causal point
+            // instead of relying on a separately scheduled polling task.
+            if !shouldUseCompactPresentation {
+                guard let window = newNotch.windowController?.window else {
+                    OverlayPresentationBenchmark.shared.mark(
+                        "window_not_found_after_expand",
+                        token: latencyMeasurement,
+                        completesMeasurement: true
+                    )
+                    return
+                }
+                window.animationBehavior = .none
+                await NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0
+                    context.allowsImplicitAnimation = false
+                    window.alphaValue = 1
+                }
+                Self.overlayBench("notch_window_fade_bypassed presentation=\(presentation)")
+                OverlayPresentationBenchmark.shared.mark("window_ordered_front", token: latencyMeasurement)
+                DispatchQueue.main.async { [weak self] in
+                    OverlayPresentationBenchmark.shared.mark(
+                        "first_main_runloop_after_order_front",
+                        token: latencyMeasurement,
+                        completesMeasurement: true
+                    )
+                    guard self?.generation == currentGeneration else { return }
+                    self?.completeNextPresentationCommittedAction()
+                }
+            }
             self.state = .visible
             Self.overlayBench("state_visible target=notch presentation=\(presentation)")
+        }
+
+        if shouldUseCompactPresentation {
+            Task { @MainActor [weak self] in
+                // Compact presentation waits 400 ms before returning, so retain
+                // the early window probe for the built-in notch path.
+                var foundWindow = false
+                for _ in 0 ..< 16 {
+                    await Task.yield()
+                    guard self?.generation == currentGeneration else {
+                        OverlayPresentationBenchmark.shared.mark(
+                            "presentation_cancelled_before_window",
+                            token: latencyMeasurement,
+                            completesMeasurement: true
+                        )
+                        return
+                    }
+                    if let window = newNotch.windowController?.window {
+                        foundWindow = true
+                        window.animationBehavior = .none
+                        await NSAnimationContext.runAnimationGroup { context in
+                            context.duration = 0
+                            context.allowsImplicitAnimation = false
+                            window.alphaValue = 1
+                        }
+                        Self.overlayBench("notch_window_fade_bypassed presentation=\(presentation)")
+                        OverlayPresentationBenchmark.shared.mark("window_ordered_front", token: latencyMeasurement)
+                        DispatchQueue.main.async { [weak self] in
+                            OverlayPresentationBenchmark.shared.mark(
+                                "first_main_runloop_after_order_front",
+                                token: latencyMeasurement,
+                                completesMeasurement: true
+                            )
+                            guard self?.generation == currentGeneration else { return }
+                            self?.completeNextPresentationCommittedAction()
+                        }
+                        break
+                    }
+                }
+                if !foundWindow {
+                    OverlayPresentationBenchmark.shared.mark(
+                        "window_not_found_within_poll_budget",
+                        token: latencyMeasurement,
+                        completesMeasurement: true
+                    )
+                }
+            }
         }
     }
 
     func hide() {
         guard !self.isHideInProgress else { return }
+        self.nextPresentationCommittedAction = nil
         self.isHideInProgress = true
         self.generation &+= 1
         let currentGeneration = self.generation
@@ -376,6 +475,9 @@ final class NotchOverlayManager {
         // Cancel any pending retry operations
         self.pendingRetryTask?.cancel()
         self.pendingRetryTask = nil
+        let activePresentationTask = self.presentationTask
+        activePresentationTask?.cancel()
+        self.presentationTask = nil
 
         // Safety: reset processing state when hiding
         NotchContentState.shared.setProcessing(false)
@@ -386,6 +488,8 @@ final class NotchOverlayManager {
             // any inconsistent notch state without scheduling another task.
             Self.overlayBench("hide_return reason=not_visible state=\(self.state) notchExists=\(self.notch != nil)")
             if let existingNotch = self.notch {
+                existingNotch.windowController?.window?.orderOut(nil)
+                await activePresentationTask?.value
                 existingNotch.windowController?.window?.orderOut(nil)
                 Task { await existingNotch.hide() }
             }
@@ -398,6 +502,8 @@ final class NotchOverlayManager {
 
         self.state = .hiding
         Self.overlayBench("hide_immediate_start")
+        currentNotch.windowController?.window?.orderOut(nil)
+        await activePresentationTask?.value
         currentNotch.windowController?.window?.orderOut(nil)
         Task { await currentNotch.hide() }
         Self.overlayBench("hide_immediate_complete elapsedMs=\(Self.elapsedMs(since: startedAt))")
@@ -424,8 +530,15 @@ final class NotchOverlayManager {
         self.pendingRetryTask?.cancel()
         self.pendingRetryTask = nil
 
-        if let existingNotch = notch {
-            await existingNotch.hide()
+        let activePresentationTask = self.presentationTask
+        activePresentationTask?.cancel()
+        self.presentationTask = nil
+        let existingNotch = self.notch
+        existingNotch?.windowController?.window?.orderOut(nil)
+        await activePresentationTask?.value
+        existingNotch?.windowController?.window?.orderOut(nil)
+        if let existingNotch {
+            Task { await existingNotch.hide() }
         }
         self.notch = nil
         self.state = .idle

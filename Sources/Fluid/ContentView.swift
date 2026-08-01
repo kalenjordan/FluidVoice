@@ -278,6 +278,7 @@ struct ContentView: View {
     @State private var accessibilityGuideMonitorTask: Task<Void, Never>?
     @State private var accessibilityGuideRequestID: UUID?
     @State private var prewarmDictationTask: Task<Void, Never>?
+    @State private var deferredRecordingContextTask: Task<Void, Never>?
     @State private var overlayLifecycleID: UInt64 = 0
 
     private var isRecordingAnyShortcutCapture: Bool {
@@ -1651,14 +1652,26 @@ struct ContentView: View {
         return nil
     }
 
-    private func captureRecordingTargetContext() {
-        // Capture the focused target PID BEFORE any overlay/UI changes.
-        // Used to restore focus when the user interacts with overlay dropdowns.
+    private func captureRecordingTargetPID() -> pid_t? {
         let focusedPID = TypingService.captureSystemFocusedPID()
             ?? NSWorkspace.shared.frontmostApplication?.processIdentifier
         NotchContentState.shared.recordingTargetPID = focusedPID
+        OverlayPresentationBenchmark.shared.mark("target_pid_captured")
+        return focusedPID
+    }
 
-        let info = self.getCurrentAppInfo()
+    private func captureRecordingTargetPIDForImmediateOverlay() -> pid_t? {
+        let focusedPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        NotchContentState.shared.recordingTargetPID = focusedPID
+        OverlayPresentationBenchmark.shared.mark("target_pid_captured_fast")
+        return focusedPID
+    }
+
+    private func captureRecordingTargetContext(targetPID: pid_t? = nil) {
+        // The PID is captured before presenting UI. The more expensive app and AX
+        // context can then be gathered without delaying visual acknowledgement.
+        let focusedPID = targetPID ?? self.captureRecordingTargetPID()
+        let info = focusedPID.map(self.getAppInfo(processIdentifier:)) ?? self.getCurrentAppInfo()
         self.recordingAppInfo = info
         self.recordingFocusedControlContext = TypingService.currentFocusedControlContext(bundleID: info.bundleId)
         self.rewriteModeService.setPromptAppBundleID(info.bundleId)
@@ -1666,6 +1679,54 @@ struct ContentView: View {
             "Captured recording app context: app=\(info.name), bundleId=\(info.bundleId), title=\(info.windowTitle)",
             source: "ContentView"
         )
+    }
+
+    private func prepareForDeferredRecordingContextCapture() {
+        self.deferredRecordingContextTask?.cancel()
+        self.deferredRecordingContextTask = nil
+        self.recordingAppInfo = nil
+        self.recordingFocusedControlContext = nil
+        self.recordingPrecedingText = ""
+    }
+
+    private func scheduleDeferredRecordingContextCapture(
+        fallbackTargetPID: pid_t?,
+        lifecycleID: UInt64,
+        slot: SettingsStore.DictationShortcutSlot
+    ) {
+        let captureContext = { @MainActor in
+            guard !Task.isCancelled, self.overlayLifecycleID == lifecycleID else { return }
+
+            // AX focus is more reliable than NSWorkspace for floating launchers.
+            // Use the fast PID only until the precise capture is available.
+            let preciseTargetPID = TypingService.captureSystemFocusedPID()
+            let resolvedTargetPID = preciseTargetPID ?? fallbackTargetPID
+            NotchContentState.shared.recordingTargetPID = resolvedTargetPID
+            self.captureRecordingTargetContext(targetPID: resolvedTargetPID)
+            self.captureRecordingFormattingContextIfNeeded()
+            self.prewarmPrivateAIDictationIfNeeded(for: slot)
+        }
+
+        // Fall back if presentation never completes, but normally wait until the
+        // overlay is opaque and AppKit has had a run-loop turn to paint it.
+        self.deferredRecordingContextTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            captureContext()
+        }
+        NotchOverlayManager.shared.onNextPresentationCommitted {
+            guard self.overlayLifecycleID == lifecycleID else { return }
+            self.deferredRecordingContextTask?.cancel()
+            self.deferredRecordingContextTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(17))
+                captureContext()
+            }
+        }
+    }
+
+    private func cancelDeferredRecordingContextCapture() {
+        self.deferredRecordingContextTask?.cancel()
+        self.deferredRecordingContextTask = nil
+        NotchOverlayManager.shared.cancelNextPresentationCommittedAction()
     }
 
     private func captureRecordingFormattingContextIfNeeded() {
@@ -1682,7 +1743,8 @@ struct ContentView: View {
     }
 
     private func captureRecordingContext() {
-        self.captureRecordingTargetContext()
+        let targetPID = self.captureRecordingTargetPID()
+        self.captureRecordingTargetContext(targetPID: targetPID)
         self.captureRecordingFormattingContextIfNeeded()
     }
 
@@ -2073,6 +2135,7 @@ struct ContentView: View {
         route: DictationOutputRoute = .normal,
         appendingClipboardText clipboardText: String? = nil
     ) async {
+        self.cancelDeferredRecordingContextCapture()
         DebugLogger.shared.debug("stopAndProcessTranscription called", source: "ContentView")
         DebugLogger.shared.info("Output route selected: \(route.rawValue)", source: "ContentView")
         self.appBench("stop_path_enter route=\(route.rawValue)")
@@ -4406,30 +4469,45 @@ struct ContentView: View {
             source: "ContentView"
         )
 
+        self.prepareForDeferredRecordingContextCapture()
         self.advanceOverlayLifecycle()
         self.setActiveRecordingMode(.dictate)
         let shouldShowDictationOverlay = !self.isRecordingForCommand && !self.isRecordingForRewrite
         let shouldPlayStartSound = !self.isRecordingForCommand
             && !self.isRecordingForRewrite
             && self.asr.micStatus == .authorized
+        let recordingLifecycleID = self.overlayLifecycleID
+        let recordingTargetPID: pid_t?
 
         // Ensure normal dictation mode is set (command/rewrite modes set their own)
         if shouldShowDictationOverlay {
+            recordingTargetPID = self.captureRecordingTargetPIDForImmediateOverlay()
             self.menuBarManager.setOverlayMode(.dictation)
+            OverlayPresentationBenchmark.shared.mark("overlay_show_requested")
+            self.menuBarManager.showRecordingOverlayImmediately()
+            self.scheduleDeferredRecordingContextCapture(
+                fallbackTargetPID: recordingTargetPID,
+                lifecycleID: recordingLifecycleID,
+                slot: .primary
+            )
+        } else {
+            recordingTargetPID = nil
         }
 
         Task {
             if shouldPlayStartSound, !self.asr.isRunning {
                 TranscriptionSoundPlayer.shared.playStartSound()
             }
-            await self.asr.start(onCaptureStarted: {
-                self.captureRecordingContext()
-                self.prewarmPrivateAIDictationIfNeeded(for: .primary)
-                if shouldShowDictationOverlay {
-                    self.menuBarManager.showRecordingOverlayImmediately()
-                }
-            })
+            if shouldShowDictationOverlay {
+                await self.asr.start()
+            } else {
+                await self.asr.start(onCaptureStarted: {
+                    self.captureRecordingContext()
+                    self.prewarmPrivateAIDictationIfNeeded(for: .primary)
+                })
+            }
             if !self.asr.isRunning {
+                self.cancelDeferredRecordingContextCapture()
                 self.menuBarManager.hideRecordingOverlayImmediately(reason: "asr_start_failed")
             }
         }
@@ -4843,6 +4921,7 @@ struct ContentView: View {
 
         if self.asr.isRunning {
             DebugLogger.shared.debug("Cancel shortcut: cancelling ASR recording", source: "ContentView")
+            self.cancelDeferredRecordingContextCapture()
             Task { await self.asr.stopWithoutTranscription() }
             self.cancelPrewarmDictationIfNeeded()
             handled = true
@@ -5060,15 +5139,26 @@ extension ContentView {
             self.appBench("asr_start_skipped reason=already_running")
             return
         }
+        self.prepareForDeferredRecordingContextCapture()
         self.advanceOverlayLifecycle()
 
         // Capture the target before presenting any UI, then acknowledge the shortcut
         // immediately instead of waiting for the audio device to finish starting.
-        self.captureRecordingContext()
+        let recordingTargetPID = self.captureRecordingTargetPIDForImmediateOverlay()
+        let recordingLifecycleID = self.overlayLifecycleID
         self.appBench("overlay_mode_request mode=Dictation phase=pre_audio_start")
         self.menuBarManager.setOverlayMode(.dictation)
+        OverlayPresentationBenchmark.shared.mark("overlay_show_requested")
         self.menuBarManager.showRecordingOverlayImmediately()
         self.appBench("overlay_mode_requested mode=Dictation phase=pre_audio_start")
+
+        // Give AppKit one display interval to commit the overlay before gathering
+        // accessibility and formatting context on the main actor.
+        self.scheduleDeferredRecordingContextCapture(
+            fallbackTargetPID: recordingTargetPID,
+            lifecycleID: recordingLifecycleID,
+            slot: slot
+        )
 
         Task {
             let asrStartStartedAt = ProcessInfo.processInfo.systemUptime
@@ -5076,10 +5166,9 @@ extension ContentView {
             if SettingsStore.shared.enableTranscriptionSounds, !self.asr.isRunning {
                 TranscriptionSoundPlayer.shared.playStartSound()
             }
-            await self.asr.start(onCaptureStarted: {
-                self.prewarmPrivateAIDictationIfNeeded(for: slot)
-            })
+            await self.asr.start()
             if !self.asr.isRunning {
+                self.cancelDeferredRecordingContextCapture()
                 self.menuBarManager.hideRecordingOverlayImmediately(reason: "asr_start_failed")
             }
             DebugLogger.shared.benchmark(
