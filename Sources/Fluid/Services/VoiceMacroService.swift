@@ -2700,7 +2700,7 @@ enum VoiceMacroService {
     private static func newCodexTabInvocation(
         transcript: String
     ) -> NewCodexTabInvocation? {
-        let leadingPattern = #"^(new codex tab|codex new tab|new tab)\b(.*)$"#
+        let leadingPattern = #"^(new codex (?:tab|tap)|codex new (?:tab|tap)|new (?:tab|tap))\b(.*)$"#
         guard let leadingExpression = try? NSRegularExpression(
             pattern: leadingPattern,
             options: [.caseInsensitive]
@@ -2721,7 +2721,7 @@ enum VoiceMacroService {
             )
         }
 
-        let trailingPattern = #"^(.*?)\b(new codex tab|codex new tab|new tab)[\s\p{P}]*$"#
+        let trailingPattern = #"^(.*?)\b(new codex (?:tab|tap)|codex new (?:tab|tap)|new (?:tab|tap))[\s\p{P}]*$"#
         guard let trailingExpression = try? NSRegularExpression(
             pattern: trailingPattern,
             options: [.caseInsensitive]
