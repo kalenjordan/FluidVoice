@@ -247,8 +247,10 @@ enum AutomaticDictionarySuggestionOutcome {
     case timedOut
 }
 
-@MainActor
-final class AutomaticDictionarySuggestionPolicy {
+// Access is owned by the main-actor correction tracker in production. Keeping this
+// state container nonisolated also avoids executor-bound destruction for the
+// short-lived instances used by policy tests.
+final nonisolated class AutomaticDictionarySuggestionPolicy {
     static let shared = AutomaticDictionarySuggestionPolicy()
 
     private struct PairRecord: Codable {
