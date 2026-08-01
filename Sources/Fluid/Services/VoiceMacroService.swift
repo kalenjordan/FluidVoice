@@ -37,22 +37,30 @@ enum VoiceMacroService {
         let windowDurationMinutes: Double
         let resetsAt: Date
 
-        func summary(now: Date = Date()) -> String {
+        var usageFraction: Double {
+            min(max(self.usedPercent / 100, 0), 1)
+        }
+
+        func pacing(now: Date = Date()) -> (allowedUsageFraction: Double, elapsedDays: Int, windowDays: Int) {
             let windowStart = self.resetsAt.addingTimeInterval(-self.windowDurationMinutes * 60)
             let windowDays = max(1, Int(ceil(self.windowDurationMinutes / (24 * 60))))
             let elapsedDays = max(
                 1,
                 min(windowDays, Int(ceil(now.timeIntervalSince(windowStart) / (24 * 60 * 60))))
             )
-            let allowedPercent = Double(elapsedDays) / Double(windowDays) * 100
-            let pace = self.usedPercent <= allowedPercent ? "On pace" : "Behind pace"
+            return (Double(elapsedDays) / Double(windowDays), elapsedDays, windowDays)
+        }
+
+        func summary(now: Date = Date()) -> String {
+            let pacing = self.pacing(now: now)
+            let pace = self.usageFraction <= pacing.allowedUsageFraction ? "On pace" : "Behind pace"
             let remainingPercent = max(0, 100 - self.usedPercent)
 
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "EEE 'at' h:mm a"
             return "Codex weekly: \(Int(remainingPercent.rounded()))% remaining\n"
-                + "\(pace) · day \(elapsedDays) of \(windowDays)\n"
+                + "\(pace) · day \(pacing.elapsedDays) of \(pacing.windowDays)\n"
                 + "Resets \(formatter.string(from: self.resetsAt))"
         }
     }
@@ -828,6 +836,26 @@ enum VoiceMacroService {
     @MainActor
     static func showStatusToast(_ text: String) {
         VoiceMacroStatusToast.shared.show(text)
+    }
+
+    @MainActor
+    static func showCodexStatusLoadingToast() {
+        VoiceMacroStatusToast.shared.show(
+            "Reading Codex weekly usage…",
+            automaticallyHides: false
+        )
+    }
+
+    @MainActor
+    static func showCodexStatusToast(_ status: CodexWeeklyStatus) {
+        let now = Date()
+        let pacing = status.pacing(now: now)
+        VoiceMacroStatusToast.shared.show(
+            status.summary(now: now),
+            progress: status.usageFraction,
+            pacingProgress: pacing.allowedUsageFraction,
+            isOnPace: status.usageFraction <= pacing.allowedUsageFraction
+        )
     }
 
     static func resolveWorkspace(query: String, workspaces: [HerdrWorkspace]) -> HerdrWorkspace? {
@@ -2169,11 +2197,58 @@ enum VoiceMacroService {
 }
 
 @MainActor
+private final class VoiceMacroUsageProgressBar: NSView {
+    var progress = 0.0 {
+        didSet { self.needsDisplay = true }
+    }
+
+    var fillColor = NSColor.controlAccentColor {
+        didSet { self.needsDisplay = true }
+    }
+
+    var pacingProgress: Double? {
+        didSet { self.needsDisplay = true }
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: 6)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let trackPath = NSBezierPath(roundedRect: self.bounds, xRadius: 3, yRadius: 3)
+        NSColor.quaternaryLabelColor.setFill()
+        trackPath.fill()
+
+        let fillWidth = self.bounds.width * min(max(self.progress, 0), 1)
+        if fillWidth > 0 {
+            let fillRect = NSRect(x: 0, y: 0, width: fillWidth, height: self.bounds.height)
+            let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 3, yRadius: 3)
+            self.fillColor.setFill()
+            fillPath.fill()
+        }
+
+        if let pacingProgress {
+            let markerCenter = self.bounds.width * min(max(pacingProgress, 0), 1)
+            let markerX = min(max(markerCenter - 1, 0), self.bounds.width - 2)
+            let markerPath = NSBezierPath(
+                roundedRect: NSRect(x: markerX, y: 0, width: 2, height: self.bounds.height),
+                xRadius: 1,
+                yRadius: 1
+            )
+            NSColor.labelColor.setFill()
+            markerPath.fill()
+        }
+    }
+}
+
+@MainActor
 private final class VoiceMacroStatusToast {
     static let shared = VoiceMacroStatusToast()
 
     private let panel: NSPanel
     private let label = NSTextField(labelWithString: "")
+    private let progressBar = VoiceMacroUsageProgressBar()
     private var hideTask: Task<Void, Never>?
 
     private init() {
@@ -2199,20 +2274,50 @@ private final class VoiceMacroStatusToast {
         self.label.maximumNumberOfLines = 3
         self.label.lineBreakMode = .byWordWrapping
         self.label.translatesAutoresizingMaskIntoConstraints = false
-        background.addSubview(self.label)
+
+        self.progressBar.isHidden = true
+
+        let stack = NSStackView(views: [self.label, self.progressBar])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 10
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        background.addSubview(stack)
         NSLayoutConstraint.activate([
-            self.label.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 18),
-            self.label.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -18),
-            self.label.topAnchor.constraint(equalTo: background.topAnchor, constant: 14),
-            self.label.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -14),
+            stack.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 18),
+            stack.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -18),
+            stack.topAnchor.constraint(equalTo: background.topAnchor, constant: 14),
+            stack.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -14),
             self.label.widthAnchor.constraint(equalToConstant: 260),
+            self.progressBar.widthAnchor.constraint(equalTo: self.label.widthAnchor),
         ])
         self.panel.contentView = background
     }
 
-    func show(_ text: String) {
+    func show(
+        _ text: String,
+        progress: Double? = nil,
+        pacingProgress: Double? = nil,
+        isOnPace: Bool? = nil,
+        automaticallyHides: Bool = true
+    ) {
         self.hideTask?.cancel()
         self.label.stringValue = text
+        if let progress {
+            let normalizedProgress = min(max(progress, 0), 1)
+            self.progressBar.progress = normalizedProgress
+            self.progressBar.pacingProgress = pacingProgress
+            self.progressBar.fillColor = switch isOnPace {
+            case true: .systemGreen
+            case false where normalizedProgress >= 0.9: .systemRed
+            case false: .systemOrange
+            case nil: .controlAccentColor
+            }
+            self.progressBar.isHidden = false
+        } else {
+            self.progressBar.pacingProgress = nil
+            self.progressBar.isHidden = true
+        }
         self.panel.contentView?.layoutSubtreeIfNeeded()
         let size = self.panel.contentView?.fittingSize ?? NSSize(width: 296, height: 84)
         let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? .zero
@@ -2226,6 +2331,7 @@ private final class VoiceMacroStatusToast {
             display: true
         )
         self.panel.orderFrontRegardless()
+        guard automaticallyHides else { return }
         self.hideTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(6))
             guard !Task.isCancelled else { return }

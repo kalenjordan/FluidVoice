@@ -2525,10 +2525,13 @@ struct ContentView: View {
            VoiceMacroService.isCodexStatusCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running Codex status voice command", source: "ContentView")
+            VoiceMacroService.showCodexStatusLoadingToast()
             let status = await VoiceMacroService.codexWeeklyStatus()
-            VoiceMacroService.showStatusToast(
-                status?.summary() ?? "Could not read Codex weekly usage."
-            )
+            if let status {
+                VoiceMacroService.showCodexStatusToast(status)
+            } else {
+                VoiceMacroService.showStatusToast("Could not read Codex weekly usage.")
+            }
             DebugLogger.shared.info(
                 "Codex status voice command finished: success=\(status != nil)",
                 source: "ContentView"

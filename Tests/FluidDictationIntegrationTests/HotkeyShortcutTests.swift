@@ -530,6 +530,40 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertTrue(summary.contains("Resets"))
     }
 
+    func testCodexWeeklyStatusUsageFractionIsNormalized() {
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+
+        func status(usedPercent: Double) -> VoiceMacroService.CodexWeeklyStatus {
+            VoiceMacroService.CodexWeeklyStatus(
+                usedPercent: usedPercent,
+                windowDurationMinutes: 7 * 24 * 60,
+                resetsAt: reset
+            )
+        }
+
+        XCTAssertEqual(status(usedPercent: 42).usageFraction, 0.42, accuracy: 0.0001)
+        XCTAssertEqual(status(usedPercent: -5).usageFraction, 0)
+        XCTAssertEqual(status(usedPercent: 105).usageFraction, 1)
+    }
+
+    func testCodexWeeklyStatusPacingTracksElapsedDaysInWeek() {
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+        let status = VoiceMacroService.CodexWeeklyStatus(
+            usedPercent: 20,
+            windowDurationMinutes: 7 * 24 * 60,
+            resetsAt: reset
+        )
+
+        let dayOne = status.pacing(now: reset.addingTimeInterval(-6.5 * 24 * 60 * 60))
+        XCTAssertEqual(dayOne.allowedUsageFraction, 1.0 / 7.0, accuracy: 0.0001)
+        XCTAssertEqual(dayOne.elapsedDays, 1)
+        XCTAssertEqual(dayOne.windowDays, 7)
+
+        let dayFour = status.pacing(now: reset.addingTimeInterval(-3.5 * 24 * 60 * 60))
+        XCTAssertEqual(dayFour.allowedUsageFraction, 4.0 / 7.0, accuracy: 0.0001)
+        XCTAssertEqual(dayFour.elapsedDays, 4)
+    }
+
     func testWorkspaceInvocationSeparatesWorkspaceFromTrailingDictation() {
         let workspaces = [
             VoiceMacroService.HerdrWorkspace(label: "herdr", workspaceID: "w1"),
