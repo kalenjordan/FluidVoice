@@ -789,6 +789,20 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testNextPendingTabRequiresAnUnfocusedDoneOrBlockedTab() {
+        XCTAssertTrue(VoiceMacroService.hasNextPendingHerdrTab(statuses: [
+            (agentStatus: "idle", focused: true),
+            (agentStatus: "done", focused: false),
+        ]))
+        XCTAssertTrue(VoiceMacroService.hasNextPendingHerdrTab(statuses: [
+            (agentStatus: "blocked", focused: false),
+        ]))
+        XCTAssertFalse(VoiceMacroService.hasNextPendingHerdrTab(statuses: [
+            (agentStatus: "done", focused: true),
+            (agentStatus: "working", focused: false),
+        ]))
+    }
+
     func testEDMFocusPlaylistCommandUsesConcisePhrase() {
         XCTAssertTrue(VoiceMacroService.isEDMFocusPlaylistCommand(
             transcript: "Spotify EDM."

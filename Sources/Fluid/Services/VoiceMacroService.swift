@@ -183,10 +183,14 @@ enum VoiceMacroService {
         }
 
         struct Tab: Decodable {
+            let agentStatus: String?
+            let focused: Bool
             let number: Int
             let tabID: String
 
             enum CodingKeys: String, CodingKey {
+                case agentStatus = "agent_status"
+                case focused
                 case number
                 case tabID = "tab_id"
             }
@@ -2856,6 +2860,25 @@ enum VoiceMacroService {
 
     @MainActor
     static func openNextPendingHerdrTab() async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let listResult = await self.runProcess(executable, arguments: ["tab", "list"])
+        guard listResult.status == 0,
+              let response = try? JSONDecoder().decode(
+                  HerdrTabListResponse.self,
+                  from: listResult.output
+              )
+        else {
+            return false
+        }
+        let hasNextPendingTab = self.hasNextPendingHerdrTab(
+            statuses: response.result.tabs.map { ($0.agentStatus, $0.focused) }
+        )
+        guard hasNextPendingTab else {
+            guard await self.openHerdrWorkspace(query: "router") else { return false }
+            self.showStatusToast("Nothing else is pending.")
+            return true
+        }
+
         guard let herdrApplication = NSRunningApplication.runningApplications(
             withBundleIdentifier: self.herdrBundleIDs[0]
         ).first,
@@ -2880,6 +2903,15 @@ enum VoiceMacroService {
 
         try? await Task.sleep(for: .milliseconds(100))
         return self.postKey(CGKeyCode(kVK_Return), to: processIdentifier)
+    }
+
+    static func hasNextPendingHerdrTab(
+        statuses: [(agentStatus: String?, focused: Bool)]
+    ) -> Bool {
+        statuses.contains {
+            guard !$0.focused, let status = $0.agentStatus?.lowercased() else { return false }
+            return ["done", "blocked"].contains(status)
+        }
     }
 
     @MainActor
