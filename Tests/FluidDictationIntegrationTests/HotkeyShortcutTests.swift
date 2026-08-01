@@ -61,6 +61,14 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testBareFrequentWorkspaceCommandsSupportTrailingPrompts() {
         XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Comms."),
+            "comms"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Coms."),
+            "comms"
+        )
+        XCTAssertEqual(
             VoiceMacroService.herdrWorkspaceQuery(transcript: "Router."),
             "router"
         )

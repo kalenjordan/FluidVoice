@@ -287,6 +287,8 @@ enum VoiceMacroService {
             "router": "router",
         ],
         bareHerdrWorkspaces: [
+            "coms": "comms",
+            "comms": "comms",
             "fluid voice": "fluidvoice",
             "fluidvoice": "fluidvoice",
             "nudges": "nudges",
