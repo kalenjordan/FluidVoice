@@ -134,6 +134,11 @@ final class MediaPlaybackService {
         // Use explicit play() command - never toggle
         self.mediaController.play()
     }
+
+    func play() -> Bool {
+        self.mediaController.play()
+        return true
+    }
     #else
     // Intel Mac stub - media control not available
     func pauseIfPlaying() async -> Bool {
@@ -146,6 +151,10 @@ final class MediaPlaybackService {
 
     func resumeIfWePaused(_ wePaused: Bool) async {
         // No-op on Intel
+    }
+
+    func play() -> Bool {
+        false
     }
     #endif
 }

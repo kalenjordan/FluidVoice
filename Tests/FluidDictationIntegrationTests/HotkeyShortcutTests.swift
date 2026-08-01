@@ -1249,6 +1249,59 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testPlayCommandIsExactAndGlobal() {
+        XCTAssertTrue(VoiceMacroService.isPlayCommand(transcript: "Play."))
+        XCTAssertTrue(VoiceMacroService.isPlayCommand(transcript: "PLAY!"))
+        XCTAssertFalse(VoiceMacroService.isPlayCommand(transcript: "play music"))
+        XCTAssertFalse(VoiceMacroService.isPlayCommand(transcript: "please play"))
+    }
+
+    func testAirPodsBatteryCommandIsExactAndGlobal() {
+        for transcript in [
+            "AirPods battery.", "air pods battery", "Check AirPods battery!",
+            "check air pods battery",
+        ] {
+            XCTAssertTrue(VoiceMacroService.isAirPodsBatteryCommand(transcript: transcript))
+        }
+        XCTAssertFalse(VoiceMacroService.isAirPodsBatteryCommand(
+            transcript: "Check AirPods Max battery"
+        ))
+    }
+
+    func testAirPodsBatteryStatusParsesRegularAirPodsAndExcludesMax() throws {
+        let json = """
+        {
+          "SPBluetoothDataType": [{
+            "device_connected": [{
+              "Kalen’s AirPods Max": {
+                "device_address": "70:F9:4A:9D:98:BC",
+                "device_batteryLevelLeft": "10%"
+              }
+            }],
+            "device_not_connected": [{
+              "Kalen’s AirPods Pro": {
+                "device_address": "30:0E:43:33:94:9B",
+                "device_batteryLevelCase": "92%",
+                "device_batteryLevelLeft": "81%",
+                "device_batteryLevelRight": "85%"
+              }
+            }]
+          }]
+        }
+        """
+
+        let status = VoiceMacroService.parseAirPodsBatteryStatus(from: Data(json.utf8))
+        XCTAssertEqual(
+            status,
+            VoiceMacroService.AirPodsBatteryStatus(
+                leftPercent: 81,
+                rightPercent: 85,
+                casePercent: 92
+            )
+        )
+        XCTAssertEqual(status?.summary, "AirPods battery\nLeft 81% · Right 85% · Case 92%")
+    }
+
     func testRestartCodexCommandIsExactAndHerdrScoped() {
         for transcript in [
             "Restart Codex.", "Restart codec", "Restart codecs",

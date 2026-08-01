@@ -64,6 +64,21 @@ enum VoiceMacroService {
         case disconnect(AirPodsDevice)
     }
 
+    struct AirPodsBatteryStatus: Equatable {
+        let leftPercent: Int?
+        let rightPercent: Int?
+        let casePercent: Int?
+
+        var summary: String {
+            let levels = [
+                self.leftPercent.map { "Left \($0)%" },
+                self.rightPercent.map { "Right \($0)%" },
+                self.casePercent.map { "Case \($0)%" },
+            ].compactMap { $0 }
+            return "AirPods battery\n" + levels.joined(separator: " · ")
+        }
+    }
+
     struct CodexWeeklyStatus: Equatable {
         let usedPercent: Double
         let windowDurationMinutes: Double
@@ -776,6 +791,19 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "restart fluid voice"
     }
 
+    static func isPlayCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "play"
+    }
+
+    static func isAirPodsBatteryCommand(transcript: String) -> Bool {
+        switch self.normalizedPhrase(transcript) {
+        case "airpods battery", "air pods battery", "check airpods battery", "check air pods battery":
+            return true
+        default:
+            return false
+        }
+    }
+
     static func airPodsCommand(transcript: String) -> AirPodsCommand? {
         switch self.normalizedPhrase(transcript) {
         case "connect airpods", "connect air pods":
@@ -875,6 +903,59 @@ enum VoiceMacroService {
             }
             return false
         }
+    }
+
+    static func readAirPodsBatteryStatus() async -> AirPodsBatteryStatus? {
+        let systemProfiler = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        let result = await self.runProcess(
+            systemProfiler,
+            arguments: ["SPBluetoothDataType", "-json"]
+        )
+        guard result.status == 0 else { return nil }
+        return self.parseAirPodsBatteryStatus(from: result.output)
+    }
+
+    static func parseAirPodsBatteryStatus(from data: Data) -> AirPodsBatteryStatus? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) else { return nil }
+        var candidates: [(name: String, properties: [String: Any])] = []
+
+        func collectDevices(from value: Any) {
+            if let dictionary = value as? [String: Any] {
+                for (name, child) in dictionary {
+                    if let properties = child as? [String: Any],
+                       name.localizedCaseInsensitiveContains("airpods"),
+                       !name.localizedCaseInsensitiveContains("max")
+                    {
+                        candidates.append((name, properties))
+                    }
+                    collectDevices(from: child)
+                }
+            } else if let array = value as? [Any] {
+                array.forEach { collectDevices(from: $0) }
+            }
+        }
+
+        collectDevices(from: root)
+        guard let properties = candidates.first(where: {
+            $0.properties["device_address"] as? String == "30:0E:43:33:94:9B"
+        })?.properties ?? candidates.first?.properties else {
+            return nil
+        }
+
+        func percentage(_ key: String) -> Int? {
+            guard let value = properties[key] as? String else { return nil }
+            return Int(value.trimmingCharacters(in: CharacterSet(charactersIn: "%")))
+        }
+
+        let status = AirPodsBatteryStatus(
+            leftPercent: percentage("device_batteryLevelLeft"),
+            rightPercent: percentage("device_batteryLevelRight"),
+            casePercent: percentage("device_batteryLevelCase")
+        )
+        guard status.leftPercent != nil || status.rightPercent != nil || status.casePercent != nil else {
+            return nil
+        }
+        return status
     }
 
     static func isSwitchCommand(transcript: String) -> Bool {

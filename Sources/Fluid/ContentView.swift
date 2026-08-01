@@ -2291,6 +2291,22 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isPlayCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running play voice command", source: "ContentView")
+            let succeeded = MediaPlaybackService.shared.play()
+            recordAction(succeeded, "Action Type: Play media")
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not play media.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let targetPID = typingTarget.pid,
            VoiceMacroService.isWindowScreenshotCommand(transcript: transcribedText)
         {
@@ -3128,6 +3144,27 @@ struct ContentView: View {
             // Record this after any failed-command transcript so CopyableResult
             // resolves to the structured action context rather than the raw command.
             recordAction(succeeded, "Action Type: \(actionName)")
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           VoiceMacroService.isAirPodsBatteryCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Reading AirPods battery levels", source: "ContentView")
+            let status = await VoiceMacroService.readAirPodsBatteryStatus()
+            let succeeded = status != nil
+            recordAction(succeeded, "Action Type: Check AirPods battery")
+            if let status {
+                VoiceMacroService.showStatusToast(status.summary)
+            } else {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast(
+                    "Could not read AirPods battery. Open the case and try again."
+                )
+            }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
             }
