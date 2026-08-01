@@ -2791,15 +2791,18 @@ struct ContentView: View {
                bundleID: appInfo.bundleId
            )
         {
-            DebugLogger.shared.info("Running Herdr previous tab voice command", source: "ContentView")
-            let succeeded = VoiceMacroService.returnToPreviousHerdrTab(targetPID: targetPID)
             DebugLogger.shared.info(
-                "Herdr previous tab voice command finished: success=\(succeeded)",
+                "Running Herdr previous target voice command",
+                source: "ContentView"
+            )
+            let succeeded = VoiceMacroService.returnToPreviousHerdrTarget(targetPID: targetPID)
+            DebugLogger.shared.info(
+                "Herdr previous target voice command finished: success=\(succeeded)",
                 source: "ContentView"
             )
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
-                VoiceMacroService.showStatusToast("Could not return to the previous Herder tab.")
+                VoiceMacroService.showStatusToast("Could not return to the previous Herder target.")
             }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
@@ -2947,6 +2950,32 @@ struct ContentView: View {
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not find or open that Herder workspace.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let result = await VoiceMacroService.openBareHerdrWorkspace(
+               transcript: transcribedText
+           )
+        {
+            DebugLogger.shared.info(
+                "Running bare Herdr workspace voice command: \(result.query)",
+                source: "ContentView"
+            )
+            self.recordVoiceAction(
+                command: transcribedText,
+                succeeded: result.succeeded,
+                targetPID: typingTarget.pid,
+                appInfo: appInfo,
+                additionalContext: "Workspace Query: \(result.query)"
+            )
+            if !result.succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open that Herder workspace.")
             }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()

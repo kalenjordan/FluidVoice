@@ -34,9 +34,18 @@ final class HotkeyShortcutTests: XCTestCase {
             transcript: "Her Fluid Voice",
             bundleID: "com.mitchellh.ghostty"
         ), "Fluid Voice")
-        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "Herder comms."
-        ))
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Herder comms."),
+            "herdr comms."
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Herdr, investigate the focus issue."),
+            "herdr investigate the focus issue."
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Herder."),
+            "herdr"
+        )
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Terminal comms."
         ))
@@ -59,9 +68,16 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.herdrWorkspaceQuery(transcript: "NUDGES!"),
             "nudges"
         )
-        XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
-            transcript: "FluidVoice is working"
-        ))
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "FluidVoice is working"),
+            "fluidvoice is working"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(
+                transcript: "Fluid Voice, investigate the focus issue."
+            ),
+            "fluidvoice investigate the focus issue."
+        )
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Nudges are enabled"
         ))
@@ -511,7 +527,7 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
             transcript: "Write."
         ))
-        XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
+        XCTAssertFalse(VoiceMacroService.isWritingWorkspaceCommand(
             transcript: "Right"
         ))
         XCTAssertTrue(VoiceMacroService.isWritingWorkspaceCommand(
@@ -543,8 +559,20 @@ final class HotkeyShortcutTests: XCTestCase {
             transcript: "Tab left",
             bundleID: "com.mitchellh.ghostty"
         ))
+        XCTAssertEqual(VoiceMacroService.tabDirectionCommand(
+            transcript: "Right",
+            bundleID: "com.mitchellh.ghostty"
+        ), .right)
+        XCTAssertEqual(VoiceMacroService.tabDirectionCommand(
+            transcript: "Left.",
+            bundleID: "com.mitchellh.ghostty"
+        ), .left)
         XCTAssertNil(VoiceMacroService.tabDirectionCommand(
             transcript: "Tab right",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertNil(VoiceMacroService.tabDirectionCommand(
+            transcript: "Right",
             bundleID: "com.google.Chrome"
         ))
     }
@@ -611,8 +639,16 @@ final class HotkeyShortcutTests: XCTestCase {
             transcript: "Close tab.",
             bundleID: "com.mitchellh.ghostty"
         ))
+        XCTAssertTrue(VoiceMacroService.isCloseTabCommand(
+            transcript: "Close.",
+            bundleID: "com.mitchellh.ghostty"
+        ))
         XCTAssertFalse(VoiceMacroService.isCloseTabCommand(
             transcript: "Close tab",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCloseTabCommand(
+            transcript: "Close",
             bundleID: "com.google.Chrome"
         ))
         XCTAssertFalse(VoiceMacroService.isCloseTabCommand(
@@ -692,6 +728,7 @@ final class HotkeyShortcutTests: XCTestCase {
         let workspaces = [
             VoiceMacroService.HerdrWorkspace(label: "herdr", workspaceID: "w1"),
             VoiceMacroService.HerdrWorkspace(label: "commerce-land", workspaceID: "w2"),
+            VoiceMacroService.HerdrWorkspace(label: "skills", workspaceID: "w3"),
         ]
 
         XCTAssertEqual(
@@ -714,6 +751,38 @@ final class HotkeyShortcutTests: XCTestCase {
                 trailingText: nil
             )
         )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspaceInvocation(
+                query: "skills",
+                workspaces: workspaces
+            ),
+            VoiceMacroService.HerdrWorkspaceInvocation(
+                workspace: workspaces[2],
+                trailingText: nil
+            )
+        )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspaceInvocation(
+                query: "skills, add a release checklist",
+                workspaces: workspaces
+            ),
+            VoiceMacroService.HerdrWorkspaceInvocation(
+                workspace: workspaces[2],
+                trailingText: "add a release checklist"
+            )
+        )
+    }
+
+    func testCodexSessionUserMessageDetectionDistinguishesUnusedSessions() {
+        let unusedSession = """
+        {"type":"session_meta","payload":{"id":"session-1"}}
+        {"type":"event_msg","payload":{"type":"token_count"}}
+        """
+        XCTAssertFalse(VoiceMacroService.codexSessionHasUserMessage(unusedSession))
+
+        let usedSession = unusedSession + "\n"
+            + #"{"type":"event_msg","payload":{"type":"user_message","message":"Hello"}}"#
+        XCTAssertTrue(VoiceMacroService.codexSessionHasUserMessage(usedSession))
     }
 
     func testChromeFindCommandUsesRawQueryAndIsAppScoped() {

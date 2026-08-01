@@ -18,6 +18,11 @@ enum VoiceMacroService {
         let trailingText: String?
     }
 
+    struct HerdrWorkspaceOpenResult {
+        let query: String
+        let succeeded: Bool
+    }
+
     private struct NewCodexTabInvocation {
         let trailingText: String?
     }
@@ -154,14 +159,22 @@ enum VoiceMacroService {
         }
 
         struct Pane: Decodable {
+            struct AgentSession: Decodable {
+                let value: String
+            }
+
             let agent: String?
+            let agentSession: AgentSession?
             let agentStatus: String?
+            let cwd: String?
             let paneID: String
             let tabID: String
 
             enum CodingKeys: String, CodingKey {
                 case agent
+                case agentSession = "agent_session"
                 case agentStatus = "agent_status"
+                case cwd
                 case paneID = "pane_id"
                 case tabID = "tab_id"
             }
@@ -291,8 +304,44 @@ enum VoiceMacroService {
     }
 
     static func herdrWorkspaceQuery(transcript: String, bundleID: String = "") -> String? {
-        if let query = self.bareHerdrWorkspaceAliases[self.normalizedPhrase(transcript)] {
+        let normalizedTranscript = self.normalizedPhrase(transcript)
+        if let query = self.bareHerdrWorkspaceAliases[normalizedTranscript] {
             return query
+        }
+
+        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let expression = try? NSRegularExpression(
+            pattern: #"^herd(?:e)?r\b(.*)$"#,
+            options: [.caseInsensitive]
+        ) {
+            let range = NSRange(trimmedTranscript.startIndex..., in: trimmedTranscript)
+            if let match = expression.firstMatch(in: trimmedTranscript, range: range),
+               let trailingRange = Range(match.range(at: 1), in: trimmedTranscript)
+            {
+                let trailingText = trimmedTranscript[trailingRange]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !self.normalizedPhrase(trailingText).isEmpty else { return "herdr" }
+                return "herdr " + trailingText
+            }
+        }
+
+        if let expression = try? NSRegularExpression(
+            pattern: #"^fluid\s*voice\b(.*)$"#,
+            options: [.caseInsensitive]
+        ) {
+            let range = NSRange(trimmedTranscript.startIndex..., in: trimmedTranscript)
+            if let match = expression.firstMatch(in: trimmedTranscript, range: range),
+               let trailingRange = Range(match.range(at: 1), in: trimmedTranscript)
+            {
+                let trailingText = trimmedTranscript[trailingRange]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trailingText.isEmpty else { return "fluidvoice" }
+                return "fluidvoice " + trailingText
+            }
         }
 
         let globalQuery = self.herdrCommandArgument(
@@ -970,7 +1019,7 @@ enum VoiceMacroService {
             return true
         }
         switch self.normalizedPhrase(transcript) {
-        case "right", "write":
+        case "write":
             return true
         default:
             return false
@@ -1003,9 +1052,9 @@ enum VoiceMacroService {
     static func tabDirectionCommand(transcript: String, bundleID: String) -> TabDirection? {
         guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
         switch self.normalizedPhrase(transcript) {
-        case "tab left":
+        case "left", "tab left":
             return .left
-        case "tab right":
+        case "right", "tab right":
             return .right
         default:
             return nil
@@ -1017,8 +1066,15 @@ enum VoiceMacroService {
             && self.normalizedPhrase(transcript) == "back"
     }
 
-    static func returnToPreviousHerdrTab(targetPID: pid_t) -> Bool {
-        self.postKey(CGKeyCode(kVK_ANSI_E), flags: .maskCommand, to: targetPID)
+    static func returnToPreviousHerdrTarget(targetPID: pid_t) -> Bool {
+        guard self.postKey(
+            CGKeyCode(kVK_ANSI_E),
+            flags: .maskCommand,
+            to: targetPID
+        ) else {
+            return false
+        }
+        return self.postKey(CGKeyCode(kVK_Return), to: targetPID)
     }
 
     static func isRunHerdrCommand(transcript: String) -> Bool {
@@ -1051,8 +1107,8 @@ enum VoiceMacroService {
     }
 
     static func isCloseTabCommand(transcript: String, bundleID: String) -> Bool {
-        self.herdrBundleIDs.contains(bundleID.lowercased())
-            && self.normalizedPhrase(transcript) == "close tab"
+        guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return false }
+        return ["close", "close tab"].contains(self.normalizedPhrase(transcript))
     }
 
     static func isNextPendingCommand(transcript: String) -> Bool {
@@ -1248,32 +1304,143 @@ enum VoiceMacroService {
             )
         }
 
-        let focusResult = await self.runProcess(
-            executable,
-            arguments: ["workspace", "focus", invocation.workspace.workspaceID]
+        guard let trailingText = invocation.trailingText else {
+            let focusResult = await self.runProcess(
+                executable,
+                arguments: ["workspace", "focus", invocation.workspace.workspaceID]
+            )
+            return focusResult.status == 0 && self.activateHerdr()
+        }
+
+        return await self.openHerdrWorkspacePrompt(
+            trailingText,
+            workspace: invocation.workspace,
+            executable: executable
         )
-        guard focusResult.status == 0 else { return false }
+    }
 
-        guard let applicationURL = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: self.herdrBundleIDs[0]
-        ) else {
+    @MainActor
+    static func openBareHerdrWorkspace(transcript: String) async -> HerdrWorkspaceOpenResult? {
+        guard let executable = self.herdrExecutableURL() else { return nil }
+        let listResult = await self.runProcess(executable, arguments: ["workspace", "list"])
+        guard listResult.status == 0,
+              let response = try? JSONDecoder().decode(
+                  HerdrWorkspaceListResponse.self,
+                  from: listResult.output
+              ),
+              let invocation = self.resolveWorkspaceInvocation(
+                  query: transcript,
+                  workspaces: response.result.workspaces
+              )
+        else {
+            return nil
+        }
+
+        let succeeded: Bool
+        if let trailingText = invocation.trailingText {
+            succeeded = await self.openHerdrWorkspacePrompt(
+                trailingText,
+                workspace: invocation.workspace,
+                executable: executable
+            )
+        } else {
+            let focusResult = await self.runProcess(
+                executable,
+                arguments: ["workspace", "focus", invocation.workspace.workspaceID]
+            )
+            succeeded = focusResult.status == 0 && self.activateHerdr()
+        }
+        return HerdrWorkspaceOpenResult(query: transcript, succeeded: succeeded)
+    }
+
+    @MainActor
+    private static func openHerdrWorkspacePrompt(
+        _ prompt: String,
+        workspace: HerdrWorkspace,
+        executable: URL
+    ) async -> Bool {
+        let paneListResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "list", "--workspace", workspace.workspaceID]
+        )
+        guard paneListResult.status == 0,
+              let paneResponse = try? JSONDecoder().decode(
+                  HerdrPaneListResponse.self,
+                  from: paneListResult.output
+              )
+        else {
             return false
         }
 
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        configuration.addsToRecentItems = false
-        guard let herdrApplication = try? await NSWorkspace.shared.openApplication(
-            at: applicationURL,
-            configuration: configuration
-        ) else {
+        if let emptyCodexPane = paneResponse.result.panes.first(where: {
+            self.isUnusedCodexPane($0)
+        }) {
+            let focusWorkspaceResult = await self.runProcess(
+                executable,
+                arguments: ["workspace", "focus", workspace.workspaceID]
+            )
+            guard focusWorkspaceResult.status == 0 else { return false }
+            let focusTabResult = await self.runProcess(
+                executable,
+                arguments: ["tab", "focus", emptyCodexPane.tabID]
+            )
+            guard focusTabResult.status == 0, self.activateHerdr() else { return false }
+            try? await Task.sleep(for: .milliseconds(150))
+            return await self.submitHerdrPrompt(prompt)
+        }
+
+        let cwd = paneResponse.result.panes.compactMap(\.cwd).first
+            ?? self.localRepoURL(query: workspace.label)?.path
+        guard let cwd else { return false }
+        let createResult = await self.runProcess(
+            executable,
+            arguments: [
+                "tab", "create",
+                "--workspace", workspace.workspaceID,
+                "--cwd", cwd,
+                "--focus",
+            ]
+        )
+        guard createResult.status == 0,
+              let created = try? JSONDecoder().decode(
+                  HerdrTabCreateResponse.self,
+                  from: createResult.output
+              )
+        else {
             return false
         }
 
-        guard let trailingText = invocation.trailingText else { return true }
-        try? await Task.sleep(nanoseconds: 150_000_000)
-        guard self.isTargetFrontmost(herdrApplication.processIdentifier) else { return false }
-        return self.postText(trailingText, to: herdrApplication.processIdentifier)
+        let paneID = created.result.rootPane.paneID
+        let runResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", paneID, self.shellBackedCodexLaunchCommand]
+        )
+        guard runResult.status == 0, self.activateHerdr() else { return false }
+
+        for _ in 0..<60 {
+            let updatedPaneListResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "list", "--workspace", workspace.workspaceID]
+            )
+            if updatedPaneListResult.status == 0,
+               let updatedPaneResponse = try? JSONDecoder().decode(
+                   HerdrPaneListResponse.self,
+                   from: updatedPaneListResult.output
+               ),
+               let createdPane = updatedPaneResponse.result.panes.first(where: {
+                   $0.paneID == paneID
+               }),
+               self.isCodexPaneReady(
+                   agent: createdPane.agent,
+                   agentStatus: createdPane.agentStatus
+               )
+            {
+                try? await Task.sleep(for: .milliseconds(150))
+                return await self.submitHerdrPrompt(prompt)
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return false
     }
 
     @MainActor
@@ -1504,7 +1671,7 @@ enum VoiceMacroService {
         }
 
         let emptyCodexPane = paneResponse.result.panes.first {
-            $0.agent?.lowercased() == "codex" && $0.agentStatus?.lowercased() == "idle"
+            self.isUnusedCodexPane($0)
         }
         if let emptyCodexPane {
             let focusWorkspaceResult = await self.runProcess(
@@ -1597,8 +1764,47 @@ enum VoiceMacroService {
         }
     }
 
+    private static func isUnusedCodexPane(_ pane: HerdrPaneListResponse.Pane) -> Bool {
+        guard self.isCodexPaneReady(agent: pane.agent, agentStatus: pane.agentStatus),
+              let sessionID = pane.agentSession?.value,
+              let sessionContents = self.codexSessionContents(sessionID: sessionID)
+        else {
+            return false
+        }
+        return !self.codexSessionHasUserMessage(sessionContents)
+    }
+
     static func isCodexPaneReady(agent: String?, agentStatus: String?) -> Bool {
         agent?.lowercased() == "codex" && agentStatus?.lowercased() == "idle"
+    }
+
+    static func codexSessionHasUserMessage(_ contents: String) -> Bool {
+        contents.split(separator: "\n").contains { line in
+            line.contains(#""type":"event_msg""#)
+                && line.contains(#""type":"user_message""#)
+        }
+    }
+
+    private static func codexSessionContents(sessionID: String) -> String? {
+        let codexURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex", isDirectory: true)
+        for directoryName in ["sessions", "archived_sessions"] {
+            let directoryURL = codexURL.appendingPathComponent(directoryName, isDirectory: true)
+            guard let enumerator = FileManager.default.enumerator(
+                at: directoryURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                continue
+            }
+            for case let fileURL as URL in enumerator
+                where fileURL.lastPathComponent.contains(sessionID)
+                    && fileURL.pathExtension == "jsonl"
+            {
+                return try? String(contentsOf: fileURL, encoding: .utf8)
+            }
+        }
+        return nil
     }
 
     @MainActor
