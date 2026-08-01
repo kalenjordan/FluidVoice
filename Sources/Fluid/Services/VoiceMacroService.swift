@@ -1280,6 +1280,15 @@ enum VoiceMacroService {
     }
 
     @MainActor
+    static func showCopiedActionToast(_ text: String) {
+        VoiceMacroStatusToast.shared.show(
+            text,
+            maximumLines: 16,
+            textWidth: 420
+        )
+    }
+
+    @MainActor
     static func showCodexStatusLoadingToast() {
         VoiceMacroStatusToast.shared.show(
             "Reading Codex weekly usage…",
@@ -2930,6 +2939,7 @@ private final class VoiceMacroStatusToast {
     private let panel: NSPanel
     private let label = NSTextField(labelWithString: "")
     private let progressBar = VoiceMacroUsageProgressBar()
+    private lazy var labelWidthConstraint = self.label.widthAnchor.constraint(equalToConstant: 260)
     private var hideTask: Task<Void, Never>?
 
     private init() {
@@ -2969,7 +2979,7 @@ private final class VoiceMacroStatusToast {
             stack.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -18),
             stack.topAnchor.constraint(equalTo: background.topAnchor, constant: 14),
             stack.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -14),
-            self.label.widthAnchor.constraint(equalToConstant: 260),
+            self.labelWidthConstraint,
             self.progressBar.widthAnchor.constraint(equalTo: self.label.widthAnchor),
         ])
         self.panel.contentView = background
@@ -2980,9 +2990,13 @@ private final class VoiceMacroStatusToast {
         progress: Double? = nil,
         pacingProgress: Double? = nil,
         isOnPace: Bool? = nil,
-        automaticallyHides: Bool = true
+        automaticallyHides: Bool = true,
+        maximumLines: Int = 3,
+        textWidth: CGFloat = 260
     ) {
         self.hideTask?.cancel()
+        self.label.maximumNumberOfLines = maximumLines
+        self.labelWidthConstraint.constant = textWidth
         self.label.stringValue = text
         if let progress {
             let normalizedProgress = min(max(progress, 0), 1)

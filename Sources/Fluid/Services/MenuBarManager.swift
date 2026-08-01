@@ -956,9 +956,14 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
 
     @objc private func copyRecentAction(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String, !text.isEmpty else { return }
-        _ = ClipboardService.copyToClipboard(text)
+        let succeeded = ClipboardService.copyToClipboard(text)
+        VoiceMacroService.showCopiedActionToast(
+            succeeded ? text : "Could not copy recent action."
+        )
         DebugLogger.shared.info(
-            "Menu action: Copied recent action troubleshooting context to clipboard",
+            succeeded
+                ? "Menu action: Copied recent action troubleshooting context to clipboard"
+                : "Menu action: Could not copy recent action troubleshooting context",
             source: "MenuBarManager"
         )
     }

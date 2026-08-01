@@ -2277,8 +2277,10 @@ struct ContentView: View {
                 "Action Type: Copy last action troubleshooting context\nCopied Action: \($0.command)"
             } ?? "Action Type: Copy last action troubleshooting context\nError: No recent actions"
             recordAction(succeeded, details)
-            VoiceMacroService.showStatusToast(
-                succeeded ? "Copied last action." : "No recent actions to copy."
+            VoiceMacroService.showCopiedActionToast(
+                succeeded
+                    ? lastAction?.troubleshootingClipboardText ?? "Copied last action."
+                    : "No recent actions to copy."
             )
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
