@@ -878,6 +878,38 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testClearWithFollowUpExposesNativeHerdrSubmission() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "/clear and investigate the nudge tabs",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty"
+        )
+
+        XCTAssertEqual(plan.clearSessionSubmission?.message, "investigate the nudge tabs")
+        XCTAssertEqual(plan.clearSessionSubmission?.openNextPendingHerdrTab, false)
+    }
+
+    func testClearCommitNextExposesNativeHerdrSubmissionAndNextTab() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "/clear commit next",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty"
+        )
+
+        XCTAssertEqual(plan.clearSessionSubmission?.message, "review modified files for commit")
+        XCTAssertEqual(plan.clearSessionSubmission?.openNextPendingHerdrTab, true)
+    }
+
+    func testCompactFollowUpDoesNotExposeClearSessionSubmission() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "/compact and continue",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty"
+        )
+
+        XCTAssertNil(plan.clearSessionSubmission)
+    }
+
     func testClearCommitNextRunsReviewSequenceThenOpensNextPendingTab() {
         for bundleID in ["com.openai.codex", "com.mitchellh.ghostty"] {
             XCTAssertEqual(

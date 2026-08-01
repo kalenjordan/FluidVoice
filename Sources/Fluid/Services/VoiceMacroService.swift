@@ -1665,6 +1665,68 @@ enum VoiceMacroService {
     }
 
     @MainActor
+    static func submitClearFollowUpInCurrentHerdrPane(
+        _ message: String,
+        openNextPendingTab: Bool
+    ) async -> Bool {
+        guard let executable = self.herdrExecutableURL() else { return false }
+        let currentResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "current", "--current"],
+            removingEnvironmentVariables: self.herdrCallerEnvironmentVariables
+        )
+        guard currentResult.status == 0,
+              let currentPane = try? JSONDecoder().decode(
+                  HerdrCurrentPaneResponse.self,
+                  from: currentResult.output
+              ).result.pane,
+              currentPane.agent?.lowercased() == "codex",
+              let previousSessionID = currentPane.agentSession?.value
+        else {
+            return false
+        }
+
+        let clearResult = await self.runProcess(
+            executable,
+            arguments: ["pane", "run", currentPane.paneID, "/clear"]
+        )
+        guard clearResult.status == 0 else { return false }
+
+        for _ in 0..<48 {
+            try? await Task.sleep(for: .milliseconds(250))
+            let paneResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "get", currentPane.paneID]
+            )
+            guard paneResult.status == 0,
+                  let updatedPane = try? JSONDecoder().decode(
+                      HerdrCurrentPaneResponse.self,
+                      from: paneResult.output
+                  ).result.pane,
+                  updatedPane.agentSession?.value != previousSessionID,
+                  updatedPane.agentStatus?.lowercased() == "idle"
+            else {
+                continue
+            }
+
+            let followUpResult = await self.runProcess(
+                executable,
+                arguments: ["pane", "run", currentPane.paneID, message]
+            )
+            guard followUpResult.status == 0 else {
+                self.showStatusToast("New session is ready, but the follow-up was not submitted.")
+                return true
+            }
+            if openNextPendingTab, !(await self.openNextPendingHerdrTab()) {
+                self.showStatusToast("Follow-up submitted, but the next pending tab did not open.")
+            }
+            return true
+        }
+        self.showStatusToast("New Codex session did not become ready. Follow-up was not submitted.")
+        return true
+    }
+
+    @MainActor
     static func submitInCurrentHerdrPane(_ text: String) async -> Bool {
         guard let executable = self.herdrExecutableURL() else { return false }
         let currentResult = await self.runProcess(
