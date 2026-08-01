@@ -602,12 +602,89 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "window middle"
     }
 
-    static let windowMiddleURL = URL(
-        string: "rectangle-pro://execute-custom?name=Middle"
-    )!
+    private static let windowMiddlePreferredSize = NSSize(width: 1294, height: 901)
+    private static let windowMiddleTopLeftInset = NSPoint(x: 396, y: 103)
+    private static let windowMiddleReferenceScreenSize = NSSize(width: 1920, height: 1080)
 
-    static func moveWindowToMiddle() -> Bool {
-        NSWorkspace.shared.open(self.windowMiddleURL)
+    static func moveWindowToMiddle(targetPID: pid_t) -> Bool {
+        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
+              let primaryScreen = NSScreen.screens.first
+        else {
+            return false
+        }
+
+        return self.moveFocusedWindow(
+            operation: "middle",
+            targetPID: targetPID,
+            to: self.windowMiddleFrame(
+                in: screen.visibleFrame,
+                screenFrame: screen.frame
+            ),
+            screen: screen,
+            primaryScreenMaxY: primaryScreen.frame.maxY
+        )
+    }
+
+    static func windowMiddleFrame(
+        in visibleFrame: NSRect,
+        screenFrame: NSRect? = nil
+    ) -> NSRect {
+        let scalingFrame = screenFrame ?? visibleFrame
+        let scale = min(
+            scalingFrame.width / self.windowMiddleReferenceScreenSize.width,
+            scalingFrame.height / self.windowMiddleReferenceScreenSize.height
+        )
+        return self.windowFrame(
+            in: visibleFrame,
+            preferredSize: NSSize(
+                width: self.windowMiddlePreferredSize.width * scale,
+                height: self.windowMiddlePreferredSize.height * scale
+            ),
+            topLeftInset: NSPoint(
+                x: self.windowMiddleTopLeftInset.x * scale,
+                y: self.windowMiddleTopLeftInset.y * scale
+            )
+        )
+    }
+
+    static func isWindowMaxCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "window max"
+    }
+
+    static func maximizeWindow(targetPID: pid_t) -> Bool {
+        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
+              let primaryScreen = NSScreen.screens.first
+        else {
+            return false
+        }
+        return self.moveFocusedWindow(
+            operation: "max",
+            targetPID: targetPID,
+            to: self.windowMaxFrame(on: screen, primaryScreen: primaryScreen),
+            screen: screen,
+            primaryScreenMaxY: primaryScreen.frame.maxY
+        )
+    }
+
+    static func windowMaxFrame(on screen: NSScreen, primaryScreen: NSScreen) -> NSRect {
+        self.windowMaxFrame(
+            screenFrame: screen.frame,
+            primaryVisibleFrame: primaryScreen.visibleFrame
+        )
+    }
+
+    static func windowMaxFrame(
+        screenFrame: NSRect,
+        primaryVisibleFrame: NSRect
+    ) -> NSRect {
+        let sharedMenuBarBottom = primaryVisibleFrame.maxY
+        let top = min(screenFrame.maxY, sharedMenuBarBottom)
+        return NSRect(
+            x: screenFrame.minX,
+            y: screenFrame.minY,
+            width: screenFrame.width,
+            height: top - screenFrame.minY
+        )
     }
 
     static func isWindowTopLeftCommand(transcript: String) -> Bool {
@@ -615,11 +692,176 @@ enum VoiceMacroService {
     }
 
     static func moveWindowToTopLeft(targetPID: pid_t) -> Bool {
-        self.postKey(
-            CGKeyCode(kVK_ANSI_U),
-            flags: [.maskControl, .maskAlternate],
-            to: targetPID
+        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
+              let primaryScreen = NSScreen.screens.first
+        else {
+            return false
+        }
+        return self.moveFocusedWindow(
+            operation: "top-left",
+            targetPID: targetPID,
+            to: self.windowTopLeftFrame(in: screen.visibleFrame),
+            screen: screen,
+            primaryScreenMaxY: primaryScreen.frame.maxY
         )
+    }
+
+    static func windowTopLeftFrame(in visibleFrame: NSRect) -> NSRect {
+        self.windowFrame(
+            in: visibleFrame,
+            preferredSize: NSSize(width: 500, height: 375),
+            topLeftInset: NSPoint(x: 0, y: 0)
+        )
+    }
+
+    private static func windowFrame(
+        in visibleFrame: NSRect,
+        preferredSize: NSSize,
+        topLeftInset: NSPoint
+    ) -> NSRect {
+        let size = NSSize(
+            width: min(preferredSize.width, visibleFrame.width),
+            height: min(preferredSize.height, visibleFrame.height)
+        )
+        let leftInset = min(topLeftInset.x, visibleFrame.width - size.width)
+        let topInset = min(topLeftInset.y, visibleFrame.height - size.height)
+        return NSRect(
+            x: visibleFrame.minX + leftInset,
+            y: visibleFrame.maxY - topInset - size.height,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private static func moveFocusedWindow(
+        operation: String,
+        targetPID: pid_t,
+        to frame: NSRect,
+        screen: NSScreen,
+        primaryScreenMaxY: CGFloat
+    ) -> Bool {
+        let logSource = "WindowResize"
+        DebugLogger.shared.info(
+            "Resize requested: operation=\(operation) targetPID=\(targetPID) " +
+                "screen=\(screen.localizedName) screenFrame=\(NSStringFromRect(screen.frame)) " +
+                "visibleFrame=\(NSStringFromRect(screen.visibleFrame)) " +
+                "requestedAppKitFrame=\(NSStringFromRect(frame)) " +
+                "primaryScreenMaxY=\(primaryScreenMaxY)",
+            source: logSource
+        )
+        let application = AXUIElementCreateApplication(targetPID)
+        var focusedWindowValue: CFTypeRef?
+        let focusedWindowResult = AXUIElementCopyAttributeValue(
+            application,
+            kAXFocusedWindowAttribute as CFString,
+            &focusedWindowValue
+        )
+        guard focusedWindowResult == .success,
+            let focusedWindowValue,
+            CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID()
+        else {
+            DebugLogger.shared.error(
+                "Resize failed: operation=\(operation) targetPID=\(targetPID) " +
+                    "focusedWindowResult=\(focusedWindowResult.rawValue) " +
+                    "hasValue=\(focusedWindowValue != nil)",
+                source: logSource
+            )
+            return false
+        }
+
+        let window = unsafeBitCast(focusedWindowValue, to: AXUIElement.self)
+        let beforePosition = self.windowAXPoint(window, attribute: kAXPositionAttribute)
+        let beforeSize = self.windowAXSize(window, attribute: kAXSizeAttribute)
+        var size = frame.size
+        var position = CGPoint(x: frame.minX, y: primaryScreenMaxY - frame.maxY)
+        var intermediateSize = CGSize(
+            width: min(beforeSize?.width ?? size.width, size.width),
+            height: min(beforeSize?.height ?? size.height, size.height)
+        )
+        DebugLogger.shared.info(
+            "Resize applying: operation=\(operation) targetPID=\(targetPID) " +
+                "beforePosition=\(String(describing: beforePosition)) " +
+                "beforeSize=\(String(describing: beforeSize)) " +
+                "intermediateAXSize=\(intermediateSize) " +
+                "requestedAXPosition=\(position) requestedAXSize=\(size)",
+            source: logSource
+        )
+        guard let sizeValue = AXValueCreate(.cgSize, &size),
+              let intermediateSizeValue = AXValueCreate(.cgSize, &intermediateSize),
+              let positionValue = AXValueCreate(.cgPoint, &position)
+        else {
+            DebugLogger.shared.error(
+                "Resize failed creating AX values: operation=\(operation) targetPID=\(targetPID)",
+                source: logSource
+            )
+            return false
+        }
+
+        let intermediateSizeResult = AXUIElementSetAttributeValue(
+            window,
+            kAXSizeAttribute as CFString,
+            intermediateSizeValue
+        )
+        let positionResult = AXUIElementSetAttributeValue(
+            window,
+            kAXPositionAttribute as CFString,
+            positionValue
+        )
+        let sizeResult = AXUIElementSetAttributeValue(
+            window,
+            kAXSizeAttribute as CFString,
+            sizeValue
+        )
+        let afterPosition = self.windowAXPoint(window, attribute: kAXPositionAttribute)
+        let afterSize = self.windowAXSize(window, attribute: kAXSizeAttribute)
+        let succeeded = intermediateSizeResult == .success &&
+            sizeResult == .success && positionResult == .success
+        DebugLogger.shared.info(
+            "Resize finished: operation=\(operation) targetPID=\(targetPID) " +
+                "success=\(succeeded) intermediateSizeResult=\(intermediateSizeResult.rawValue) " +
+                "sizeResult=\(sizeResult.rawValue) " +
+                "positionResult=\(positionResult.rawValue) " +
+                "afterPosition=\(String(describing: afterPosition)) " +
+                "afterSize=\(String(describing: afterSize))",
+            source: logSource
+        )
+        return succeeded
+    }
+
+    private static func windowAXPoint(
+        _ window: AXUIElement,
+        attribute: String
+    ) -> CGPoint? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, attribute as CFString, &value) == .success,
+              let value,
+              CFGetTypeID(value) == AXValueGetTypeID()
+        else {
+            return nil
+        }
+        var point = CGPoint.zero
+        guard AXValueGetValue(unsafeBitCast(value, to: AXValue.self), .cgPoint, &point) else {
+            return nil
+        }
+        return point
+    }
+
+    private static func windowAXSize(
+        _ window: AXUIElement,
+        attribute: String
+    ) -> CGSize? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, attribute as CFString, &value) == .success,
+              let value,
+              CFGetTypeID(value) == AXValueGetTypeID()
+        else {
+            return nil
+        }
+        var size = CGSize.zero
+        guard AXValueGetValue(unsafeBitCast(value, to: AXValue.self), .cgSize, &size) else {
+            return nil
+        }
+        return size
     }
 
     static func herdrNotificationsEnabledCommand(

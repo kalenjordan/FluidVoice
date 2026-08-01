@@ -2372,10 +2372,17 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let targetPID = typingTarget.pid,
            VoiceMacroService.isWindowMiddleCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running window middle voice command", source: "ContentView")
-            let succeeded = VoiceMacroService.moveWindowToMiddle()
+            let succeeded = VoiceMacroService.moveWindowToMiddle(targetPID: targetPID)
+            self.recordWindowAction(
+                command: "window middle",
+                succeeded: succeeded,
+                targetPID: targetPID,
+                appInfo: appInfo
+            )
             DebugLogger.shared.info(
                 "Window middle voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2392,10 +2399,42 @@ struct ContentView: View {
 
         if route == .normal,
            let targetPID = typingTarget.pid,
+           VoiceMacroService.isWindowMaxCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info("Running window max voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.maximizeWindow(targetPID: targetPID)
+            self.recordWindowAction(
+                command: "window max",
+                succeeded: succeeded,
+                targetPID: targetPID,
+                appInfo: appInfo
+            )
+            DebugLogger.shared.info(
+                "Window max voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not maximize the window.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
            VoiceMacroService.isWindowTopLeftCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running window top-left voice command", source: "ContentView")
             let succeeded = VoiceMacroService.moveWindowToTopLeft(targetPID: targetPID)
+            self.recordWindowAction(
+                command: "window top left",
+                succeeded: succeeded,
+                targetPID: targetPID,
+                appInfo: appInfo
+            )
             DebugLogger.shared.info(
                 "Window top-left voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2808,6 +2847,13 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = await VoiceMacroService.openHerdrWorkspace(query: workspaceQuery)
+            self.recordVoiceAction(
+                command: transcribedText,
+                succeeded: succeeded,
+                targetPID: typingTarget.pid,
+                appInfo: appInfo,
+                additionalContext: "Workspace Query: \(workspaceQuery)"
+            )
             DebugLogger.shared.info(
                 "Herdr workspace voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3351,6 +3397,51 @@ struct ContentView: View {
             windowTitle: appInfo.windowTitle,
             wasAIProcessed: false,
             aiProcessingError: "Voice command could not be completed."
+        )
+    }
+
+    private func recordWindowAction(
+        command: String,
+        succeeded: Bool,
+        targetPID: pid_t,
+        appInfo: (name: String, bundleId: String, windowTitle: String)
+    ) {
+        let screen = OverlayScreenResolver.screenForCurrentPointer()
+        let screenContext: String
+        if let screen {
+            screenContext = """
+            Screen: \(screen.localizedName)
+            Screen Frame: \(NSStringFromRect(screen.frame))
+            Usable Frame: \(NSStringFromRect(screen.visibleFrame))
+            """
+        } else {
+            screenContext = "Screen: Could not resolve the screen containing the pointer."
+        }
+        self.recordVoiceAction(
+            command: command,
+            succeeded: succeeded,
+            targetPID: targetPID,
+            appInfo: appInfo,
+            additionalContext: screenContext
+        )
+    }
+
+    private func recordVoiceAction(
+        command: String,
+        succeeded: Bool,
+        targetPID: pid_t?,
+        appInfo: (name: String, bundleId: String, windowTitle: String),
+        additionalContext: String
+    ) {
+        RecentActionStore.shared.record(
+            command: command,
+            succeeded: succeeded,
+            context: """
+            Target App: \(appInfo.name)
+            Target Window: \(appInfo.windowTitle.isEmpty ? "Not available" : appInfo.windowTitle)
+            Target PID: \(targetPID.map(String.init) ?? "Not available")
+            \(additionalContext)
+            """
         )
     }
 

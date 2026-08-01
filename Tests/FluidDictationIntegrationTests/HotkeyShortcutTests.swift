@@ -330,10 +330,51 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertFalse(VoiceMacroService.isWindowMiddleCommand(
             transcript: "window"
         ))
-        XCTAssertEqual(
-            VoiceMacroService.windowMiddleURL,
-            URL(string: "rectangle-pro://execute-custom?name=Middle")
+    }
+
+    func testWindowMiddleFrameMatchesLargeChromeLayoutOnSelectedScreen() {
+        let frame = VoiceMacroService.windowMiddleFrame(
+            in: NSRect(x: 1440, y: -148, width: 1920, height: 1050),
+            screenFrame: NSRect(x: 1440, y: -148, width: 1920, height: 1080)
         )
+
+        XCTAssertEqual(frame, NSRect(x: 1836, y: -102, width: 1294, height: 901))
+    }
+
+    func testWindowMiddleFrameScalesProportionallyOnLaptopScreen() {
+        let frame = VoiceMacroService.windowMiddleFrame(
+            in: NSRect(x: 0, y: 0, width: 1440, height: 903),
+            screenFrame: NSRect(x: 0, y: 0, width: 1440, height: 932)
+        )
+
+        XCTAssertEqual(frame.origin.x, 297, accuracy: 0.001)
+        XCTAssertEqual(frame.origin.y, 150, accuracy: 0.001)
+        XCTAssertEqual(frame.width, 970.5, accuracy: 0.001)
+        XCTAssertEqual(frame.height, 675.75, accuracy: 0.001)
+    }
+
+    func testWindowMaxCommandUsesExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isWindowMaxCommand(transcript: "Window max."))
+        XCTAssertTrue(VoiceMacroService.isWindowMaxCommand(transcript: "WINDOW MAX!"))
+        XCTAssertFalse(VoiceMacroService.isWindowMaxCommand(transcript: "maximize window"))
+        XCTAssertFalse(VoiceMacroService.isWindowMaxCommand(transcript: "window maximum"))
+    }
+
+    func testWindowMaxFrameAppliesSharedMenuBarToExternalScreen() {
+        let frame = VoiceMacroService.windowMaxFrame(
+            screenFrame: NSRect(x: 1440, y: -148, width: 1920, height: 1080),
+            primaryVisibleFrame: NSRect(x: 0, y: 0, width: 1440, height: 903)
+        )
+
+        XCTAssertEqual(frame, NSRect(x: 1440, y: -148, width: 1920, height: 1051))
+    }
+
+    func testWindowTopLeftFrameMatchesNetflixLayoutOnSelectedScreen() {
+        let frame = VoiceMacroService.windowTopLeftFrame(
+            in: NSRect(x: 1440, y: -148, width: 1920, height: 1080)
+        )
+
+        XCTAssertEqual(frame, NSRect(x: 1440, y: 557, width: 500, height: 375))
     }
 
     func testWindowTopLeftCommandUsesExactPhrase() {

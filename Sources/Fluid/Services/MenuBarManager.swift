@@ -26,6 +26,8 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
     private var copyLastTranscriptMenuItem: NSMenuItem?
     private var recentTranscriptsMenuItem: NSMenuItem?
     private var recentTranscriptsSubmenu: NSMenu?
+    private var recentActionsMenuItem: NSMenuItem?
+    private var recentActionsSubmenu: NSMenu?
     private var recentAIEnhancementsMenuItem: NSMenuItem?
     private var recentAIEnhancementsSubmenu: NSMenu?
     private var allAIEnhancementsMenuItem: NSMenuItem?
@@ -502,6 +504,18 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         self.recentTranscriptsSubmenu = recentTranscriptsSubmenu
         self.refreshRecentTranscriptsMenu()
 
+        let recentActionsSubmenu = NSMenu(title: "Recent Actions")
+        let recentActionsMenuItem = NSMenuItem(
+            title: "Recent Actions",
+            action: nil,
+            keyEquivalent: ""
+        )
+        recentActionsMenuItem.submenu = recentActionsSubmenu
+        menu.addItem(recentActionsMenuItem)
+        self.recentActionsMenuItem = recentActionsMenuItem
+        self.recentActionsSubmenu = recentActionsSubmenu
+        self.refreshRecentActionsMenu()
+
         let recentAIEnhancementsSubmenu = NSMenu(title: "Recent AI Enhancements")
         let recentAIEnhancementsMenuItem = NSMenuItem(
             title: "Recent AI Enhancements",
@@ -599,6 +613,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         self.statusMenuItem?.title = statusTitle
         self.copyLastTranscriptMenuItem?.isEnabled = self.canCopyLastTranscript
         self.recentTranscriptsMenuItem?.isEnabled = !self.isProcessingActive
+        self.recentActionsMenuItem?.isEnabled = !self.isProcessingActive
         self.recentAIEnhancementsMenuItem?.isEnabled = !self.isProcessingActive
         self.allAIEnhancementsMenuItem?.isEnabled = !self.isProcessingActive
         self.microphoneMenuItem?.isEnabled = true
@@ -694,6 +709,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         if menu === self.menu {
             self.updateMenuItemsText()
             self.refreshRecentTranscriptsMenu()
+            self.refreshRecentActionsMenu()
             self.refreshAIEnhancementsMenus()
             self.refreshMicrophoneMenu()
         }
@@ -739,6 +755,30 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
             .joined(separator: " ")
         guard singleLine.count > 80 else { return singleLine }
         return String(singleLine.prefix(77)) + "..."
+    }
+
+    private func refreshRecentActionsMenu() {
+        guard let submenu = self.recentActionsSubmenu else { return }
+        submenu.removeAllItems()
+
+        let entries = RecentActionStore.shared.entries.prefix(20)
+        guard !entries.isEmpty else {
+            let item = NSMenuItem(title: "No Recent Actions", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            submenu.addItem(item)
+            return
+        }
+
+        for entry in entries {
+            let item = NSMenuItem(
+                title: entry.menuTitle,
+                action: #selector(pasteRecentAction(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = entry.pasteText
+            submenu.addItem(item)
+        }
     }
 
     private func refreshAIEnhancementsMenus() {
@@ -910,6 +950,17 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         _ = ClipboardService.copyToClipboard(text)
         DebugLogger.shared.info(
             "Menu action: Copied AI enhancement details to clipboard",
+            source: "MenuBarManager"
+        )
+    }
+
+    @objc private func pasteRecentAction(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String, !text.isEmpty else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.asrService?.typeTextToActiveField(text)
+        }
+        DebugLogger.shared.info(
+            "Menu action: Pasted recent action context",
             source: "MenuBarManager"
         )
     }
