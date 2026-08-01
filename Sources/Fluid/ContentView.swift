@@ -2137,9 +2137,29 @@ struct ContentView: View {
         let spokenText = await asr.stop(onCaptureStopped: {
             TranscriptionSoundPlayer.shared.playStopSound()
         })
+        let textBeforeSpokenPasteCommand = VoiceMacroService.textBeforeTrailingPasteCommand(
+            transcript: spokenText
+        )
+        let isSpokenPasteCommand = clipboardText == nil &&
+            route == .normal &&
+            !wasRewriteMode &&
+            !wasCommandMode &&
+            textBeforeSpokenPasteCommand != nil
+        let effectiveSpokenText = isSpokenPasteCommand
+            ? textBeforeSpokenPasteCommand ?? ""
+            : spokenText
+        let effectiveClipboardText = isSpokenPasteCommand
+            ? ClipboardService.getFromClipboard()
+            : clipboardText
+        if isSpokenPasteCommand {
+            DebugLogger.shared.info(
+                "Spoken paste command - substituting current clipboard text",
+                source: "ContentView"
+            )
+        }
         let transcribedText = ClipboardService.appending(
-            clipboardText: clipboardText,
-            to: spokenText
+            clipboardText: effectiveClipboardText,
+            to: effectiveSpokenText
         )
         self.appBench("asr_stop_return elapsedMs=\(Int(((ProcessInfo.processInfo.systemUptime - asrStopStartedAt) * 1000).rounded()))")
         let audioSnapshot = self.asr.consumeLastCompletedAudioSnapshot()

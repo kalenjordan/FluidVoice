@@ -589,6 +589,25 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "back"
     }
 
+    static func textBeforeTrailingPasteCommand(transcript: String) -> String? {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"\bpaste[\s\p{P}]*$"#,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+
+        let range = NSRange(transcript.startIndex..., in: transcript)
+        guard let match = expression.firstMatch(in: transcript, range: range),
+              let matchRange = Range(match.range, in: transcript)
+        else {
+            return nil
+        }
+
+        return String(transcript[..<matchRange.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func isWindowScreenshotCommand(transcript: String) -> Bool {
         switch self.normalizedPhrase(transcript) {
         case "screenshot window", "screen shot window":

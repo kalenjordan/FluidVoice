@@ -230,6 +230,31 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testTrailingPasteCommandReturnsPrecedingDictation() {
+        XCTAssertEqual(
+            VoiceMacroService.textBeforeTrailingPasteCommand(
+                transcript: "Here is the context. Paste."
+            ),
+            "Here is the context."
+        )
+        XCTAssertEqual(
+            VoiceMacroService.textBeforeTrailingPasteCommand(transcript: "Paste."),
+            ""
+        )
+        XCTAssertEqual(
+            VoiceMacroService.textBeforeTrailingPasteCommand(
+                transcript: "Add this and PASTE! "
+            ),
+            "Add this and"
+        )
+        XCTAssertNil(VoiceMacroService.textBeforeTrailingPasteCommand(
+            transcript: "paste that"
+        ))
+        XCTAssertNil(VoiceMacroService.textBeforeTrailingPasteCommand(
+            transcript: "paste this in the middle of the sentence"
+        ))
+    }
+
     func testRefreshCommandIsScopedToChrome() {
         XCTAssertTrue(VoiceMacroService.isChromeRefreshCommand(
             transcript: "Refresh.",
