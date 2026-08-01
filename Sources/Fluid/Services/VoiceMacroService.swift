@@ -221,15 +221,81 @@ enum VoiceMacroService {
     }
 
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
-    private static let herdrCommandAliases = [
-        "edit",
-    ]
-    private static let bareHerdrWorkspaceAliases: [String: String] = [
-        "fluid voice": "fluidvoice",
-        "fluidvoice": "fluidvoice",
-        "nudges": "nudges",
-        "skills": "skills",
-    ]
+    private struct SynonymCatalog {
+        let herdrCommands: [String]
+        let herdrNames: Set<String>
+        let bareHerdrWorkspaces: [String: String]
+        let projects: [String: [String]]
+        let applications: [String: String]
+        let speechRecognitionWords: [String: Set<String>]
+        let outboundRoutes: [(phrases: Set<String>, url: String)]
+    }
+
+    /// Canonical source for voice-command synonyms. Add observed recognition variants here.
+    private static let synonyms = SynonymCatalog(
+        herdrCommands: ["edit"],
+        herdrNames: ["herdr", "herder", "hurt her"],
+        bareHerdrWorkspaces: [
+            "fluid voice": "fluidvoice",
+            "fluidvoice": "fluidvoice",
+            "nudges": "nudges",
+            "skills": "skills",
+        ],
+        projects: [
+            "comms": ["coms", "comms workspace"],
+            "fluidvoice": ["fluid voice", "fluid boys"],
+            "commerce-land": ["commerce land"],
+            "commerce-leak": ["commerce leak"],
+            "hvac": ["h fact"],
+            "ordellan": ["or dell and", "or dell in", "or dallin", "or dall in", "or delin"],
+        ],
+        applications: ["chatgpt": "chatgptclassic"],
+        speechRecognitionWords: ["codex": ["codec", "codecs"]],
+        outboundRoutes: [
+            (["outbound dash", "outbound ash"], "http://outbound-dash.localhost:8764"),
+            (["signalflame site", "signal flame site"], "http://signalflame.localhost:8780"),
+            (["hvac site"], "http://hvac.localhost:8782"),
+            (["commerce leak site"], "http://commerceleak.localhost:8781"),
+            (["ordellan site"], "http://ordellan.localhost:8783"),
+            (["commerce land site", "commerceland site"], "http://commerce-land.localhost:8784"),
+            (["matchbook site"], "http://matchbook.localhost:8786"),
+            (["outbound farm site"], "http://outbound.farm.localhost:8787"),
+            (
+                ["signalflame dash", "signal flame dash"],
+                "http://outbound-dash.localhost:8764/clients/signalflame"
+            ),
+            (
+                ["matchbook dash", "matt s book dash"],
+                "http://outbound-dash.localhost:8764/clients/matchbook"
+            ),
+            (
+                [
+                    "commerce land dash", "commerce landash", "commerce land ash",
+                    "commerce land act", "commerceland dash", "carmer s landash",
+                    "carmerce land dash",
+                ],
+                "http://outbound-dash.localhost:8764/clients/commerce-land"
+            ),
+            (
+                ["commerce leak dash", "commerce leaked ash"],
+                "http://outbound-dash.localhost:8764/clients/commerce-leak"
+            ),
+            (
+                ["linkedin crm", "linkedin dash", "linkedin crm dash"],
+                "http://outbound-dash.localhost:8764/clients/linkedin-crm"
+            ),
+            (
+                ["st3 dash", "s t three dash"],
+                "http://outbound-dash.localhost:8764/clients/st3aero?view=targets"
+            ),
+            (
+                ["layers dash"],
+                "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
+            ),
+            (["outbound farm dash"], "http://outbound-dash.localhost:8764/clients/outbound-farm"),
+            (["hvac dash"], "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"),
+        ]
+    )
     private static let herdrCallerEnvironmentVariables: Set<String> = [
         "HERDR_PANE_ID",
         "HERDR_TAB_ID",
@@ -270,27 +336,6 @@ enum VoiceMacroService {
         return applications
     }()
 
-    // Add observed speech-to-text variants here when fuzzy matching is not sufficient.
-    private static let projectAliases: [String: [String]] = [
-        "comms": ["coms", "comms workspace"],
-        "fluidvoice": ["fluid voice", "fluid boys"],
-        "commerce-land": ["commerce land"],
-        "commerce-leak": ["commerce leak"],
-        "hvac": ["h fact"],
-        "ordellan": [
-            "or dell and",
-            "or dell in",
-            "or dallin",
-            "or dall in",
-            "or delin",
-        ],
-    ]
-    private static let applicationAliases: [String: String] = [
-        "chatgpt": "chatgptclassic",
-    ]
-    private static let speechRecognitionWordAliases: [String: Set<String>] = [
-        "codex": ["codec", "codecs"],
-    ]
     static let shellBackedCodexLaunchCommand = "zsh -il -c 'codex; exec zsh -il'"
 
     enum RestartCodexResult: Equatable {
@@ -301,13 +346,14 @@ enum VoiceMacroService {
 
     static func herdrWorkspaceQuery(transcript: String, bundleID: String = "") -> String? {
         let normalizedTranscript = self.normalizedPhrase(transcript)
-        if let query = self.bareHerdrWorkspaceAliases[normalizedTranscript] {
+        if let query = self.synonyms.bareHerdrWorkspaces[normalizedTranscript] {
             return query
         }
 
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let editCommandsPattern = self.regexAlternation(self.synonyms.herdrCommands)
         if let expression = try? NSRegularExpression(
-            pattern: #"^(.+)\s+edit\s+(.+)$"#,
+            pattern: #"^(.+)\s+(?:"# + editCommandsPattern + #")\s+(.+)$"#,
             options: [.caseInsensitive]
         ) {
             let range = NSRange(trimmedTranscript.startIndex..., in: trimmedTranscript)
@@ -327,8 +373,9 @@ enum VoiceMacroService {
             }
         }
 
+        let herdrNamesPattern = self.regexAlternation(Array(self.synonyms.herdrNames))
         if let expression = try? NSRegularExpression(
-            pattern: #"^herd(?:e)?r\b(.*)$"#,
+            pattern: #"^(?:"# + herdrNamesPattern + #")\b(.*)$"#,
             options: [.caseInsensitive]
         ) {
             let range = NSRange(trimmedTranscript.startIndex..., in: trimmedTranscript)
@@ -344,7 +391,7 @@ enum VoiceMacroService {
             }
         }
 
-        for (alias, workspace) in self.bareHerdrWorkspaceAliases.sorted(by: {
+        for (alias, workspace) in self.synonyms.bareHerdrWorkspaces.sorted(by: {
             $0.key.count > $1.key.count
         }) {
             let pattern = #"^"# + NSRegularExpression.escapedPattern(for: alias) + #"\b(.*)$"#
@@ -516,48 +563,8 @@ enum VoiceMacroService {
 
     static func outboundDashURL(transcript: String) -> URL? {
         let phrase = self.normalizedPhrase(transcript)
-        switch phrase {
-        case "outbound dash", "outbound ash":
-            return URL(string: "http://outbound-dash.localhost:8764")
-        case "signalflame site", "signal flame site":
-            return URL(string: "http://signalflame.localhost:8780")
-        case "hvac site":
-            return URL(string: "http://hvac.localhost:8782")
-        case "commerce leak site":
-            return URL(string: "http://commerceleak.localhost:8781")
-        case "ordellan site":
-            return URL(string: "http://ordellan.localhost:8783")
-        case "commerce land site", "commerceland site":
-            return URL(string: "http://commerce-land.localhost:8784")
-        case "matchbook site":
-            return URL(string: "http://matchbook.localhost:8786")
-        case "outbound farm site":
-            return URL(string: "http://outbound.farm.localhost:8787")
-        case "signalflame dash", "signal flame dash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
-        case "matchbook dash", "matt s book dash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/matchbook")
-        case "commerce land dash", "commerce landash", "commerce land ash", "commerce land act",
-             "commerceland dash", "carmer s landash", "carmerce land dash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
-        case "commerce leak dash", "commerce leaked ash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
-        case "linkedin crm", "linkedin dash", "linkedin crm dash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
-        case "st3 dash", "s t three dash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/st3aero?view=targets")
-        case "layers dash":
-            return URL(
-                string: "http://outbound-dash.localhost:8764/clients/layers?card=cannot_outreach"
-            )
-        case "outbound farm dash":
-            return URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm")
-        case "hvac dash":
-            return URL(
-                string: "http://outbound-dash.localhost:8764/clients/hvac?card=opportunity_identified"
-            )
-        default:
-            break
+        if let route = self.synonyms.outboundRoutes.first(where: { $0.phrases.contains(phrase) }) {
+            return URL(string: route.url)
         }
 
         guard phrase.hasSuffix(" dash") else { return nil }
@@ -1106,12 +1113,8 @@ enum VoiceMacroService {
     }
 
     static func isRunHerdrCommand(transcript: String) -> Bool {
-        switch self.normalizedPhrase(transcript) {
-        case "run herder", "run herdr":
-            return true
-        default:
-            return false
-        }
+        let phrase = self.normalizedPhrase(transcript)
+        return self.synonyms.herdrNames.contains { phrase == "run " + $0 }
     }
 
     static func typeHerdrCommand(targetPID: pid_t) -> Bool {
@@ -1250,7 +1253,7 @@ enum VoiceMacroService {
         }
 
         let aliasMatches = workspaces.filter { workspace in
-            let aliases = self.projectAliases[workspace.label.lowercased()] ?? []
+            let aliases = self.synonyms.projects[workspace.label.lowercased()] ?? []
             return aliases.contains { self.normalizedPhrase($0) == normalizedQuery }
         }
         if aliasMatches.count == 1 {
@@ -2374,7 +2377,7 @@ enum VoiceMacroService {
 
     static func resolveApplicationURL(query: String, candidates: [URL]) -> URL? {
         let rawNormalizedQuery = self.normalizedApplicationName(query)
-        let normalizedQuery = self.applicationAliases[rawNormalizedQuery] ?? rawNormalizedQuery
+        let normalizedQuery = self.synonyms.applications[rawNormalizedQuery] ?? rawNormalizedQuery
         guard !normalizedQuery.isEmpty else { return nil }
 
         let namedCandidates = candidates.map {
@@ -2592,7 +2595,7 @@ enum VoiceMacroService {
         _ transcript: String,
         preserveTerminalPunctuation: Bool = false
     ) -> String? {
-        for command in self.herdrCommandAliases {
+        for command in self.synonyms.herdrCommands {
             if let argument = self.commandArgument(
                 transcript,
                 command: command,
@@ -2611,12 +2614,19 @@ enum VoiceMacroService {
         return words.joined(separator: " ")
     }
 
+    private static func regexAlternation(_ phrases: [String]) -> String {
+        phrases
+            .sorted { $0.count > $1.count }
+            .map(NSRegularExpression.escapedPattern(for:))
+            .joined(separator: "|")
+    }
+
     private static func normalizedCommandPhrase(_ text: String) -> String {
         self.normalizedPhrase(text)
             .split(separator: " ")
             .map { word in
                 let word = String(word)
-                return self.speechRecognitionWordAliases.first {
+                return self.synonyms.speechRecognitionWords.first {
                     $0.value.contains(word)
                 }?.key ?? word
             }
@@ -2671,7 +2681,7 @@ enum VoiceMacroService {
 
     private static func canonicalProjectName(for spokenName: String) -> String? {
         let normalizedName = self.normalizedPhrase(spokenName)
-        return self.projectAliases.first { projectName, aliases in
+        return self.synonyms.projects.first { projectName, aliases in
             self.normalizedPhrase(projectName) == normalizedName
                 || aliases.contains { self.normalizedPhrase($0) == normalizedName }
         }?.key

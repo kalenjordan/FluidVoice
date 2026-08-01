@@ -46,6 +46,10 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.herdrWorkspaceQuery(transcript: "Herder."),
             "herdr"
         )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Hurt her comms."),
+            "herdr comms."
+        )
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "Terminal comms."
         ))
