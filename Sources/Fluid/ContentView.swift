@@ -3064,7 +3064,7 @@ struct ContentView: View {
         }
 
         if route == .normal,
-           let workspaceQuery = VoiceMacroService.herdrWorkspaceQuery(
+           let workspaceQuery = await VoiceMacroService.validatedHerdrWorkspaceQuery(
                transcript: transcribedText,
                bundleID: appInfo.bundleId
            )

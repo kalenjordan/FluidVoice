@@ -18,6 +18,11 @@ enum VoiceMacroService {
         let trailingText: String?
     }
 
+    private struct HerdrWorkspaceQueryCandidate {
+        let query: String
+        let trailingWorkspace: String?
+    }
+
     private struct NewCodexTabInvocation {
         let trailingText: String?
     }
@@ -251,6 +256,7 @@ enum VoiceMacroService {
     private struct SynonymCatalog {
         let herdrCommands: [String]
         let herdrNames: Set<String>
+        let exactHerdrWorkspaces: [String: String]
         let bareHerdrWorkspaces: [String: String]
         let projects: [String: [String]]
         let applications: [String: String]
@@ -262,6 +268,9 @@ enum VoiceMacroService {
     private static let synonyms = SynonymCatalog(
         herdrCommands: ["edit"],
         herdrNames: ["herdr", "herder", "hurt her"],
+        exactHerdrWorkspaces: [
+            "router": "router",
+        ],
         bareHerdrWorkspaces: [
             "fluid voice": "fluidvoice",
             "fluidvoice": "fluidvoice",
@@ -372,9 +381,49 @@ enum VoiceMacroService {
     }
 
     static func herdrWorkspaceQuery(transcript: String, bundleID: String = "") -> String? {
+        self.herdrWorkspaceQueryCandidate(transcript: transcript, bundleID: bundleID)?.query
+    }
+
+    static func validatedHerdrWorkspaceQuery(
+        transcript: String,
+        bundleID: String = ""
+    ) async -> String? {
+        guard let candidate = self.herdrWorkspaceQueryCandidate(
+            transcript: transcript,
+            bundleID: bundleID
+        ) else {
+            return nil
+        }
+        guard let trailingWorkspace = candidate.trailingWorkspace else {
+            return candidate.query
+        }
+        guard let executable = self.herdrExecutableURL() else { return nil }
+        let listResult = await self.runProcess(executable, arguments: ["workspace", "list"])
+        guard listResult.status == 0,
+              let response = try? JSONDecoder().decode(
+                  HerdrWorkspaceListResponse.self,
+                  from: listResult.output
+              ),
+              self.resolveWorkspace(
+                  query: trailingWorkspace,
+                  workspaces: response.result.workspaces
+              ) != nil
+        else {
+            return nil
+        }
+        return candidate.query
+    }
+
+    private static func herdrWorkspaceQueryCandidate(
+        transcript: String,
+        bundleID: String
+    ) -> HerdrWorkspaceQueryCandidate? {
         let normalizedTranscript = self.normalizedPhrase(transcript)
+        if let query = self.synonyms.exactHerdrWorkspaces[normalizedTranscript] {
+            return HerdrWorkspaceQueryCandidate(query: query, trailingWorkspace: nil)
+        }
         if let query = self.synonyms.bareHerdrWorkspaces[normalizedTranscript] {
-            return query
+            return HerdrWorkspaceQueryCandidate(query: query, trailingWorkspace: nil)
         }
 
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -395,7 +444,10 @@ enum VoiceMacroService {
                 let workspace = trimmedTranscript[workspaceRange]
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !prompt.isEmpty, !workspace.isEmpty {
-                    return workspace + ", " + prompt
+                    return HerdrWorkspaceQueryCandidate(
+                        query: workspace + ", " + prompt,
+                        trailingWorkspace: workspace
+                    )
                 }
             }
         }
@@ -413,8 +465,13 @@ enum VoiceMacroService {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                     .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !self.normalizedPhrase(trailingText).isEmpty else { return "herdr" }
-                return "herdr " + trailingText
+                guard !self.normalizedPhrase(trailingText).isEmpty else {
+                    return HerdrWorkspaceQueryCandidate(query: "herdr", trailingWorkspace: nil)
+                }
+                return HerdrWorkspaceQueryCandidate(
+                    query: "herdr " + trailingText,
+                    trailingWorkspace: nil
+                )
             }
         }
 
@@ -438,8 +495,13 @@ enum VoiceMacroService {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ",:;-"))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trailingText.isEmpty else { return workspace }
-            return workspace + " " + trailingText
+            guard !trailingText.isEmpty else {
+                return HerdrWorkspaceQueryCandidate(query: workspace, trailingWorkspace: nil)
+            }
+            return HerdrWorkspaceQueryCandidate(
+                query: workspace + " " + trailingText,
+                trailingWorkspace: nil
+            )
         }
 
         let globalQuery = self.herdrCommandArgument(
@@ -447,7 +509,7 @@ enum VoiceMacroService {
             preserveTerminalPunctuation: true
         )
         if let globalQuery {
-            return globalQuery
+            return HerdrWorkspaceQueryCandidate(query: globalQuery, trailingWorkspace: nil)
         }
 
         guard self.herdrBundleIDs.contains(bundleID.lowercased()) else { return nil }
@@ -456,7 +518,7 @@ enum VoiceMacroService {
             command: "her",
             preserveTerminalPunctuation: true
         ) {
-            return query
+            return HerdrWorkspaceQueryCandidate(query: query, trailingWorkspace: nil)
         }
         return nil
     }

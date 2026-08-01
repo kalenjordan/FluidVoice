@@ -61,6 +61,13 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testBareFrequentWorkspaceCommandsSupportTrailingPrompts() {
         XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Router."),
+            "router"
+        )
+        XCTAssertNil(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Router is not the whole sentence")
+        )
+        XCTAssertEqual(
             VoiceMacroService.herdrWorkspaceQuery(transcript: "FluidVoice."),
             "fluidvoice"
         )
@@ -118,6 +125,21 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "Add a release checklist edit skills."
             ),
             "skills., Add a release checklist"
+        )
+    }
+
+    func testTrailingEditWorkspaceMustConsumeTheEndOfTheTranscript() async {
+        let conversationalResult = await VoiceMacroService.validatedHerdrWorkspaceQuery(
+            transcript: "What if I just say edit router normally is it can always translate it"
+        )
+        let commandResult = await VoiceMacroService.validatedHerdrWorkspaceQuery(
+            transcript: "Investigate the routing issue, edit router"
+        )
+
+        XCTAssertNil(conversationalResult)
+        XCTAssertEqual(
+            commandResult,
+            "router, Investigate the routing issue"
         )
     }
 
