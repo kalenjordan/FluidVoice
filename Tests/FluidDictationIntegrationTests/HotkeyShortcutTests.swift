@@ -1201,6 +1201,32 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testAirPodsCommandsAreExactAndGlobal() {
+        XCTAssertEqual(
+            VoiceMacroService.airPodsCommand(transcript: "Connect AirPods."),
+            .connect(.pro)
+        )
+        XCTAssertEqual(
+            VoiceMacroService.airPodsCommand(transcript: "connect air pods"),
+            .connect(.pro)
+        )
+        XCTAssertEqual(
+            VoiceMacroService.airPodsCommand(transcript: "Disconnect AirPods!"),
+            .disconnect(.pro)
+        )
+        XCTAssertEqual(
+            VoiceMacroService.airPodsCommand(transcript: "Connect AirPods Max."),
+            .connect(.max)
+        )
+        XCTAssertEqual(
+            VoiceMacroService.airPodsCommand(transcript: "disconnect air pods max"),
+            .disconnect(.max)
+        )
+        XCTAssertNil(VoiceMacroService.airPodsCommand(
+            transcript: "Please connect AirPods"
+        ))
+    }
+
     func testRestartCodexCommandIsExactAndHerdrScoped() {
         for transcript in [
             "Restart Codex.", "Restart codec", "Restart codecs",

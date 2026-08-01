@@ -3096,6 +3096,45 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let airPodsCommand = VoiceMacroService.airPodsCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running AirPods voice command: \(airPodsCommand)",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.runAirPodsCommand(airPodsCommand)
+            let actionName: String
+            let successMessage: String
+            switch airPodsCommand {
+            case .connect(.pro):
+                actionName = "Connect AirPods"
+                successMessage = "Audio connected to AirPods."
+            case .disconnect(.pro):
+                actionName = "Disconnect AirPods"
+                successMessage = "Audio switched to MacBook speakers."
+            case .connect(.max):
+                actionName = "Connect AirPods Max"
+                successMessage = "Audio connected to AirPods Max."
+            case .disconnect(.max):
+                actionName = "Disconnect AirPods Max"
+                successMessage = "Audio switched to MacBook speakers."
+            }
+            VoiceMacroService.showStatusToast(
+                succeeded ? successMessage : "Could not change the audio output."
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+            }
+            // Record this after any failed-command transcript so CopyableResult
+            // resolves to the structured action context rather than the raw command.
+            recordAction(succeeded, "Action Type: \(actionName)")
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isRestartFluidVoiceCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info(

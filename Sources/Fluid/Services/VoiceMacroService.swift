@@ -49,6 +49,16 @@ enum VoiceMacroService {
         case failed
     }
 
+    enum AirPodsDevice: Equatable {
+        case pro
+        case max
+    }
+
+    enum AirPodsCommand: Equatable {
+        case connect(AirPodsDevice)
+        case disconnect(AirPodsDevice)
+    }
+
     struct CodexWeeklyStatus: Equatable {
         let usedPercent: Double
         let windowDurationMinutes: Double
@@ -702,6 +712,107 @@ enum VoiceMacroService {
 
     static func isRestartFluidVoiceCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "restart fluid voice"
+    }
+
+    static func airPodsCommand(transcript: String) -> AirPodsCommand? {
+        switch self.normalizedPhrase(transcript) {
+        case "connect airpods", "connect air pods":
+            return .connect(.pro)
+        case "disconnect airpods", "disconnect air pods":
+            return .disconnect(.pro)
+        case "connect airpods max", "connect air pods max":
+            return .connect(.max)
+        case "disconnect airpods max", "disconnect air pods max":
+            return .disconnect(.max)
+        default:
+            return nil
+        }
+    }
+
+    static func runAirPodsCommand(_ command: AirPodsCommand) async -> Bool {
+        let device: AirPodsDevice
+        switch command {
+        case let .connect(selectedDevice), let .disconnect(selectedDevice):
+            device = selectedDevice
+        }
+        let address: String
+        let airPodsName: String
+        switch device {
+        case .pro:
+            address = "30:0E:43:33:94:9B"
+            airPodsName = "Kalen’s AirPods Pro"
+        case .max:
+            address = "70:F9:4A:9D:98:BC"
+            airPodsName = "Kalen’s AirPods Max"
+        }
+        let speakersName = "MacBook Air Speakers"
+        guard let blueutil = self.executableURL(named: "blueutil"),
+              let switchAudioSource = self.executableURL(named: "SwitchAudioSource")
+        else {
+            return false
+        }
+
+        switch command {
+        case .disconnect:
+            let switchResult = await self.runProcess(
+                switchAudioSource,
+                arguments: ["-s", speakersName, "-t", "output"]
+            )
+            guard switchResult.status == 0 else { return false }
+            for _ in 0..<3 {
+                _ = await self.runProcess(blueutil, arguments: ["--disconnect", address])
+                let connectedResult = await self.runProcess(
+                    blueutil,
+                    arguments: ["--is-connected", address]
+                )
+                let isConnected = String(decoding: connectedResult.output, as: UTF8.self)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if connectedResult.status == 0, isConnected == "0" {
+                    return true
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            return false
+
+        case .connect:
+            _ = await self.runProcess(
+                blueutil,
+                arguments: ["--connect", address]
+            )
+
+            for attempt in 0..<10 {
+                let availableResult = await self.runProcess(
+                    switchAudioSource,
+                    arguments: ["-a", "-t", "output"]
+                )
+                let availableOutputs = String(decoding: availableResult.output, as: UTF8.self)
+                if availableResult.status == 0,
+                   availableOutputs.split(separator: "\n").contains(Substring(airPodsName))
+                {
+                    let switchResult = await self.runProcess(
+                        switchAudioSource,
+                        arguments: ["-s", airPodsName, "-t", "output"]
+                    )
+                    return switchResult.status == 0
+                }
+
+                if attempt == 1 {
+                    _ = await self.runProcess(blueutil, arguments: ["--disconnect", address])
+                    try? await Task.sleep(for: .milliseconds(500))
+                    _ = await self.runProcess(
+                        blueutil,
+                        arguments: ["--connect", address]
+                    )
+                } else if attempt > 1 {
+                    _ = await self.runProcess(
+                        blueutil,
+                        arguments: ["--connect", address]
+                    )
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            return false
+        }
     }
 
     static func isSwitchCommand(transcript: String) -> Bool {
@@ -2963,6 +3074,14 @@ enum VoiceMacroService {
                 .appendingPathComponent(".local/bin/codex"),
             URL(fileURLWithPath: "/opt/homebrew/bin/codex"),
             URL(fileURLWithPath: "/usr/local/bin/codex"),
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+
+    private static func executableURL(named name: String) -> URL? {
+        let candidates = [
+            URL(fileURLWithPath: "/opt/homebrew/bin/\(name)"),
+            URL(fileURLWithPath: "/usr/local/bin/\(name)"),
         ]
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
