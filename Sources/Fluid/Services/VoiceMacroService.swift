@@ -1001,7 +1001,12 @@ enum VoiceMacroService {
     }
 
     static func isWindowMiddleAllCommand(transcript: String) -> Bool {
-        self.normalizedPhrase(transcript) == "window middle all"
+        switch self.normalizedPhrase(transcript) {
+        case "window middle all", "all windows middle":
+            return true
+        default:
+            return false
+        }
     }
 
     private static let windowMiddlePreferredSize = NSSize(width: 1294, height: 901)

@@ -452,6 +452,9 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertTrue(VoiceMacroService.isWindowMiddleAllCommand(
             transcript: "WINDOW MIDDLE ALL!"
         ))
+        XCTAssertTrue(VoiceMacroService.isWindowMiddleAllCommand(
+            transcript: "All windows middle."
+        ))
         XCTAssertFalse(VoiceMacroService.isWindowMiddleAllCommand(
             transcript: "window middle"
         ))
