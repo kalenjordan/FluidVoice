@@ -634,6 +634,10 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "delete desktop"
     }
 
+    static func isCopyLastActionCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "copy last action"
+    }
+
     static func isCodexClearLineCommand(transcript: String, bundleID: String) -> Bool {
         guard self.codexBundleIDs.contains(bundleID.lowercased()) else { return false }
         let phrase = self.normalizedPhrase(transcript)

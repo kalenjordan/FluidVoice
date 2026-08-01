@@ -11,8 +11,10 @@ struct RecentActionEntry: Codable, Identifiable, Equatable {
         "\(self.succeeded ? "✓" : "✗") \(self.command)"
     }
 
-    var pasteText: String {
+    var troubleshootingClipboardText: String {
         """
+        Voice Action Troubleshooting Context
+
         Action: \(self.command)
         Result: \(self.succeeded ? "Succeeded" : "Failed")
         Time: \(self.timestamp.formatted(date: .abbreviated, time: .standard))

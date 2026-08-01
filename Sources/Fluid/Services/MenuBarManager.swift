@@ -772,11 +772,11 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         for entry in entries {
             let item = NSMenuItem(
                 title: entry.menuTitle,
-                action: #selector(pasteRecentAction(_:)),
+                action: #selector(copyRecentAction(_:)),
                 keyEquivalent: ""
             )
             item.target = self
-            item.representedObject = entry.pasteText
+            item.representedObject = entry.troubleshootingClipboardText
             submenu.addItem(item)
         }
     }
@@ -954,13 +954,11 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         )
     }
 
-    @objc private func pasteRecentAction(_ sender: NSMenuItem) {
+    @objc private func copyRecentAction(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String, !text.isEmpty else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.asrService?.typeTextToActiveField(text)
-        }
+        _ = ClipboardService.copyToClipboard(text)
         DebugLogger.shared.info(
-            "Menu action: Pasted recent action context",
+            "Menu action: Copied recent action troubleshooting context to clipboard",
             source: "MenuBarManager"
         )
     }

@@ -2256,6 +2256,35 @@ struct ContentView: View {
         let appInfo = typingTarget.pid.map { self.getAppInfo(processIdentifier: $0) }
             ?? self.recordingAppInfo
             ?? self.getCurrentAppInfo()
+        let recordAction: (Bool, String) -> Void = { succeeded, details in
+            self.recordVoiceAction(
+                command: transcribedText,
+                succeeded: succeeded,
+                targetPID: typingTarget.pid,
+                appInfo: appInfo,
+                additionalContext: details
+            )
+        }
+
+        if route == .normal,
+           VoiceMacroService.isCopyLastActionCommand(transcript: transcribedText)
+        {
+            let lastAction = RecentActionStore.shared.entries.first
+            let succeeded = lastAction.map {
+                ClipboardService.copyToClipboard($0.troubleshootingClipboardText)
+            } ?? false
+            let details = lastAction.map {
+                "Action Type: Copy last action troubleshooting context\nCopied Action: \($0.command)"
+            } ?? "Action Type: Copy last action troubleshooting context\nError: No recent actions"
+            recordAction(succeeded, details)
+            VoiceMacroService.showStatusToast(
+                succeeded ? "Copied last action." : "No recent actions to copy."
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
 
         if route == .normal,
            let targetPID = typingTarget.pid,
@@ -2269,12 +2298,14 @@ struct ContentView: View {
                 let url = try await WindowScreenshotService.captureSelectedWindow(
                     targetPID: targetPID
                 )
+                recordAction(true, "Action Type: Selected-window screenshot\nSaved File: \(url.path)")
                 DebugLogger.shared.info(
                     "Window screenshot saved successfully",
                     source: "ContentView"
                 )
                 VoiceMacroService.showStatusToast("Saved \(url.lastPathComponent) to Desktop.")
             } catch {
+                recordAction(false, "Action Type: Selected-window screenshot\nError: \(error.localizedDescription)")
                 DebugLogger.shared.error(
                     "Window screenshot failed: \(error.localizedDescription)",
                     source: "ContentView"
@@ -2297,6 +2328,7 @@ struct ContentView: View {
             )
             let result = VoiceMacroService.deleteDesktopContents()
             let succeeded = result.map { $0.failedCount == 0 } ?? false
+            recordAction(succeeded, "Action Type: Delete Desktop contents")
             DebugLogger.shared.info(
                 "Delete Desktop voice command finished: success=\(succeeded), "
                     + "deleted=\(result?.deletedCount ?? 0), failed=\(result?.failedCount ?? 0)",
@@ -2336,6 +2368,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = await VoiceMacroService.setHerdrNotificationsEnabled(enabled)
+            recordAction(succeeded, "Action Type: Set Herdr notifications\nEnabled: \(enabled)")
             VoiceMacroService.showStatusToast(
                 succeeded
                     ? "Herdr notifications \(enabled ? "on" : "off")."
@@ -2358,6 +2391,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = await VoiceMacroService.setNudgesEnabled(enabled)
+            recordAction(succeeded, "Action Type: Set nudges\nEnabled: \(enabled)")
             VoiceMacroService.showStatusToast(
                 succeeded
                     ? "Nudges \(enabled ? "on" : "off")."
@@ -2377,6 +2411,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running previous application voice command", source: "ContentView")
             let succeeded = VoiceMacroService.switchToPreviousApplication()
+            recordAction(succeeded, "Action Type: Switch application")
             DebugLogger.shared.info(
                 "Previous application voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2478,6 +2513,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running Chrome refresh voice command", source: "ContentView")
             let succeeded = VoiceMacroService.refreshChrome(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Refresh Chrome")
             DebugLogger.shared.info(
                 "Chrome refresh voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2501,6 +2537,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running Chrome copy URL voice command", source: "ContentView")
             let succeeded = VoiceMacroService.copyChromeURL(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Copy Chrome URL")
             DebugLogger.shared.info(
                 "Chrome copy URL voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2526,6 +2563,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running Chrome close tab voice command", source: "ContentView")
             let succeeded = VoiceMacroService.closeChromeTab(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Close Chrome tab")
             DebugLogger.shared.info(
                 "Chrome close tab voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2546,6 +2584,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running quit application voice command", source: "ContentView")
             let succeeded = VoiceMacroService.quitApplication(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Quit application")
             DebugLogger.shared.info(
                 "Quit application voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2566,6 +2605,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running close window voice command", source: "ContentView")
             let succeeded = VoiceMacroService.closeWindow(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Close window")
             DebugLogger.shared.info(
                 "Close window voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2586,6 +2626,7 @@ struct ContentView: View {
             DebugLogger.shared.info("Running Codex status voice command", source: "ContentView")
             VoiceMacroService.showCodexStatusLoadingToast()
             let status = await VoiceMacroService.codexWeeklyStatus()
+            recordAction(status != nil, "Action Type: Read Codex status")
             if let status {
                 VoiceMacroService.showCodexStatusToast(status)
             } else {
@@ -2615,6 +2656,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let result = await VoiceMacroService.restartCodexInCurrentHerdrPane()
+            recordAction(result != .failed, "Action Type: Restart Codex\nResult: \(result)")
             DebugLogger.shared.info(
                 "Restart Codex voice command finished: result=\(result)",
                 source: "ContentView"
@@ -2639,6 +2681,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running add synonym voice command", source: "ContentView")
             let succeeded = await VoiceMacroService.openAddSynonymCodexTab()
+            recordAction(succeeded, "Action Type: Open add-synonym Codex tab")
             DebugLogger.shared.info(
                 "Add synonym voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2663,6 +2706,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = await VoiceMacroService.playEDMFocusPlaylist()
+            recordAction(succeeded, "Action Type: Play Spotify EDM Focus playlist")
             DebugLogger.shared.info(
                 "Spotify EDM Focus playlist voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2685,6 +2729,7 @@ struct ContentView: View {
                 transcript: transcribedText
             )
             let succeeded = await VoiceMacroService.openWritingWorkspace(prompt: prompt)
+            recordAction(succeeded, "Action Type: Open writing workspace")
             DebugLogger.shared.info(
                 "Writing workspace voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2705,6 +2750,7 @@ struct ContentView: View {
             DebugLogger.shared.info("Running new Codex tab voice command", source: "ContentView")
             let prompt = VoiceMacroService.newCodexTabPrompt(transcript: transcribedText)
             let succeeded = await VoiceMacroService.openNewCodexTab(prompt: prompt)
+            recordAction(succeeded, "Action Type: Open new Codex tab")
             DebugLogger.shared.info(
                 "New Codex tab voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2725,6 +2771,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running type Herdr voice command", source: "ContentView")
             let succeeded = VoiceMacroService.typeHerdrCommand(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Type Herdr command")
             DebugLogger.shared.info(
                 "Type Herdr voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2748,6 +2795,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running Herdr detach voice command", source: "ContentView")
             let succeeded = VoiceMacroService.detachHerdr(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Detach Herdr")
             DebugLogger.shared.info(
                 "Herdr detach voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2770,6 +2818,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running Herdr tab navigation voice command", source: "ContentView")
             let succeeded = await VoiceMacroService.moveHerdrTab(direction)
+            recordAction(succeeded, "Action Type: Navigate Herdr tab\nDirection: \(direction)")
             DebugLogger.shared.info(
                 "Herdr tab navigation voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2796,6 +2845,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = VoiceMacroService.returnToPreviousHerdrTarget(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Return to previous Herdr target")
             DebugLogger.shared.info(
                 "Herdr previous target voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2818,6 +2868,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running Herdr close tab voice command", source: "ContentView")
             let succeeded = await VoiceMacroService.closeCurrentHerdrTab()
+            recordAction(succeeded, "Action Type: Close Herdr tab")
             DebugLogger.shared.info(
                 "Herdr close tab voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2837,6 +2888,7 @@ struct ContentView: View {
         {
             DebugLogger.shared.info("Running next pending Herdr tab voice command", source: "ContentView")
             let succeeded = await VoiceMacroService.openNextPendingHerdrTab()
+            recordAction(succeeded, "Action Type: Open next pending Herdr tab")
             DebugLogger.shared.info(
                 "Next pending Herdr tab voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2861,6 +2913,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = await VoiceMacroService.launchApplication(named: applicationName)
+            recordAction(succeeded, "Action Type: Launch application\nApplication: \(applicationName)")
             DebugLogger.shared.info(
                 "Application launch voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -2879,6 +2932,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            recordAction(succeeded, "Action Type: Open Gmail\nURL: \(url.absoluteString)")
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not open Gmail.")
@@ -2897,6 +2951,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            recordAction(succeeded, "Action Type: Open Google Calendar\nURL: \(url.absoluteString)")
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not open Google Calendar.")
@@ -2915,6 +2970,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            recordAction(succeeded, "Action Type: Google search\nURL: \(url.absoluteString)")
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not search Google.")
@@ -2965,6 +3021,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             VoiceMacroService.showStatusToast("Restarting FluidVoice…")
+            recordAction(true, "Action Type: Restart FluidVoice")
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
             }
@@ -2982,6 +3039,7 @@ struct ContentView: View {
                 source: "ContentView"
             )
             let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            recordAction(succeeded, "Action Type: Open Outbound Dash\nURL: \(url.absoluteString)")
             DebugLogger.shared.info(
                 "Outbound Dash voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3007,6 +3065,7 @@ struct ContentView: View {
                 await self.restoreFocusToRecordingTarget()
             }
             let succeeded = VoiceMacroService.deleteFinderSelection(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Delete Finder selection")
             DebugLogger.shared.info(
                 "Finder delete voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3032,6 +3091,7 @@ struct ContentView: View {
                 await self.restoreFocusToRecordingTarget()
             }
             let succeeded = VoiceMacroService.clearCodexLine(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Clear Codex line")
             DebugLogger.shared.info(
                 "Codex clear-line voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3060,6 +3120,7 @@ struct ContentView: View {
                 url,
                 targetPID: targetPID
             )
+            recordAction(succeeded, "Action Type: Open Chrome URL\nURL: \(url)")
             DebugLogger.shared.info(
                 "Chrome URL voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3085,6 +3146,7 @@ struct ContentView: View {
                 await self.restoreFocusToRecordingTarget()
             }
             let succeeded = VoiceMacroService.toggleChatGPTSidebar(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Toggle ChatGPT sidebar")
             DebugLogger.shared.info(
                 "ChatGPT sidebar voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3113,6 +3175,7 @@ struct ContentView: View {
                 query: searchQuery,
                 targetPID: targetPID
             )
+            recordAction(succeeded, "Action Type: Search ChatGPT\nQuery: \(searchQuery)")
             DebugLogger.shared.info(
                 "ChatGPT search voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3141,6 +3204,7 @@ struct ContentView: View {
                 query: findQuery,
                 targetPID: targetPID
             )
+            recordAction(succeeded, "Action Type: Find in Chrome\nQuery: \(findQuery)")
             DebugLogger.shared.info(
                 "Chrome find voice command finished: success=\(succeeded)",
                 source: "ContentView"
@@ -3430,6 +3494,20 @@ struct ContentView: View {
                     tracksDictionaryCorrections: true
                 )
             }
+            if finalOutputPlan.performsAction {
+                self.recordVoiceAction(
+                    command: transcribedText,
+                    succeeded: true,
+                    targetPID: typingTarget.pid,
+                    appInfo: outputAppInfo,
+                    additionalContext: """
+                    Action Type: Dictation output plan
+                    Output Plan:
+                    \(finalOutputPlan.actionDescription)
+                    Delivery: \(submittedThroughHerdr ? "Herdr" : "Typing service")
+                    """
+                )
+            }
             didTypeExternally = true
             if !shouldShowAIProcessingFailure, !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
@@ -3534,6 +3612,7 @@ struct ContentView: View {
             succeeded: succeeded,
             context: """
             Target App: \(appInfo.name)
+            Target Bundle ID: \(appInfo.bundleId.isEmpty ? "Not available" : appInfo.bundleId)
             Target Window: \(appInfo.windowTitle.isEmpty ? "Not available" : appInfo.windowTitle)
             Target PID: \(targetPID.map(String.init) ?? "Not available")
             \(additionalContext)

@@ -678,6 +678,28 @@ final class DictationE2ETests: XCTestCase {
                 .pressReturn,
             ]
         )
+        XCTAssertTrue(plan.performsAction)
+        XCTAssertTrue(plan.actionDescription.contains("Type: /compact"))
+        XCTAssertTrue(plan.actionDescription.contains("Press Return"))
+    }
+
+    func testPlainDictationOutputPlanDoesNotPerformAction() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "This is ordinary dictation",
+            appName: "Notes",
+            bundleID: "com.apple.Notes"
+        )
+
+        XCTAssertFalse(plan.performsAction)
+    }
+
+    func testSubmittedOrdinaryDictationOutputPlanDoesNotPerformAction() {
+        let plan = DictationLiteralOutputPlan(steps: [
+            .text("This is ordinary dictation"),
+            .pressReturn,
+        ])
+
+        XCTAssertFalse(plan.performsAction)
     }
 
     func testButFirstCompactSubmitsCommandBeforeMessage() {

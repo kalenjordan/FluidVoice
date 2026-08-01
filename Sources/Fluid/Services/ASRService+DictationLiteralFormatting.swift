@@ -10,6 +10,39 @@ struct DictationLiteralOutputPlan: Equatable {
 
     let steps: [Step]
 
+    var performsAction: Bool {
+        if self.steps.contains(where: {
+            if case .openNextPendingHerdrTab = $0 { return true }
+            return false
+        }) {
+            return true
+        }
+
+        let submitsExplicitCommand = self.steps.contains(where: {
+            if case .pressReturn = $0 { return true }
+            return false
+        }) && self.steps.contains(where: {
+            guard case let .text(text) = $0 else { return false }
+            return text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("/")
+        })
+        return submitsExplicitCommand
+    }
+
+    var actionDescription: String {
+        self.steps.compactMap { step -> String? in
+            switch step {
+            case let .text(text):
+                return "Type: \(text)"
+            case .pressReturn:
+                return "Press Return"
+            case let .pause(milliseconds):
+                return "Pause: \(milliseconds) ms"
+            case .openNextPendingHerdrTab:
+                return "Open next pending Herdr tab"
+            }
+        }.joined(separator: "\n")
+    }
+
     var plainText: String {
         self.steps.reduce(into: "") { result, step in
             if case let .text(text) = step {

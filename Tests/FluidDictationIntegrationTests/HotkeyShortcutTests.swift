@@ -1119,6 +1119,18 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testCopyLastActionCommandRequiresExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isCopyLastActionCommand(
+            transcript: "Copy last action."
+        ))
+        XCTAssertFalse(VoiceMacroService.isCopyLastActionCommand(
+            transcript: "Can you copy last action"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCopyLastActionCommand(
+            transcript: "copy the last action"
+        ))
+    }
+
     func testCodexClearLineCommandAcceptsSpokenSlashAndIsAppScoped() {
         for transcript in ["Clear line.", "slash clear line", "/clear line"] {
             for bundleID in ["com.mitchellh.ghostty", "com.openai.codex"] {

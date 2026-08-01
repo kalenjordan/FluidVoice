@@ -34,14 +34,12 @@ enum ClipboardService {
     }
 
     static func appending(clipboardText: String?, to spokenText: String) -> String {
-        let normalizedClipboardText = clipboardText?
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        guard let normalizedClipboardText, !normalizedClipboardText.isEmpty else { return spokenText }
+        guard let clipboardText,
+              !clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return spokenText }
         guard !spokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return normalizedClipboardText
+            return clipboardText
         }
-        return spokenText + "\n\n" + normalizedClipboardText
+        return spokenText + "\n\n" + clipboardText
     }
 }
