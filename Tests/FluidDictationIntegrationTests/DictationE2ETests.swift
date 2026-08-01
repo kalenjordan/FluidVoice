@@ -878,6 +878,38 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testClearWithFollowUpAcceptsUppercaseAnd() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "/clear AND continue in the new session",
+                appName: "Ghostty",
+                bundleID: "com.mitchellh.ghostty"
+            ).steps,
+            [
+                .text("/clear"),
+                .pressReturn,
+                .pause(milliseconds: 400),
+                .text("continue in the new session"),
+                .pressReturn,
+            ]
+        )
+    }
+
+    func testClearFollowUpUsesSharedCodexIdleReadiness() {
+        XCTAssertTrue(VoiceMacroService.isCodexPaneReady(
+            agent: "codex",
+            agentStatus: "idle"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCodexPaneReady(
+            agent: "codex",
+            agentStatus: "working"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCodexPaneReady(
+            agent: "shell",
+            agentStatus: "idle"
+        ))
+    }
+
     func testClearWithFollowUpExposesNativeHerdrSubmission() {
         let plan = ASRService.makeDictationLiteralOutputPlan(
             for: "/clear and investigate the nudge tabs",

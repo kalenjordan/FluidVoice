@@ -1348,8 +1348,10 @@ enum VoiceMacroService {
                let createdPane = paneResponse.result.panes.first(where: {
                    $0.paneID == created.result.rootPane.paneID
                }),
-               createdPane.agent?.lowercased() == "codex",
-               createdPane.agentStatus?.lowercased() == "idle"
+               self.isCodexPaneReady(
+                   agent: createdPane.agent,
+                   agentStatus: createdPane.agentStatus
+               )
             {
                 try? await Task.sleep(for: .milliseconds(150))
                 guard self.isTargetFrontmost(herdrApplication.processIdentifier) else {
@@ -1444,8 +1446,10 @@ enum VoiceMacroService {
                let createdPane = paneResponse.result.panes.first(where: {
                    $0.paneID == created.result.rootPane.paneID
                }),
-               createdPane.agent?.lowercased() == "codex",
-               createdPane.agentStatus?.lowercased() == "idle"
+               self.isCodexPaneReady(
+                   agent: createdPane.agent,
+                   agentStatus: createdPane.agentStatus
+               )
             {
                 try? await Task.sleep(for: .milliseconds(150))
                 guard self.isTargetFrontmost(herdrApplication.processIdentifier),
@@ -1560,8 +1564,10 @@ enum VoiceMacroService {
                let createdPane = updatedPaneResponse.result.panes.first(where: {
                    $0.paneID == created.result.rootPane.paneID
                }),
-               createdPane.agent?.lowercased() == "codex",
-               createdPane.agentStatus?.lowercased() == "idle"
+               self.isCodexPaneReady(
+                   agent: createdPane.agent,
+                   agentStatus: createdPane.agentStatus
+               )
             {
                 try? await Task.sleep(for: .milliseconds(150))
                 return await self.submitHerdrPrompt(prompt)
@@ -1589,6 +1595,10 @@ enum VoiceMacroService {
             }
             return self.normalizedPhrase(repoURL.lastPathComponent) == normalizedQuery
         }
+    }
+
+    static func isCodexPaneReady(agent: String?, agentStatus: String?) -> Bool {
+        agent?.lowercased() == "codex" && agentStatus?.lowercased() == "idle"
     }
 
     @MainActor
@@ -1638,8 +1648,10 @@ enum VoiceMacroService {
                let createdPane = paneResponse.result.panes.first(where: {
                    $0.paneID == paneID
                }),
-               createdPane.agent?.lowercased() == "codex",
-               createdPane.agentStatus?.lowercased() == "idle"
+               self.isCodexPaneReady(
+                   agent: createdPane.agent,
+                   agentStatus: createdPane.agentStatus
+               )
             {
                 try? await Task.sleep(for: .milliseconds(150))
                 return await self.submitHerdrPrompt(prompt)
@@ -1669,6 +1681,7 @@ enum VoiceMacroService {
         _ message: String,
         openNextPendingTab: Bool
     ) async -> Bool {
+        let logSource = "VoiceMacroService"
         guard let executable = self.herdrExecutableURL() else { return false }
         let currentResult = await self.runProcess(
             executable,
@@ -1680,32 +1693,62 @@ enum VoiceMacroService {
                   HerdrCurrentPaneResponse.self,
                   from: currentResult.output
               ).result.pane,
-              currentPane.agent?.lowercased() == "codex",
-              let previousSessionID = currentPane.agentSession?.value
+              currentPane.agent?.lowercased() == "codex"
         else {
             return false
         }
+
+        let startedAt = Date()
+        let previousSessionID = currentPane.agentSession?.value
+        DebugLogger.shared.info(
+            "Clear follow-up started: pane=\(currentPane.paneID) session=\(previousSessionID ?? "none")",
+            source: logSource
+        )
 
         let clearResult = await self.runProcess(
             executable,
             arguments: ["pane", "run", currentPane.paneID, "/clear"]
         )
-        guard clearResult.status == 0 else { return false }
+        guard clearResult.status == 0 else {
+            DebugLogger.shared.warning(
+                "Clear follow-up failed to submit /clear: pane=\(currentPane.paneID) status=\(clearResult.status)",
+                source: logSource
+            )
+            return false
+        }
 
-        for _ in 0..<48 {
-            try? await Task.sleep(for: .milliseconds(250))
+        DebugLogger.shared.info(
+            "Clear follow-up submitted /clear: pane=\(currentPane.paneID)",
+            source: logSource
+        )
+        try? await Task.sleep(for: .milliseconds(300))
+
+        for attempt in 0..<18 {
             let paneResult = await self.runProcess(
                 executable,
                 arguments: ["pane", "get", currentPane.paneID]
             )
-            guard paneResult.status == 0,
-                  let updatedPane = try? JSONDecoder().decode(
+            let updatedPane = paneResult.status == 0
+                ? try? JSONDecoder().decode(
                       HerdrCurrentPaneResponse.self,
                       from: paneResult.output
-                  ).result.pane,
-                  updatedPane.agentSession?.value != previousSessionID,
-                  updatedPane.agentStatus?.lowercased() == "idle"
+                  ).result.pane
+                : nil
+            let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+            DebugLogger.shared.info(
+                "Clear follow-up readiness poll: pane=\(currentPane.paneID) attempt=\(attempt + 1) elapsedMs=\(elapsedMilliseconds) commandStatus=\(paneResult.status) agent=\(updatedPane?.agent ?? "none") agentStatus=\(updatedPane?.agentStatus ?? "none") previousSession=\(previousSessionID ?? "none") currentSession=\(updatedPane?.agentSession?.value ?? "none")",
+                source: logSource
+            )
+
+            guard let updatedPane,
+                  self.isCodexPaneReady(
+                      agent: updatedPane.agent,
+                      agentStatus: updatedPane.agentStatus
+                  )
             else {
+                if attempt < 17 {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
                 continue
             }
 
@@ -1714,15 +1757,27 @@ enum VoiceMacroService {
                 arguments: ["pane", "run", currentPane.paneID, message]
             )
             guard followUpResult.status == 0 else {
+                DebugLogger.shared.warning(
+                    "Clear follow-up submission failed: pane=\(currentPane.paneID) status=\(followUpResult.status)",
+                    source: logSource
+                )
                 self.showStatusToast("New session is ready, but the follow-up was not submitted.")
                 return true
             }
+            DebugLogger.shared.info(
+                "Clear follow-up submitted: pane=\(currentPane.paneID) elapsedMs=\(Int(Date().timeIntervalSince(startedAt) * 1_000))",
+                source: logSource
+            )
             if openNextPendingTab, !(await self.openNextPendingHerdrTab()) {
                 self.showStatusToast("Follow-up submitted, but the next pending tab did not open.")
             }
             return true
         }
-        self.showStatusToast("New Codex session did not become ready. Follow-up was not submitted.")
+        DebugLogger.shared.warning(
+            "Clear follow-up timed out waiting for Codex idle: pane=\(currentPane.paneID) elapsedMs=\(Int(Date().timeIntervalSince(startedAt) * 1_000))",
+            source: logSource
+        )
+        self.showStatusToast("Codex did not become ready. Follow-up was not submitted.")
         return true
     }
 
