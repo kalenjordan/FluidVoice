@@ -151,6 +151,17 @@ final class HotkeyShortcutTests: XCTestCase {
         )
     }
 
+    func testSpokenKeyMapperAliasResolvesLocalRepo() {
+        let keyMapperRepo = URL(fileURLWithPath: "/Users/kalen/repos/keymapper")
+        XCTAssertEqual(
+            VoiceMacroService.resolveLocalRepoURL(
+                query: "key mapper.",
+                repoURLs: [keyMapperRepo]
+            ),
+            keyMapperRepo
+        )
+    }
+
     func testHerdrWorkspaceOpenCommandIsNotSupported() {
         XCTAssertNil(VoiceMacroService.herdrWorkspaceQuery(
             transcript: "open comms",

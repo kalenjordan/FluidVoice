@@ -274,6 +274,7 @@ enum VoiceMacroService {
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
     private static let localRepoAliases = [
         "commerce land": "commerceland",
+        "key mapper": "keymapper",
     ]
     private struct SynonymCatalog {
         let herdrCommands: [String]
