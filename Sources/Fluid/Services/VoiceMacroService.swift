@@ -729,6 +729,11 @@ enum VoiceMacroService {
         return URL(string: "https://calendar.google.com/calendar/u/0/r")
     }
 
+    static func personalFinancesURL(transcript: String) -> URL? {
+        guard self.normalizedPhrase(transcript) == "personal finances" else { return nil }
+        return URL(string: "https://finances-dev.kalenjordan.com/")
+    }
+
     static func googleSearchURL(transcript: String) -> URL? {
         guard let query = self.commandArgument(transcript, command: "google") else {
             return nil

@@ -1213,6 +1213,14 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertNil(VoiceMacroService.googleCalendarURL(transcript: "Open Google Calendar"))
     }
 
+    func testPersonalFinancesCommandIsExactAndGlobal() {
+        XCTAssertEqual(
+            VoiceMacroService.personalFinancesURL(transcript: "Personal finances."),
+            URL(string: "https://finances-dev.kalenjordan.com/")
+        )
+        XCTAssertNil(VoiceMacroService.personalFinancesURL(transcript: "Open personal finances"))
+    }
+
     func testGoogleSearchCommandUsesRawQueryAndIsGlobal() {
         XCTAssertEqual(
             VoiceMacroService.googleSearchURL(transcript: "Google Most realistic outbound voice agent."),

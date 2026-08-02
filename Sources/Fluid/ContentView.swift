@@ -3183,6 +3183,25 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let url = VoiceMacroService.personalFinancesURL(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running open personal finances voice command",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.openOrFocusURLInChrome(url)
+            recordAction(succeeded, "Action Type: Open personal finances\nURL: \(url.absoluteString)")
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open personal finances.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let url = VoiceMacroService.googleSearchURL(transcript: transcribedText)
         {
             DebugLogger.shared.info(
