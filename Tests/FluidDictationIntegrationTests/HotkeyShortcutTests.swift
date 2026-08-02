@@ -290,6 +290,24 @@ final class HotkeyShortcutTests: XCTestCase {
             "w5"
         )
         XCTAssertNil(VoiceMacroService.resolveWorkspace(query: "commerce", workspaces: workspaces))
+
+        XCTAssertNil(VoiceMacroService.resolveWorkspace(
+            query: "commerce land",
+            workspaces: [workspaces[3]]
+        ))
+    }
+
+    func testLocalRepoResolutionSupportsCommerceLandDirectoryName() {
+        let commerceLand = URL(fileURLWithPath: "/Users/kalen/repos/commerceland")
+        let commerceLeak = URL(fileURLWithPath: "/Users/kalen/repos/commerce-leak")
+
+        XCTAssertEqual(
+            VoiceMacroService.resolveLocalRepoURL(
+                query: "Commerce Land",
+                repoURLs: [commerceLeak, commerceLand]
+            ),
+            commerceLand
+        )
     }
 
     func testCodexStatusCommandSupportsCommonRecognitionVariant() {

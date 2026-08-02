@@ -272,6 +272,9 @@ enum VoiceMacroService {
     }
 
     private static let herdrBundleIDs = ["com.mitchellh.ghostty"]
+    private static let localRepoAliases = [
+        "commerce land": "commerceland",
+    ]
     private struct SynonymCatalog {
         let herdrCommands: [String]
         let herdrNames: Set<String>
@@ -424,12 +427,14 @@ enum VoiceMacroService {
               let response = try? JSONDecoder().decode(
                   HerdrWorkspaceListResponse.self,
                   from: listResult.output
-              ),
-              self.resolveWorkspace(
-                  query: trailingWorkspace,
-                  workspaces: response.result.workspaces
-              ) != nil
+              )
         else {
+            return nil
+        }
+        guard self.resolveWorkspace(
+            query: trailingWorkspace,
+            workspaces: response.result.workspaces
+        ) != nil || self.localRepoURL(query: trailingWorkspace) != nil else {
             return nil
         }
         return candidate.query
@@ -1714,6 +1719,15 @@ enum VoiceMacroService {
             return aliasMatches[0]
         }
 
+        let knownProjectAliases = self.synonyms.projects.flatMap { project, aliases in
+            [project] + aliases
+        }
+        if knownProjectAliases.contains(where: {
+            self.normalizedPhrase($0) == normalizedQuery
+        }) {
+            return nil
+        }
+
         let scored = workspaces.map {
             ($0, self.editDistance(normalizedQuery, self.normalizedPhrase($0.label)))
         }.sorted { $0.1 < $1.1 }
@@ -2205,13 +2219,21 @@ enum VoiceMacroService {
             return nil
         }
 
-        let normalizedQuery = self.normalizedPhrase(query)
-        return repoURLs.first { repoURL in
+        let directories = repoURLs.filter { repoURL in
             guard (try? repoURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
             else {
                 return false
             }
-            return self.normalizedPhrase(repoURL.lastPathComponent) == normalizedQuery
+            return true
+        }
+        return self.resolveLocalRepoURL(query: query, repoURLs: directories)
+    }
+
+    static func resolveLocalRepoURL(query: String, repoURLs: [URL]) -> URL? {
+        let normalizedQuery = self.normalizedPhrase(query)
+        let repoName = self.localRepoAliases[normalizedQuery] ?? normalizedQuery
+        return repoURLs.first {
+            self.normalizedPhrase($0.lastPathComponent) == repoName
         }
     }
 
