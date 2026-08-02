@@ -305,6 +305,10 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.resolveWorkspace(query: "Yedger", workspaces: workspaces)?.workspaceID,
             "w6"
         )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "Yedrick", workspaces: workspaces)?.workspaceID,
+            "w6"
+        )
         XCTAssertNil(VoiceMacroService.resolveWorkspace(query: "commerce", workspaces: workspaces))
 
         XCTAssertNil(VoiceMacroService.resolveWorkspace(
@@ -1181,6 +1185,10 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm-next")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Yedrick Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/yedric")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "H fact dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
         )
@@ -1268,6 +1276,13 @@ final class HotkeyShortcutTests: XCTestCase {
                 bundleID: "com.google.Chrome"
             ),
             "http://outbound-dash.localhost:8764/clients/outbound-farm-next"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "open Yedrick dash",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash.localhost:8764/clients/yedric"
         )
         XCTAssertNil(VoiceMacroService.chromeURL(
             transcript: "open layers dash",
