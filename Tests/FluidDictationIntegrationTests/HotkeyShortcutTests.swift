@@ -1022,7 +1022,11 @@ final class HotkeyShortcutTests: XCTestCase {
     func testOutboundDashCommandIsExactAndGlobal() {
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Dash."),
-            URL(string: "http://outbound-dash.localhost:8764")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Outbound Dash Old."),
+            URL(string: "http://outbound-dash.localhost:8764/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "SignalFlame Site."),
@@ -1134,7 +1138,11 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound ash."),
-            URL(string: "http://outbound-dash.localhost:8764")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Outbound ash old."),
+            URL(string: "http://outbound-dash.localhost:8764/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Ordellan Dash."),

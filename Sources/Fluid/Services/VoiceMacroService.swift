@@ -314,7 +314,8 @@ enum VoiceMacroService {
         applications: ["chatgpt": "chatgptclassic"],
         speechRecognitionWords: ["codex": ["codec", "codecs"]],
         outboundRoutes: [
-            (["outbound dash", "outbound ash"], "http://outbound-dash.localhost:8764"),
+            (["outbound dash", "outbound ash"], "http://outbound-dash.localhost:8764/outbound-dash-new"),
+            (["outbound dash old", "outbound ash old"], "http://outbound-dash.localhost:8764/"),
             (["layers live site"], "https://uselayers.com"),
             (["signalflame live site", "signal flame live site"], "https://signalflame.net"),
             (["hvac live site", "hvac bison live site"], "https://hvacbison.com"),
