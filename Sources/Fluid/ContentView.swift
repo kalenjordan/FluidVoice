@@ -3533,14 +3533,19 @@ struct ContentView: View {
             windowTitle: appInfo.windowTitle
         )
 
-        let enhancementInput = DictationEnhancementSuffix.strippingTrigger(from: normalizedTranscribedText)
+        let automaticSubmissionInput = DictationAutomaticSubmissionSuffix.strippingTrigger(
+            from: normalizedTranscribedText
+        )
+        let suppressAutomaticSubmission = automaticSubmissionInput != nil
+        let textForEnhancementCheck = automaticSubmissionInput ?? normalizedTranscribedText
+        let enhancementInput = DictationEnhancementSuffix.strippingTrigger(from: textForEnhancementCheck)
         let shouldUseAI = enhancementInput != nil && DictationAIPostProcessingGate.isProviderConfigured()
         // Only consume the spoken trigger when it can actually invoke AI. The
         // suffix is an explicit override, so it uses the globally selected
         // provider even when ordinary enhancement is Off for this shortcut.
         let textForPostProcessing = shouldUseAI
-            ? (enhancementInput ?? normalizedTranscribedText)
-            : normalizedTranscribedText
+            ? (enhancementInput ?? textForEnhancementCheck)
+            : textForEnhancementCheck
 
         let focusedControlContext = self.recordingFocusedControlContext.flatMap { context in
             context.bundleID.caseInsensitiveCompare(appInfo.bundleId) == .orderedSame ? context : nil
@@ -3777,7 +3782,8 @@ struct ContentView: View {
                 appName: outputAppInfo.name,
                 bundleID: outputAppInfo.bundleId,
                 windowTitle: outputAppInfo.windowTitle,
-                submitTerminalCommand: self.settings.submitTerminalDictationEnabled
+                submitTerminalCommand: self.settings.submitTerminalDictationEnabled,
+                suppressAutomaticSubmission: suppressAutomaticSubmission
             )
             let finalOutputPlan = focusedControlContext.map(DictationAIFieldPolicy.isChromeAddressBar) == true
                 ? baseOutputPlan.submittingWithReturn()

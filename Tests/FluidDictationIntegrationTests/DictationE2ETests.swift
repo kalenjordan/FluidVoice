@@ -1061,6 +1061,31 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertEqual(disabledPlan.steps, [.text("Explain this code")])
     }
 
+    func testDontSubmitSuffixSuppressesAutomaticSubmissionAndIsRemoved() {
+        for suffix in ["don't submit", "do not submit."] {
+            let plan = ASRService.makeDictationLiteralOutputPlan(
+                for: "Explain this code, \(suffix)",
+                bundleID: "com.openai.chat",
+                submitTerminalCommand: true
+            )
+
+            XCTAssertEqual(plan.steps, [.text("Explain this code")])
+            XCTAssertTrue(plan.suppressesAutomaticSubmission)
+            XCTAssertEqual(plan.submittingWithReturn().steps, [.text("Explain this code")])
+        }
+    }
+
+    func testDontSubmitOnlyMatchesAtEndOfRecording() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "Don't submit this until tomorrow",
+            bundleID: "com.openai.chat",
+            submitTerminalCommand: true
+        )
+
+        XCTAssertEqual(plan.steps, [.text("Don't submit this until tomorrow"), .pressReturn])
+        XCTAssertFalse(plan.suppressesAutomaticSubmission)
+    }
+
     func testTerminalOutputPlanUsesDeliveryAppRatherThanRecordingApp() {
         // A user can start dictation in one app, then focus a terminal before
         // FluidVoice delivers the result. The terminal destination controls
@@ -2081,12 +2106,47 @@ final class DictationE2ETests: XCTestCase {
             DictationEnhancementSuffix.strippingTrigger(from: "Polish"),
             ""
         )
+        XCTAssertEqual(
+            DictationEnhancementSuffix.strippingTrigger(from: "make this clearer enhance."),
+            "make this clearer"
+        )
     }
 
     func testDictationEnhancementSuffixIgnoresNonFinalWord() {
         XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "polish this sentence"))
         XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "polished"))
-        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhance"))
+        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhance this sentence"))
+        XCTAssertNil(DictationEnhancementSuffix.strippingTrigger(from: "enhanced"))
+    }
+
+    func testPolishAndDontSubmitSuffixesCompose() {
+        let withoutSubmissionDirective = DictationAutomaticSubmissionSuffix.strippingTrigger(
+            from: "make this clearer polish, don't submit."
+        )
+        XCTAssertEqual(withoutSubmissionDirective, "make this clearer polish")
+        XCTAssertEqual(
+            withoutSubmissionDirective.flatMap(DictationEnhancementSuffix.strippingTrigger),
+            "make this clearer"
+        )
+
+        let enhancedOutputPlan = ASRService.makeDictationLiteralOutputPlan(
+            for: "This is clearer.",
+            bundleID: "com.openai.chat",
+            submitTerminalCommand: true,
+            suppressAutomaticSubmission: true
+        )
+        XCTAssertEqual(enhancedOutputPlan.steps, [.text("This is clearer.")])
+    }
+
+    func testEnhanceAndDontSubmitSuffixesCompose() {
+        let withoutSubmissionDirective = DictationAutomaticSubmissionSuffix.strippingTrigger(
+            from: "make this clearer enhance, don't submit."
+        )
+        XCTAssertEqual(withoutSubmissionDirective, "make this clearer enhance")
+        XCTAssertEqual(
+            withoutSubmissionDirective.flatMap(DictationEnhancementSuffix.strippingTrigger),
+            "make this clearer"
+        )
     }
 
     func testDictationOutputPlanCanAppendChromeAddressBarSubmission() {

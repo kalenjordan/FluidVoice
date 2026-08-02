@@ -42,7 +42,17 @@ enum DictationAIFieldPolicy {
 
 enum DictationEnhancementSuffix {
     static func strippingTrigger(from text: String) -> String? {
-        let pattern = #"(?i)(?:^|\s)polish[\p{P}\p{S}]*\s*$"#
+        let pattern = #"(?i)(?:^|\s)(?:polish|enhance)[\p{P}\p{S}]*\s*$"#
+        guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
+
+        return String(text[..<range.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+enum DictationAutomaticSubmissionSuffix {
+    static func strippingTrigger(from text: String) -> String? {
+        let pattern = #"(?i)(?:[,;:]?\s+)(?:don['’]?t|do\s+not)\s+submit[.!?]*\s*$"#
         guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
 
         return String(text[..<range.lowerBound])

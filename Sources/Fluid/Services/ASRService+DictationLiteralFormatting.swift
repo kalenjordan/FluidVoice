@@ -9,6 +9,12 @@ struct DictationLiteralOutputPlan: Equatable {
     }
 
     let steps: [Step]
+    let suppressesAutomaticSubmission: Bool
+
+    init(steps: [Step], suppressesAutomaticSubmission: Bool = false) {
+        self.steps = steps
+        self.suppressesAutomaticSubmission = suppressesAutomaticSubmission
+    }
 
     var performsAction: Bool {
         if self.steps.contains(where: {
@@ -88,8 +94,13 @@ struct DictationLiteralOutputPlan: Equatable {
     }
 
     func submittingWithReturn() -> DictationLiteralOutputPlan {
-        guard self.steps.last != .pressReturn else { return self }
-        return DictationLiteralOutputPlan(steps: self.steps + [.pressReturn])
+        guard !self.suppressesAutomaticSubmission,
+              self.steps.last != .pressReturn
+        else { return self }
+        return DictationLiteralOutputPlan(
+            steps: self.steps + [.pressReturn],
+            suppressesAutomaticSubmission: self.suppressesAutomaticSubmission
+        )
     }
 }
 
@@ -131,14 +142,16 @@ extension ASRService {
         appName: String? = nil,
         bundleID: String? = nil,
         windowTitle: String? = nil,
-        submitTerminalCommand: Bool = false
+        submitTerminalCommand: Bool = false,
+        suppressAutomaticSubmission: Bool = false
     ) -> DictationLiteralOutputPlan {
         DictationLiteralFormatter.makeOutputPlan(
             for: text,
             appName: appName,
             bundleID: bundleID,
             windowTitle: windowTitle,
-            submitTerminalCommand: submitTerminalCommand
+            submitTerminalCommand: submitTerminalCommand,
+            suppressAutomaticSubmission: suppressAutomaticSubmission
         )
     }
 
@@ -307,10 +320,13 @@ private enum DictationLiteralFormatter {
         appName: String? = nil,
         bundleID: String? = nil,
         windowTitle: String? = nil,
-        submitTerminalCommand: Bool = false
+        submitTerminalCommand: Bool = false,
+        suppressAutomaticSubmission: Bool = false
     ) -> DictationLiteralOutputPlan {
+        let strippedSubmissionText = DictationAutomaticSubmissionSuffix.strippingTrigger(from: text)
+        let shouldSuppressAutomaticSubmission = suppressAutomaticSubmission || strippedSubmissionText != nil
         let formattedText = self.applyTerminalLiteralAutocompleteSpacing(
-            text,
+            strippedSubmissionText ?? text,
             appName: appName,
             bundleID: bundleID,
             windowTitle: windowTitle
@@ -413,6 +429,7 @@ private enum DictationLiteralFormatter {
         }
         var steps: [DictationLiteralOutputPlan.Step] = [.text(formattedText)]
         if submitTerminalCommand,
+           !shouldSuppressAutomaticSubmission,
            !formattedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            (
                self.isTerminalApp(appName: appName, bundleID: bundleID) ||
@@ -421,7 +438,10 @@ private enum DictationLiteralFormatter {
         {
             steps.append(.pressReturn)
         }
-        return DictationLiteralOutputPlan(steps: steps)
+        return DictationLiteralOutputPlan(
+            steps: steps,
+            suppressesAutomaticSubmission: shouldSuppressAutomaticSubmission
+        )
     }
 
     private static func isClearCommitNextCommand(
