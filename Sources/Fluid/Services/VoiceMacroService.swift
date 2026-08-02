@@ -314,6 +314,16 @@ enum VoiceMacroService {
         speechRecognitionWords: ["codex": ["codec", "codecs"]],
         outboundRoutes: [
             (["outbound dash", "outbound ash"], "http://outbound-dash.localhost:8764"),
+            (["layers live site"], "https://uselayers.com"),
+            (["signalflame live site", "signal flame live site"], "https://signalflame.net"),
+            (["hvac live site", "hvac bison live site"], "https://hvacbison.com"),
+            (["commerce leak live site"], "https://commerceleak.com"),
+            (["commerce land live site", "commerceland live site"], "https://commerceland.app"),
+            (["ordellan live site"], "https://ordellan.com"),
+            (["matchbook live site"], "https://matchbook.chat"),
+            (["outbound farm live site"], "https://outbound.farm"),
+            (["st3 live site", "s t three live site"], "https://st3aero.com"),
+            (["linkedin live site", "linkedin crm live site"], "https://www.linkedin.com"),
             (["signalflame site", "signal flame site"], "http://signalflame.localhost:8780"),
             (["hvac site"], "http://hvac.localhost:8782"),
             (["commerce leak site"], "http://commerceleak.localhost:8781"),
@@ -3088,7 +3098,21 @@ enum VoiceMacroService {
         }
 
         let baseURL = url.absoluteString
-        let script = """
+        let script = self.openOrFocusURLInChromeScript(baseURL: baseURL)
+
+        var error: NSDictionary?
+        let result = NSAppleScript(source: script)?.executeAndReturnError(&error)
+        guard error == nil, let openedURL = result?.stringValue else { return false }
+        return openedURL == baseURL
+            || openedURL == "\(baseURL)/"
+            || openedURL.hasPrefix("\(baseURL)?")
+            || openedURL.hasPrefix("\(baseURL)#")
+            || openedURL.hasPrefix("\(baseURL)/?")
+            || openedURL.hasPrefix("\(baseURL)/#")
+    }
+
+    static func openOrFocusURLInChromeScript(baseURL: String) -> String {
+        """
         tell application "Google Chrome"
             repeat with windowIndex from 1 to count of windows
                     set chromeWindow to window windowIndex
@@ -3103,6 +3127,7 @@ enum VoiceMacroService {
                         set active tab index of chromeWindow to tabIndex
                         set index of chromeWindow to 1
                         activate
+                        reload tab tabIndex of chromeWindow
                         return URL of active tab of chromeWindow
                     end if
                 end repeat
@@ -3121,16 +3146,6 @@ enum VoiceMacroService {
             return URL of active tab of front window
         end tell
         """
-
-        var error: NSDictionary?
-        let result = NSAppleScript(source: script)?.executeAndReturnError(&error)
-        guard error == nil, let openedURL = result?.stringValue else { return false }
-        return openedURL == baseURL
-            || openedURL == "\(baseURL)/"
-            || openedURL.hasPrefix("\(baseURL)?")
-            || openedURL.hasPrefix("\(baseURL)#")
-            || openedURL.hasPrefix("\(baseURL)/?")
-            || openedURL.hasPrefix("\(baseURL)/#")
     }
 
     @MainActor

@@ -1047,6 +1047,30 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Site."),
             URL(string: "http://outbound.farm.localhost:8787")
         )
+        let liveSiteCommands = [
+            ("Layers Live Site.", "https://uselayers.com"),
+            ("SignalFlame Live Site.", "https://signalflame.net"),
+            ("Signal Flame Live Site.", "https://signalflame.net"),
+            ("HVAC Live Site.", "https://hvacbison.com"),
+            ("HVAC Bison Live Site.", "https://hvacbison.com"),
+            ("Commerce Leak Live Site.", "https://commerceleak.com"),
+            ("Commerce Land Live Site.", "https://commerceland.app"),
+            ("Commerceland Live Site.", "https://commerceland.app"),
+            ("Ordellan Live Site.", "https://ordellan.com"),
+            ("Matchbook Live Site.", "https://matchbook.chat"),
+            ("Outbound Farm Live Site.", "https://outbound.farm"),
+            ("ST3 Live Site.", "https://st3aero.com"),
+            ("S T three Live Site.", "https://st3aero.com"),
+            ("LinkedIn Live Site.", "https://www.linkedin.com"),
+            ("LinkedIn CRM Live Site.", "https://www.linkedin.com"),
+        ]
+        for (transcript, expectedURL) in liveSiteCommands {
+            XCTAssertEqual(
+                VoiceMacroService.outboundDashURL(transcript: transcript),
+                URL(string: expectedURL),
+                transcript
+            )
+        }
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Signalflame Dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
@@ -1179,6 +1203,18 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertNil(VoiceMacroService.googleSearchURL(transcript: "Google"))
         XCTAssertNil(VoiceMacroService.googleSearchURL(transcript: "Search Google for voice agents"))
+    }
+
+    func testOpenOrFocusChromeURLReloadsAnExistingMatchingTab() {
+        let script = VoiceMacroService.openOrFocusURLInChromeScript(
+            baseURL: "https://matchbook.chat"
+        )
+
+        XCTAssertTrue(script.contains("reload tab tabIndex of chromeWindow"))
+        XCTAssertEqual(script.components(separatedBy: "reload ").count - 1, 1)
+        XCTAssertTrue(script.contains(
+            "make new tab at end of tabs with properties {URL:\"https://matchbook.chat\"}"
+        ))
     }
 
     func testChromeURLCommandResolvesClientDashboardAndIsAppScoped() {
