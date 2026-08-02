@@ -309,6 +309,7 @@ enum VoiceMacroService {
             "commerce-leak": ["commerce leak"],
             "hvac": ["h fact"],
             "ordellan": ["or dell and", "or dell in", "or dallin", "or dall in", "or delin"],
+            "yedric": ["yedger"],
         ],
         applications: ["chatgpt": "chatgptclassic"],
         speechRecognitionWords: ["codex": ["codec", "codecs"]],
@@ -362,6 +363,10 @@ enum VoiceMacroService {
             (
                 ["layers dash"],
                 "http://outbound-dash.localhost:8764/clients/layers"
+            ),
+            (
+                ["outbound farm next dash"],
+                "http://outbound-dash.localhost:8764/clients/outbound-farm-next"
             ),
             (["outbound farm dash"], "http://outbound-dash.localhost:8764/clients/outbound-farm"),
             (["hvac dash"], "http://outbound-dash.localhost:8764/clients/hvac"),

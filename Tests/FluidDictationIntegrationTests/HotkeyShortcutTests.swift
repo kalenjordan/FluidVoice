@@ -278,6 +278,7 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.HerdrWorkspace(label: "commerce-land", workspaceID: "w3"),
             VoiceMacroService.HerdrWorkspace(label: "commerce-leak", workspaceID: "w4"),
             VoiceMacroService.HerdrWorkspace(label: "ordellan", workspaceID: "w5"),
+            VoiceMacroService.HerdrWorkspace(label: "yedric", workspaceID: "w6"),
         ]
 
         XCTAssertEqual(
@@ -299,6 +300,10 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(
             VoiceMacroService.resolveWorkspace(query: "or delin", workspaces: workspaces)?.workspaceID,
             "w5"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "Yedger", workspaces: workspaces)?.workspaceID,
+            "w6"
         )
         XCTAssertNil(VoiceMacroService.resolveWorkspace(query: "commerce", workspaces: workspaces))
 
@@ -1172,6 +1177,10 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Next Dash."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm-next")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "H fact dash."),
             URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
         )
@@ -1252,6 +1261,13 @@ final class HotkeyShortcutTests: XCTestCase {
                 bundleID: "com.google.Chrome"
             ),
             "http://outbound-dash.localhost:8764/clients/hvac"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "open outbound farm next dash",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash.localhost:8764/clients/outbound-farm-next"
         )
         XCTAssertNil(VoiceMacroService.chromeURL(
             transcript: "open layers dash",
