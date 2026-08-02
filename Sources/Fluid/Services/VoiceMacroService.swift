@@ -3067,11 +3067,28 @@ enum VoiceMacroService {
     }
 
     @MainActor
-    static func openOrFocusURLInChrome(_ url: URL) -> Bool {
+    static func openOrFocusURLInChrome(_ url: URL) async -> Bool {
+        guard let chromeURL = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.google.Chrome"
+        ) else {
+            return false
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.addsToRecentItems = false
+        do {
+            _ = try await NSWorkspace.shared.openApplication(
+                at: chromeURL,
+                configuration: configuration
+            )
+        } catch {
+            return false
+        }
+
         let baseURL = url.absoluteString
         let script = """
         tell application "Google Chrome"
-            launch
             repeat with windowIndex from 1 to count of windows
                     set chromeWindow to window windowIndex
                     repeat with tabIndex from 1 to count of tabs of chromeWindow
@@ -3085,7 +3102,7 @@ enum VoiceMacroService {
                         set active tab index of chromeWindow to tabIndex
                         set index of chromeWindow to 1
                         activate
-                        return true
+                        return URL of active tab of chromeWindow
                     end if
                 end repeat
             end repeat
@@ -3100,13 +3117,19 @@ enum VoiceMacroService {
                 end tell
             end if
             activate
-            return true
+            return URL of active tab of front window
         end tell
         """
 
         var error: NSDictionary?
         let result = NSAppleScript(source: script)?.executeAndReturnError(&error)
-        return result?.booleanValue == true && error == nil
+        guard error == nil, let openedURL = result?.stringValue else { return false }
+        return openedURL == baseURL
+            || openedURL == "\(baseURL)/"
+            || openedURL.hasPrefix("\(baseURL)?")
+            || openedURL.hasPrefix("\(baseURL)#")
+            || openedURL.hasPrefix("\(baseURL)/?")
+            || openedURL.hasPrefix("\(baseURL)/#")
     }
 
     @MainActor

@@ -3151,7 +3151,7 @@ struct ContentView: View {
                 "Running open Gmail voice command",
                 source: "ContentView"
             )
-            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            let succeeded = await VoiceMacroService.openOrFocusURLInChrome(url)
             recordAction(succeeded, "Action Type: Open Gmail\nURL: \(url.absoluteString)")
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
@@ -3170,7 +3170,7 @@ struct ContentView: View {
                 "Running open Google Calendar voice command",
                 source: "ContentView"
             )
-            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            let succeeded = await VoiceMacroService.openOrFocusURLInChrome(url)
             recordAction(succeeded, "Action Type: Open Google Calendar\nURL: \(url.absoluteString)")
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
@@ -3189,7 +3189,7 @@ struct ContentView: View {
                 "Running Google search voice command",
                 source: "ContentView"
             )
-            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            let succeeded = await VoiceMacroService.openOrFocusURLInChrome(url)
             recordAction(succeeded, "Action Type: Google search\nURL: \(url.absoluteString)")
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
@@ -3318,7 +3318,7 @@ struct ContentView: View {
                 "Running Outbound Dash voice command: \(url.absoluteString)",
                 source: "ContentView"
             )
-            let succeeded = VoiceMacroService.openOrFocusURLInChrome(url)
+            let succeeded = await VoiceMacroService.openOrFocusURLInChrome(url)
             recordAction(succeeded, "Action Type: Open Outbound Dash\nURL: \(url.absoluteString)")
             DebugLogger.shared.info(
                 "Outbound Dash voice command finished: success=\(succeeded)",
