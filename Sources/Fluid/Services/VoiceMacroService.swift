@@ -318,7 +318,7 @@ enum VoiceMacroService {
         applications: ["chatgpt": "chatgptclassic"],
         speechRecognitionWords: ["codex": ["codec", "codecs"]],
         outboundRoutes: [
-            (["outbound dash", "outbound ash"], "http://outbound-dash.localhost:8764/outbound-dash-new/"),
+            (["outbound dash", "outbound ash"], "http://outbound-dash.localhost:8764/"),
             (["layers live site"], "https://uselayers.com"),
             (["signalflame live site", "signal flame live site"], "https://signalflame.net"),
             (["hvac live site", "hvac bison live site"], "https://hvacbison.com"),
@@ -338,11 +338,11 @@ enum VoiceMacroService {
             (["outbound farm site"], "http://outbound.farm.localhost:8787"),
             (
                 ["signalflame dash", "signal flame dash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/signalflame"
+                "http://outbound-dash.localhost:8764/clients/signalflame"
             ),
             (
                 ["matchbook dash", "matt s book dash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/matchbook"
+                "http://outbound-dash.localhost:8764/clients/matchbook"
             ),
             (
                 [
@@ -350,34 +350,34 @@ enum VoiceMacroService {
                     "commerce land act", "commerceland dash", "carmer s landash",
                     "carmerce land dash",
                 ],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land"
+                "http://outbound-dash.localhost:8764/clients/commerce-land"
             ),
             (
                 ["commerce leak dash", "commerce leaked ash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-leak"
+                "http://outbound-dash.localhost:8764/clients/commerce-leak"
             ),
             (
                 ["linkedin crm", "linkedin dash", "linkedin crm dash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/linkedin-crm"
+                "http://outbound-dash.localhost:8764/clients/linkedin-crm"
             ),
             (
                 ["st3 dash", "s t three dash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/st3aero"
+                "http://outbound-dash.localhost:8764/clients/st3aero"
             ),
             (
                 ["layers dash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/layers"
+                "http://outbound-dash.localhost:8764/clients/layers"
             ),
             (
                 ["outbound farm next dash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/outbound-farm-next"
+                "http://outbound-dash.localhost:8764/clients/outbound-farm-next"
             ),
             (
                 ["yedric dash", "yedrick dash", "yedger dash"],
-                "http://outbound-dash.localhost:8764/outbound-dash-new/clients/yedric"
+                "http://outbound-dash.localhost:8764/clients/yedric"
             ),
-            (["outbound farm dash"], "http://outbound-dash.localhost:8764/outbound-dash-new/clients/outbound-farm"),
-            (["hvac dash"], "http://outbound-dash.localhost:8764/outbound-dash-new/clients/hvac"),
+            (["outbound farm dash"], "http://outbound-dash.localhost:8764/clients/outbound-farm"),
+            (["hvac dash"], "http://outbound-dash.localhost:8764/clients/hvac"),
         ]
     )
     private static let herdrCallerEnvironmentVariables: Set<String> = [
@@ -724,7 +724,7 @@ enum VoiceMacroService {
         }
         if let route = self.synonyms.outboundRoutes.first(where: { $0.phrases.contains(phrase) }) {
             guard useLegacyDash else { return URL(string: route.url) }
-            let newDashPrefix = "http://outbound-dash.localhost:8764/outbound-dash-new/"
+            let newDashPrefix = "http://outbound-dash.localhost:8764/"
             guard route.url.hasPrefix(newDashPrefix) else { return nil }
             return URL(string: route.url.replacingOccurrences(
                 of: newDashPrefix,
@@ -795,7 +795,7 @@ enum VoiceMacroService {
 
         let slug = self.canonicalProjectName(for: clientName)
             ?? clientName.replacingOccurrences(of: " ", with: "-")
-        return "http://outbound-dash.localhost:8764/outbound-dash-new/clients/\(slug)"
+        return "http://outbound-dash.localhost:8764/clients/\(slug)"
     }
 
     private static func outboundDashClientURL(slug: String, useLegacyDash: Bool) -> URL? {
