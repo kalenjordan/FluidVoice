@@ -61,6 +61,18 @@ final class HotkeyShortcutTests: XCTestCase {
 
     func testBareFrequentWorkspaceCommandsSupportTrailingPrompts() {
         XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "ChatGPT."),
+            "chatgpt"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Chat GPT."),
+            "chatgpt"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Chat GBT."),
+            "chatgpt"
+        )
+        XCTAssertEqual(
             VoiceMacroService.herdrWorkspaceQuery(transcript: "Comms."),
             "comms"
         )
@@ -146,6 +158,13 @@ final class HotkeyShortcutTests: XCTestCase {
         )
     }
 
+    func testEditChatGPTRoutesToWorkspace() {
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(transcript: "Edit ChatGPT."),
+            "ChatGPT."
+        )
+    }
+
     func testTrailingEditWorkspaceMustConsumeTheEndOfTheTranscript() async {
         let conversationalResult = await VoiceMacroService.validatedHerdrWorkspaceQuery(
             transcript: "What if I just say edit router normally is it can always translate it"
@@ -195,6 +214,25 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(
             VoiceMacroService.applicationLaunchQuery(transcript: "open Key Mapper application"),
             "Key Mapper"
+        )
+    }
+
+    func testBareChatGPTPrefersWorkspaceOverApplicationLaunch() {
+        let chatGPT = URL(fileURLWithPath: "/Applications/ChatGPT.app")
+        XCTAssertNil(VoiceMacroService.applicationLaunchQuery(
+            transcript: "ChatGPT.",
+            candidates: [chatGPT]
+        ))
+        XCTAssertNil(VoiceMacroService.applicationLaunchQuery(
+            transcript: "Chat GBT.",
+            candidates: [chatGPT]
+        ))
+        XCTAssertEqual(
+            VoiceMacroService.applicationLaunchQuery(
+                transcript: "Launch ChatGPT.",
+                candidates: [chatGPT]
+            ),
+            "ChatGPT"
         )
     }
 

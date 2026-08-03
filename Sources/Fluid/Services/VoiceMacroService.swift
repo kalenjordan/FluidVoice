@@ -295,6 +295,9 @@ enum VoiceMacroService {
             "router": "router",
         ],
         bareHerdrWorkspaces: [
+            "chat gbt": "chatgpt",
+            "chat gpt": "chatgpt",
+            "chatgpt": "chatgpt",
             "coms": "comms",
             "comms": "comms",
             "fluid voice": "fluidvoice",
@@ -586,6 +589,9 @@ enum VoiceMacroService {
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard self.synonyms.bareHerdrWorkspaces[self.normalizedPhrase(trimmed)] == nil else {
+            return nil
+        }
         guard let expression = try? NSRegularExpression(
             pattern: #"^open\s+(?:the\s+)?(.+?)\s+(?:app|application)$"#,
             options: .caseInsensitive
