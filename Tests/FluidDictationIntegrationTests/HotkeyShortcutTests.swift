@@ -402,6 +402,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testHardRefreshCommandIsExactAndScopedToChrome() {
+        XCTAssertTrue(VoiceMacroService.isChromeHardRefreshCommand(
+            transcript: "Hard refresh.",
+            bundleID: "com.google.Chrome"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeHardRefreshCommand(
+            transcript: "Hard refresh",
+            bundleID: "com.apple.Safari"
+        ))
+        XCTAssertFalse(VoiceMacroService.isChromeHardRefreshCommand(
+            transcript: "Refresh",
+            bundleID: "com.google.Chrome"
+        ))
+    }
+
     func testCopyURLCommandIsScopedToChrome() {
         XCTAssertTrue(VoiceMacroService.isChromeCopyURLCommand(
             transcript: "Copy URL.",
@@ -1221,6 +1236,24 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "https://mail.google.com/mail/u/0/#search/fdsafdsafdsafdsafdsafdsafdsa")
         )
         XCTAssertNil(VoiceMacroService.gmailURL(transcript: "Open my Gmail"))
+    }
+
+    func testNetflixCommandIsExactAndGlobal() {
+        XCTAssertTrue(VoiceMacroService.isNetflixCommand(transcript: "Netflix."))
+        XCTAssertTrue(VoiceMacroService.isNetflixCommand(transcript: "NETFLIX!"))
+        XCTAssertFalse(VoiceMacroService.isNetflixCommand(transcript: "Open Netflix"))
+    }
+
+    func testNetflixChromeScriptAlwaysCreatesANewWindow() {
+        let script = VoiceMacroService.openNewChromeWindowScript(
+            url: "https://www.netflix.com/"
+        )
+
+        XCTAssertTrue(script.contains("set chromeWindow to make new window"))
+        XCTAssertTrue(script.contains(
+            "set URL of active tab of chromeWindow to \"https://www.netflix.com/\""
+        ))
+        XCTAssertFalse(script.contains("make new tab"))
     }
 
     func testGoogleCalendarCommandIsExactAndGlobal() {

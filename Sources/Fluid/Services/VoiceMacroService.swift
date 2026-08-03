@@ -620,6 +620,11 @@ enum VoiceMacroService {
             && self.normalizedPhrase(transcript) == "refresh"
     }
 
+    static func isChromeHardRefreshCommand(transcript: String, bundleID: String) -> Bool {
+        self.chromeBundleIDs.contains(bundleID.lowercased())
+            && self.normalizedPhrase(transcript) == "hard refresh"
+    }
+
     static func isChromeCopyURLCommand(transcript: String, bundleID: String) -> Bool {
         self.chromeBundleIDs.contains(bundleID.lowercased())
             && self.normalizedPhrase(transcript) == "copy url"
@@ -632,6 +637,14 @@ enum VoiceMacroService {
 
     static func refreshChrome(targetPID: pid_t) -> Bool {
         self.postKey(CGKeyCode(kVK_ANSI_R), flags: .maskCommand, to: targetPID)
+    }
+
+    static func hardRefreshChrome(targetPID: pid_t) -> Bool {
+        self.postKey(
+            CGKeyCode(kVK_ANSI_R),
+            flags: [.maskCommand, .maskShift],
+            to: targetPID
+        )
     }
 
     static func closeChromeTab(targetPID: pid_t) -> Bool {
@@ -734,6 +747,10 @@ enum VoiceMacroService {
     static func personalFinancesURL(transcript: String) -> URL? {
         guard self.normalizedPhrase(transcript) == "personal finances" else { return nil }
         return URL(string: "https://finances-dev.kalenjordan.com/")
+    }
+
+    static func isNetflixCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "netflix"
     }
 
     static func googleSearchURL(transcript: String) -> URL? {
@@ -3160,6 +3177,61 @@ enum VoiceMacroService {
             end if
             activate
             return URL of active tab of front window
+        end tell
+        """
+    }
+
+    @MainActor
+    static func openNetflixInNewChromeWindow() async -> Bool {
+        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
+              let primaryScreen = NSScreen.screens.first,
+              let chromeURL = NSWorkspace.shared.urlForApplication(
+                  withBundleIdentifier: "com.google.Chrome"
+              )
+        else {
+            return false
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.addsToRecentItems = false
+        let application: NSRunningApplication
+        do {
+            application = try await NSWorkspace.shared.openApplication(
+                at: chromeURL,
+                configuration: configuration
+            )
+        } catch {
+            return false
+        }
+
+        var error: NSDictionary?
+        let result = NSAppleScript(source: self.openNewChromeWindowScript(
+            url: "https://www.netflix.com/"
+        ))?.executeAndReturnError(&error)
+        guard error == nil, result?.stringValue?.hasPrefix("https://www.netflix.com/") == true else {
+            return false
+        }
+
+        try? await Task.sleep(for: .milliseconds(150))
+        return self.moveFocusedWindow(
+            operation: "netflix-top-left",
+            targetPID: application.processIdentifier,
+            to: self.windowTopLeftFrame(in: screen.visibleFrame),
+            screen: screen,
+            primaryScreenMaxY: primaryScreen.frame.maxY,
+            allowMainWindowFallback: true
+        )
+    }
+
+    static func openNewChromeWindowScript(url: String) -> String {
+        """
+        tell application "Google Chrome"
+            set chromeWindow to make new window
+            set URL of active tab of chromeWindow to "\(url)"
+            set index of chromeWindow to 1
+            activate
+            return URL of active tab of chromeWindow
         end tell
         """
     }

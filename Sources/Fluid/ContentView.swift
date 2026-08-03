@@ -2678,6 +2678,30 @@ struct ContentView: View {
 
         if route == .normal,
            let targetPID = typingTarget.pid,
+           VoiceMacroService.isChromeHardRefreshCommand(
+               transcript: transcribedText,
+               bundleID: appInfo.bundleId
+           )
+        {
+            DebugLogger.shared.info("Running Chrome hard refresh voice command", source: "ContentView")
+            let succeeded = VoiceMacroService.hardRefreshChrome(targetPID: targetPID)
+            recordAction(succeeded, "Action Type: Hard refresh Chrome")
+            DebugLogger.shared.info(
+                "Chrome hard refresh voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not hard refresh the Chrome page.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           let targetPID = typingTarget.pid,
            VoiceMacroService.isChromeRefreshCommand(
                transcript: transcribedText,
                bundleID: appInfo.bundleId
@@ -3156,6 +3180,25 @@ struct ContentView: View {
             if !succeeded {
                 self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
                 VoiceMacroService.showStatusToast("Could not open Gmail.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
+           VoiceMacroService.isNetflixCommand(transcript: transcribedText)
+        {
+            DebugLogger.shared.info(
+                "Running Netflix voice command",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.openNetflixInNewChromeWindow()
+            recordAction(succeeded, "Action Type: Open Netflix in new Chrome window")
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+                VoiceMacroService.showStatusToast("Could not open Netflix.")
             }
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
