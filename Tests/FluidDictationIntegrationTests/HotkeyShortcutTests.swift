@@ -1085,11 +1085,19 @@ final class HotkeyShortcutTests: XCTestCase {
     func testOutboundDashCommandIsExactAndGlobal() {
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Dash Old."),
             URL(string: "http://outbound-dash.localhost:8764/")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Signal Flame Dash Old."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Dash Old."),
+            URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "SignalFlame Site."),
@@ -1149,59 +1157,59 @@ final class HotkeyShortcutTests: XCTestCase {
         }
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Signalflame Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/signalflame")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Signal Flame Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/signalflame")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Matchbook Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/matchbook")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/matchbook")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Matt's book dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/matchbook")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/matchbook")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Landash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Ash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Act."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Carmer's Landash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Carmerce Land Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerceland Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Leak Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-leak")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce leaked Ash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-leak")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound ash."),
-            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound ash old."),
@@ -1209,59 +1217,59 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Ordellan Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/ordellan")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Or Dell and Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/ordellan")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Or Delin Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/ordellan")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/ordellan")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/linkedin-crm")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/linkedin-crm")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/linkedin-crm")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "ST3 Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/st3aero")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "S T three dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/st3aero")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/st3aero")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "HVAC Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/hvac")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Layers Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/layers")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/layers")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/outbound-farm")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Next Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm-next")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/outbound-farm-next")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Yedrick Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/yedric")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/yedric")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "H fact dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
+            URL(string: "http://outbound-dash.localhost:8764/outbound-dash-new/clients/hvac")
         )
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"
@@ -1337,49 +1345,49 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "Open layers dash.",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/layers"
+            "http://outbound-dash.localhost:8764/outbound-dash-new/clients/layers"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
                 transcript: "open matchbook dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/matchbook"
+            "http://outbound-dash.localhost:8764/outbound-dash-new/clients/matchbook"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
                 transcript: "open commerce land dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/commerce-land"
+            "http://outbound-dash.localhost:8764/outbound-dash-new/clients/commerce-land"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
                 transcript: "open or delin dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/ordellan"
+            "http://outbound-dash.localhost:8764/outbound-dash-new/clients/ordellan"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
                 transcript: "open h fact dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/hvac"
+            "http://outbound-dash.localhost:8764/outbound-dash-new/clients/hvac"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
                 transcript: "open outbound farm next dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/outbound-farm-next"
+            "http://outbound-dash.localhost:8764/outbound-dash-new/clients/outbound-farm-next"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
                 transcript: "open Yedrick dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/yedric"
+            "http://outbound-dash.localhost:8764/outbound-dash-new/clients/yedric"
         )
         XCTAssertNil(VoiceMacroService.chromeURL(
             transcript: "open layers dash",
