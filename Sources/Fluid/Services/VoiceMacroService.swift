@@ -301,6 +301,7 @@ enum VoiceMacroService {
             "fluidvoice": "fluidvoice",
             "nudges": "nudges",
             "skills": "skills",
+            "shopping": "shopping",
         ],
         projects: [
             "comms": ["coms", "comms workspace"],
