@@ -569,14 +569,21 @@ private enum DictationLiteralFormatter {
             return nil
         }
 
-        let prefix = "/clear and "
+        let prefix = "/clear"
         guard text.count > prefix.count,
               text.prefix(prefix.count).lowercased() == prefix
         else {
             return nil
         }
-        let continuation = text.dropFirst(prefix.count)
+        let boundaryIndex = text.index(text.startIndex, offsetBy: prefix.count)
+        guard text[boundaryIndex].isWhitespace else { return nil }
+
+        var continuation = text[boundaryIndex...]
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        if continuation.lowercased().hasPrefix("and ") {
+            continuation = continuation.dropFirst(4)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         return continuation.isEmpty ? nil : continuation
     }
 

@@ -917,6 +917,34 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
+    func testClearWithFollowUpDoesNotRequireAnd() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "/clear Is it possible to do a hard Chrome refresh?",
+                appName: "Ghostty",
+                bundleID: "com.mitchellh.ghostty"
+            ).steps,
+            [
+                .text("/clear"),
+                .pressReturn,
+                .pause(milliseconds: 400),
+                .text("Is it possible to do a hard Chrome refresh?"),
+                .pressReturn,
+            ]
+        )
+    }
+
+    func testClearFollowUpRequiresCommandBoundary() {
+        XCTAssertEqual(
+            ASRService.makeDictationLiteralOutputPlan(
+                for: "/clearance details",
+                appName: "Ghostty",
+                bundleID: "com.mitchellh.ghostty"
+            ).steps,
+            [.text("/clearance details")]
+        )
+    }
+
     func testClearFollowUpUsesSharedCodexIdleReadiness() {
         XCTAssertTrue(VoiceMacroService.isCodexPaneReady(
             agent: "codex",
