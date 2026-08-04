@@ -394,6 +394,29 @@ final class HotkeyShortcutTests: XCTestCase {
         )
     }
 
+    func testLocalRepoResolutionSupportsUniqueTypoMatch() {
+        let fluidvoice = URL(fileURLWithPath: "/Users/kalen/repos/fluidvoice")
+        let comms = URL(fileURLWithPath: "/Users/kalen/repos/comms")
+
+        XCTAssertEqual(
+            VoiceMacroService.resolveLocalRepoURL(
+                query: "fluidvoce",
+                repoURLs: [comms, fluidvoice]
+            ),
+            fluidvoice
+        )
+    }
+
+    func testLocalRepoResolutionRejectsAmbiguousTypoMatch() {
+        let charted = URL(fileURLWithPath: "/Users/kalen/repos/charted")
+        let charred = URL(fileURLWithPath: "/Users/kalen/repos/charred")
+
+        XCTAssertNil(VoiceMacroService.resolveLocalRepoURL(
+            query: "chared",
+            repoURLs: [charted, charred]
+        ))
+    }
+
     func testCodexStatusCommandSupportsCommonRecognitionVariant() {
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codex status."))
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codec status"))

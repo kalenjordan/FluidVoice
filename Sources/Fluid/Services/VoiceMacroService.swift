@@ -2349,12 +2349,25 @@ enum VoiceMacroService {
 
     static func resolveLocalRepoURL(query: String, repoURLs: [URL]) -> URL? {
         let normalizedQuery = self.normalizedPhrase(query)
-        let repoName = self.canonicalProjectName(for: normalizedQuery)
-            ?? self.localRepoAliases[normalizedQuery]
+        let repoName = self.localRepoAliases[normalizedQuery]
+            ?? self.canonicalProjectName(for: normalizedQuery)
             ?? normalizedQuery
-        return repoURLs.first {
-            self.normalizedPhrase($0.lastPathComponent) == repoName
+
+        if let exact = repoURLs.first(where: {
+            self.normalizedPhrase($0.lastPathComponent) == self.normalizedPhrase(repoName)
+        }) {
+            return exact
         }
+
+        let scored = repoURLs.map {
+            ($0, self.editDistance(repoName, self.normalizedPhrase($0.lastPathComponent)))
+        }.sorted { $0.1 < $1.1 }
+        guard let best = scored.first else { return nil }
+
+        let maximumDistance = max(1, min(3, repoName.count / 4))
+        guard best.1 <= maximumDistance else { return nil }
+        guard scored.count == 1 || scored[1].1 > best.1 else { return nil }
+        return best.0
     }
 
     private static func isUnusedCodexPane(_ pane: HerdrPaneListResponse.Pane) -> Bool {
