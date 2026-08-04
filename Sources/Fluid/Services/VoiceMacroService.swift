@@ -493,6 +493,8 @@ enum VoiceMacroService {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 let workspace = trimmedTranscript[workspaceRange]
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !prompt.isEmpty, !workspace.isEmpty {
                     return HerdrWorkspaceQueryCandidate(
                         query: workspace + ", " + prompt,

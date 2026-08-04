@@ -154,7 +154,13 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.herdrWorkspaceQuery(
                 transcript: "Add a release checklist edit skills."
             ),
-            "skills., Add a release checklist"
+            "skills, Add a release checklist"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceQuery(
+                transcript: "Also, the reply is missing. Edit commerce leak."
+            ),
+            "commerce leak, Also, the reply is missing."
         )
     }
 
