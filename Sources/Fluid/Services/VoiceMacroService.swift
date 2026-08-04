@@ -312,7 +312,7 @@ enum VoiceMacroService {
             "commerce-land": ["commerce land"],
             "commerce-leak": ["commerce leak"],
             "hvac": ["h fact"],
-            "ordellan": ["or dell and", "or dell in", "or dallin", "or dall in", "or delin"],
+            "ordellan": ["or dell and", "or dell in", "or dallin", "or dall in", "or delin", "or delmon"],
             "yedric": ["yedger", "yedrick"],
         ],
         applications: ["chatgpt": "chatgptclassic"],
@@ -2349,7 +2349,9 @@ enum VoiceMacroService {
 
     static func resolveLocalRepoURL(query: String, repoURLs: [URL]) -> URL? {
         let normalizedQuery = self.normalizedPhrase(query)
-        let repoName = self.localRepoAliases[normalizedQuery] ?? normalizedQuery
+        let repoName = self.canonicalProjectName(for: normalizedQuery)
+            ?? self.localRepoAliases[normalizedQuery]
+            ?? normalizedQuery
         return repoURLs.first {
             self.normalizedPhrase($0.lastPathComponent) == repoName
         }

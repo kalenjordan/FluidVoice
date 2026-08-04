@@ -350,6 +350,10 @@ final class HotkeyShortcutTests: XCTestCase {
             "w5"
         )
         XCTAssertEqual(
+            VoiceMacroService.resolveWorkspace(query: "or Delmon", workspaces: workspaces)?.workspaceID,
+            "w5"
+        )
+        XCTAssertEqual(
             VoiceMacroService.resolveWorkspace(query: "Yedger", workspaces: workspaces)?.workspaceID,
             "w6"
         )
@@ -375,6 +379,18 @@ final class HotkeyShortcutTests: XCTestCase {
                 repoURLs: [commerceLeak, commerceLand]
             ),
             commerceLand
+        )
+    }
+
+    func testLocalRepoResolutionSupportsProjectSpeechAlias() {
+        let ordellan = URL(fileURLWithPath: "/Users/kalen/repos/ordellan")
+
+        XCTAssertEqual(
+            VoiceMacroService.resolveLocalRepoURL(
+                query: "or Delmon",
+                repoURLs: [ordellan]
+            ),
+            ordellan
         )
     }
 
