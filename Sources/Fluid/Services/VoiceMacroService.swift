@@ -864,6 +864,58 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "add synonym"
     }
 
+    static func addMappingReplacement(transcript: String) -> String? {
+        for command in ["add mapping for", "ad mapping for"] {
+            if let replacement = self.commandArgument(transcript, command: command) {
+                return replacement
+            }
+        }
+        return nil
+    }
+
+    static func mappingTrigger(
+        transcriptions: [TranscriptionHistoryEntry],
+        actions: [RecentActionEntry],
+        excluding commandTranscript: String
+    ) -> String? {
+        let normalizedCommand = self.normalizedPhrase(commandTranscript)
+        let transcription = transcriptions.lazy.compactMap { entry -> (Date, String)? in
+            let rawText = entry.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let processedText = entry.processedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard self.normalizedPhrase(rawText) != normalizedCommand,
+                  self.normalizedPhrase(processedText) != normalizedCommand,
+                  self.addMappingReplacement(transcript: rawText) == nil,
+                  self.addMappingReplacement(transcript: processedText) == nil
+            else {
+                return nil
+            }
+            let text = rawText.isEmpty ? processedText : rawText
+            return text.isEmpty ? nil : (entry.timestamp, text)
+        }.first
+
+        let action = actions.lazy.compactMap { entry -> (Date, String)? in
+            let command = entry.command.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !command.isEmpty,
+                  self.normalizedPhrase(command) != normalizedCommand,
+                  self.addMappingReplacement(transcript: command) == nil
+            else {
+                return nil
+            }
+            return (entry.timestamp, command)
+        }.first
+
+        switch (transcription, action) {
+        case let (transcription?, action?):
+            return action.0 > transcription.0 ? action.1 : transcription.1
+        case let (transcription?, nil):
+            return transcription.1
+        case let (nil, action?):
+            return action.1
+        case (nil, nil):
+            return nil
+        }
+    }
+
     static func isRestartFluidVoiceCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "restart fluid voice"
     }

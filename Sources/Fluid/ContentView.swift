@@ -2363,6 +2363,52 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let replacement = VoiceMacroService.addMappingReplacement(transcript: transcribedText)
+        {
+            let trigger = VoiceMacroService.mappingTrigger(
+                transcriptions: TranscriptionHistoryStore.shared.entries,
+                actions: RecentActionStore.shared.entries,
+                excluding: transcribedText
+            )
+            let succeeded: Bool
+            if let trigger {
+                let currentEntries = SettingsStore.shared.customDictionaryEntries
+                let mergedEntries = CustomDictionaryTrainingMerge.mergedEntries(
+                    current: currentEntries,
+                    replacement: replacement,
+                    triggers: [trigger]
+                )
+                succeeded = mergedEntries != currentEntries
+                if succeeded {
+                    SettingsStore.shared.customDictionaryEntries = mergedEntries
+                    ASRService.invalidateDictionaryCache()
+                    NotificationCenter.default.post(name: .parakeetVocabularyDidChange, object: nil)
+                }
+                recordAction(
+                    succeeded,
+                    "Action Type: Add dictionary mapping\nTrigger: \(trigger)\nReplacement: \(replacement)"
+                )
+                VoiceMacroService.showStatusToast(
+                    succeeded
+                        ? "Mapped “\(trigger)” to “\(replacement)”."
+                        : "That dictionary mapping already exists."
+                )
+            } else {
+                succeeded = false
+                recordAction(false, "Action Type: Add dictionary mapping\nError: No prior transcription")
+                VoiceMacroService.showStatusToast("No prior transcription available to map.")
+            }
+            DebugLogger.shared.info(
+                "Add dictionary mapping voice command finished: success=\(succeeded)",
+                source: "ContentView"
+            )
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let targetPID = typingTarget.pid,
            VoiceMacroService.isEnterCommand(transcript: transcribedText)
         {

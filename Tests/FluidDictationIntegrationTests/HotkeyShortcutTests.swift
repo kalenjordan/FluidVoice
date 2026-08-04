@@ -1489,6 +1489,126 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testAddMappingCommandExtractsReplacement() {
+        XCTAssertEqual(
+            VoiceMacroService.addMappingReplacement(transcript: "Add mapping for finances dash."),
+            "finances dash"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.addMappingReplacement(transcript: "ADD MAPPING FOR Ordellin Dash!"),
+            "Ordellin Dash"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.addMappingReplacement(transcript: "Ad mapping for finances dash."),
+            "finances dash"
+        )
+        XCTAssertNil(VoiceMacroService.addMappingReplacement(transcript: "Add mapping"))
+        XCTAssertNil(VoiceMacroService.addMappingReplacement(transcript: "Please add mapping for finances dash"))
+    }
+
+    func testMappingTriggerUsesLatestRawTranscriptionThatIsNotCommand() {
+        let command = "Add mapping for finances dash."
+        let entries = [
+            TranscriptionHistoryEntry(
+                rawText: command,
+                processedText: command,
+                appName: "Test",
+                windowTitle: "",
+                wasAIProcessed: false
+            ),
+            TranscriptionHistoryEntry(
+                rawText: "Finance is dashed.",
+                processedText: "Finance is dashed.",
+                appName: "Test",
+                windowTitle: "",
+                wasAIProcessed: false
+            ),
+        ]
+
+        XCTAssertEqual(
+            VoiceMacroService.mappingTrigger(
+                transcriptions: entries,
+                actions: [],
+                excluding: command
+            ),
+            "Finance is dashed."
+        )
+    }
+
+    func testMappingTriggerFallsBackToLatestEntryWhenCommandIsNotStored() {
+        let entries = [
+            TranscriptionHistoryEntry(
+                rawText: "Or Del and Dash?",
+                processedText: "Or Del and Dash?",
+                appName: "Test",
+                windowTitle: "",
+                wasAIProcessed: false
+            ),
+        ]
+
+        XCTAssertEqual(
+            VoiceMacroService.mappingTrigger(
+                transcriptions: entries,
+                actions: [],
+                excluding: "Add mapping for Ordellin Dash"
+            ),
+            "Or Del and Dash?"
+        )
+    }
+
+    func testMappingTriggerSelectsNewerVoiceAction() {
+        let olderTranscription = TranscriptionHistoryEntry(
+            timestamp: Date(timeIntervalSince1970: 100),
+            rawText: "Some older dictation",
+            processedText: "Some older dictation",
+            appName: "Test",
+            windowTitle: "",
+            wasAIProcessed: false
+        )
+        let newerAction = RecentActionEntry(
+            id: UUID(),
+            timestamp: Date(timeIntervalSince1970: 200),
+            command: "Finance is dashed",
+            succeeded: true,
+            context: ""
+        )
+
+        XCTAssertEqual(
+            VoiceMacroService.mappingTrigger(
+                transcriptions: [olderTranscription],
+                actions: [newerAction],
+                excluding: "Add mapping for finances dash"
+            ),
+            "Finance is dashed"
+        )
+    }
+
+    func testMappingTriggerSkipsPreviousMappingActions() {
+        let mappingAction = RecentActionEntry(
+            id: UUID(),
+            timestamp: Date(timeIntervalSince1970: 300),
+            command: "Ad mapping for the wrong thing",
+            succeeded: true,
+            context: ""
+        )
+        let targetAction = RecentActionEntry(
+            id: UUID(),
+            timestamp: Date(timeIntervalSince1970: 200),
+            command: "Or Del and Dash",
+            succeeded: true,
+            context: ""
+        )
+
+        XCTAssertEqual(
+            VoiceMacroService.mappingTrigger(
+                transcriptions: [],
+                actions: [mappingAction, targetAction],
+                excluding: "Add mapping for Ordellin Dash"
+            ),
+            "Or Del and Dash"
+        )
+    }
+
     func testAirPodsCommandsAreExactAndGlobal() {
         XCTAssertEqual(
             VoiceMacroService.airPodsCommand(transcript: "Connect AirPods."),
