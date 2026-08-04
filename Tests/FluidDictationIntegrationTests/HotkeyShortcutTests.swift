@@ -1089,15 +1089,15 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Dash Old."),
-            URL(string: "http://outbound-dash.localhost:8764/")
+            URL(string: "http://outbound-dash-legacy.localhost:8765/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Signal Flame Dash Old."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/signalflame")
+            URL(string: "http://outbound-dash-legacy.localhost:8765/clients/signalflame")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Dash Old."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/outbound-farm")
+            URL(string: "http://outbound-dash-legacy.localhost:8765/clients/outbound-farm")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "SignalFlame Site."),
@@ -1213,7 +1213,7 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound ash old."),
-            URL(string: "http://outbound-dash.localhost:8764/")
+            URL(string: "http://outbound-dash-legacy.localhost:8765/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Ordellan Dash."),
@@ -1310,12 +1310,12 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertNil(VoiceMacroService.googleCalendarURL(transcript: "Open Google Calendar"))
     }
 
-    func testPersonalFinancesCommandIsExactAndGlobal() {
+    func testFinancesDashCommandIsExactAndGlobal() {
         XCTAssertEqual(
-            VoiceMacroService.personalFinancesURL(transcript: "Personal finances."),
-            URL(string: "https://finances-dev.kalenjordan.com/")
+            VoiceMacroService.personalFinancesURL(transcript: "Finances dash."),
+            URL(string: "https://finances-dev.kalenjordan.com/app")
         )
-        XCTAssertNil(VoiceMacroService.personalFinancesURL(transcript: "Open personal finances"))
+        XCTAssertNil(VoiceMacroService.personalFinancesURL(transcript: "Personal finances"))
     }
 
     func testGoogleSearchCommandUsesRawQueryAndIsGlobal() {

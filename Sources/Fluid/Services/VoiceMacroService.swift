@@ -728,7 +728,7 @@ enum VoiceMacroService {
             guard route.url.hasPrefix(newDashPrefix) else { return nil }
             return URL(string: route.url.replacingOccurrences(
                 of: newDashPrefix,
-                with: "http://outbound-dash.localhost:8764/"
+                with: "http://outbound-dash-legacy.localhost:8765/"
             ))
         }
 
@@ -760,8 +760,8 @@ enum VoiceMacroService {
     }
 
     static func personalFinancesURL(transcript: String) -> URL? {
-        guard self.normalizedPhrase(transcript) == "personal finances" else { return nil }
-        return URL(string: "https://finances-dev.kalenjordan.com/")
+        guard self.normalizedPhrase(transcript) == "finances dash" else { return nil }
+        return URL(string: "https://finances-dev.kalenjordan.com/app")
     }
 
     static func isNetflixCommand(transcript: String) -> Bool {
@@ -799,8 +799,10 @@ enum VoiceMacroService {
     }
 
     private static func outboundDashClientURL(slug: String, useLegacyDash: Bool) -> URL? {
-        let pathPrefix = useLegacyDash ? "" : "outbound-dash-new/"
-        return URL(string: "http://outbound-dash.localhost:8764/\(pathPrefix)clients/\(slug)")
+        let baseURL = useLegacyDash
+            ? "http://outbound-dash-legacy.localhost:8765/"
+            : "http://outbound-dash.localhost:8764/"
+        return URL(string: "\(baseURL)clients/\(slug)")
     }
 
     static func isFinderDeleteCommand(transcript: String, bundleID: String) -> Bool {
