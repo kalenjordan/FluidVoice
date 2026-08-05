@@ -1125,6 +1125,24 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "window middle"
     }
 
+    static func requestKeymapperWindowAction(_ action: String, targetPID: pid_t) -> Bool {
+        guard NSWorkspace.shared.runningApplications.contains(where: {
+            $0.bundleIdentifier == "com.kalen.keymapper"
+        }) else {
+            return false
+        }
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.kalen.keymapper.window-action"),
+            object: nil,
+            userInfo: [
+                "action": action,
+                "processIdentifier": NSNumber(value: targetPID)
+            ],
+            deliverImmediately: true
+        )
+        return true
+    }
+
     static func isWindowMiddleAllCommand(transcript: String) -> Bool {
         switch self.normalizedPhrase(transcript) {
         case "window middle all", "all windows middle":
@@ -1137,25 +1155,6 @@ enum VoiceMacroService {
     private static let windowMiddlePreferredSize = NSSize(width: 1294, height: 901)
     private static let windowMiddleTopLeftInset = NSPoint(x: 396, y: 103)
     private static let windowMiddleReferenceScreenSize = NSSize(width: 1920, height: 1080)
-
-    static func moveWindowToMiddle(targetPID: pid_t) -> Bool {
-        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
-              let primaryScreen = NSScreen.screens.first
-        else {
-            return false
-        }
-
-        return self.moveFocusedWindow(
-            operation: "middle",
-            targetPID: targetPID,
-            to: self.windowMiddleFrame(
-                in: screen.visibleFrame,
-                screenFrame: screen.frame
-            ),
-            screen: screen,
-            primaryScreenMaxY: primaryScreen.frame.maxY
-        )
-    }
 
     static func moveAllApplicationWindowsToMiddle() -> WindowOperationResult {
         guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
@@ -1229,21 +1228,6 @@ enum VoiceMacroService {
         default:
             return false
         }
-    }
-
-    static func maximizeWindow(targetPID: pid_t) -> Bool {
-        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
-              let primaryScreen = NSScreen.screens.first
-        else {
-            return false
-        }
-        return self.moveFocusedWindow(
-            operation: "max",
-            targetPID: targetPID,
-            to: self.windowMaxFrame(on: screen, primaryScreen: primaryScreen),
-            screen: screen,
-            primaryScreenMaxY: primaryScreen.frame.maxY
-        )
     }
 
     static func maximizeAllApplicationWindows() -> WindowOperationResult {

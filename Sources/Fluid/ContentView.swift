@@ -2619,7 +2619,9 @@ struct ContentView: View {
            VoiceMacroService.isWindowMiddleCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running window middle voice command", source: "ContentView")
-            let succeeded = VoiceMacroService.moveWindowToMiddle(targetPID: targetPID)
+            let succeeded = VoiceMacroService.requestKeymapperWindowAction(
+                "middle", targetPID: targetPID
+            )
             self.recordWindowAction(
                 command: "window middle",
                 succeeded: succeeded,
@@ -2675,7 +2677,9 @@ struct ContentView: View {
            VoiceMacroService.isWindowMaxCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running window max voice command", source: "ContentView")
-            let succeeded = VoiceMacroService.maximizeWindow(targetPID: targetPID)
+            let succeeded = VoiceMacroService.requestKeymapperWindowAction(
+                "max", targetPID: targetPID
+            )
             self.recordWindowAction(
                 command: "window max",
                 succeeded: succeeded,
