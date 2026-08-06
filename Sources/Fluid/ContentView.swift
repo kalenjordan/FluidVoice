@@ -2542,6 +2542,29 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let enabled = VoiceMacroService.herdrWorkspaceNotificationsEnabledCommand(
+               transcript: transcribedText
+           )
+        {
+            DebugLogger.shared.info(
+                "Running Herdr workspace notifications \(enabled ? "on" : "off") voice command",
+                source: "ContentView"
+            )
+            let succeeded = await VoiceMacroService.setHerdrWorkspaceNotificationsEnabled(enabled)
+            recordAction(
+                succeeded,
+                "Action Type: Set Herdr workspace notifications\nEnabled: \(enabled)"
+            )
+            if !succeeded {
+                self.persistFailedVoiceCommand(transcribedText, appInfo: appInfo)
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let enabled = VoiceMacroService.nudgesEnabledCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info(

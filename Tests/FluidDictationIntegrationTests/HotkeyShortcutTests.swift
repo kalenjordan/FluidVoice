@@ -698,6 +698,31 @@ final class HotkeyShortcutTests: XCTestCase {
         )
     }
 
+    func testHerdrWorkspaceNotificationsCommandMatchesExactState() {
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceNotificationsEnabledCommand(
+                transcript: "Workspace notifications on."
+            ),
+            true
+        )
+        XCTAssertEqual(
+            VoiceMacroService.herdrWorkspaceNotificationsEnabledCommand(
+                transcript: "workspace notifications off"
+            ),
+            false
+        )
+        XCTAssertNil(
+            VoiceMacroService.herdrWorkspaceNotificationsEnabledCommand(
+                transcript: "toggle workspace notifications"
+            )
+        )
+        XCTAssertNil(
+            VoiceMacroService.herdrWorkspaceNotificationsEnabledCommand(
+                transcript: "notifications on"
+            )
+        )
+    }
+
     func testNudgesCommandMatchesExactState() {
         XCTAssertEqual(
             VoiceMacroService.nudgesEnabledCommand(transcript: "Nudges on."),
@@ -1274,15 +1299,15 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+            URL(string: "http://linkedin-crm.localhost:8772/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn CRM."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+            URL(string: "http://linkedin-crm.localhost:8772/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "LinkedIn Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/linkedin-crm")
+            URL(string: "http://linkedin-crm.localhost:8772/")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "ST3 Dash."),
@@ -1358,7 +1383,7 @@ final class HotkeyShortcutTests: XCTestCase {
     func testFinancesDashCommandIsExactAndGlobal() {
         XCTAssertEqual(
             VoiceMacroService.personalFinancesURL(transcript: "Finances dash."),
-            URL(string: "https://finances-dev.kalenjordan.com/app")
+            URL(string: "http://finances.localhost:8000/app")
         )
         XCTAssertNil(VoiceMacroService.personalFinancesURL(transcript: "Personal finances"))
     }

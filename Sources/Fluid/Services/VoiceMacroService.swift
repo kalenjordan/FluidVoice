@@ -358,7 +358,7 @@ enum VoiceMacroService {
             ),
             (
                 ["linkedin crm", "linkedin dash", "linkedin crm dash"],
-                "http://outbound-dash.localhost:8764/clients/linkedin-crm"
+                "http://linkedin-crm.localhost:8772/"
             ),
             (
                 ["st3 dash", "s t three dash"],
@@ -763,7 +763,7 @@ enum VoiceMacroService {
 
     static func personalFinancesURL(transcript: String) -> URL? {
         guard self.normalizedPhrase(transcript) == "finances dash" else { return nil }
-        return URL(string: "https://finances-dev.kalenjordan.com/app")
+        return URL(string: "http://finances.localhost:8000/app")
     }
 
     static func isNetflixCommand(transcript: String) -> Bool {
@@ -1525,6 +1525,19 @@ enum VoiceMacroService {
         }
     }
 
+    static func herdrWorkspaceNotificationsEnabledCommand(
+        transcript: String
+    ) -> Bool? {
+        switch self.normalizedPhrase(transcript) {
+        case "workspace notifications on":
+            return true
+        case "workspace notifications off":
+            return false
+        default:
+            return nil
+        }
+    }
+
     static func nudgesEnabledCommand(transcript: String) -> Bool? {
         switch self.normalizedPhrase(transcript) {
         case "nudges on":
@@ -1539,6 +1552,12 @@ enum VoiceMacroService {
     static func setHerdrNotificationsEnabled(_ enabled: Bool) async -> Bool {
         await self.invokeHerdrPluginAction(
             "herdr-focus-notify.\(enabled ? "enable" : "disable")"
+        )
+    }
+
+    static func setHerdrWorkspaceNotificationsEnabled(_ enabled: Bool) async -> Bool {
+        await self.invokeHerdrPluginAction(
+            "herdr-focus-notify.\(enabled ? "enable-workspace" : "disable-workspace")"
         )
     }
 
