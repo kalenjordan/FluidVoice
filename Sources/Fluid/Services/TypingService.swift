@@ -360,6 +360,11 @@ final class TypingService {
                 case let .text(stepText):
                     self.bench("insert_call chars=\(stepText.count)")
                     self.insertTextInstantly(stepText, preferredTargetPID: preferredTargetPID)
+                case let .pasteText(stepText):
+                    self.bench("paste_insert_call chars=\(stepText.count)")
+                    if !self.tryReliablePasteInsertion(stepText, preferredTargetPID: preferredTargetPID) {
+                        self.insertTextInstantly(stepText, preferredTargetPID: preferredTargetPID)
+                    }
                 case .pressReturn:
                     // Text injection is asynchronous from the destination's perspective.
                     // Give it enough time to finish accepting the preceding step.

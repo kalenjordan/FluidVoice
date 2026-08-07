@@ -3901,9 +3901,12 @@ struct ContentView: View {
                 submitTerminalCommand: self.settings.submitTerminalDictationEnabled,
                 suppressAutomaticSubmission: suppressAutomaticSubmission
             )
-            let finalOutputPlan = focusedControlContext.map(DictationAIFieldPolicy.isChromeAddressBar) == true
+            var finalOutputPlan = focusedControlContext.map(DictationAIFieldPolicy.isChromeAddressBar) == true
                 ? baseOutputPlan.submittingWithReturn()
                 : baseOutputPlan
+            if isSpokenPasteCommand {
+                finalOutputPlan = finalOutputPlan.pastingCompactFollowUp()
+            }
             // Dispatch insertion as soon as the destination app is ready; the
             // overlay hides asynchronously after output so it cannot delay paste.
             if typingTarget.shouldRestoreOriginalFocus {

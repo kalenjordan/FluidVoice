@@ -673,7 +673,7 @@ final class DictationE2ETests: XCTestCase {
             [
                 .text("/compact"),
                 .pressReturn,
-                .pause(milliseconds: 400),
+                .pause(milliseconds: 200),
                 .text("Come back to the notification work"),
                 .pressReturn,
             ]
@@ -681,6 +681,25 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertTrue(plan.performsAction)
         XCTAssertTrue(plan.actionDescription.contains("Type: /compact"))
         XCTAssertTrue(plan.actionDescription.contains("Press Return"))
+    }
+
+    func testSpokenPasteUsesAtomicPasteForCompactFollowUp() {
+        let plan = ASRService.makeDictationLiteralOutputPlan(
+            for: "/compact and test and clipboard contents",
+            appName: "Ghostty",
+            bundleID: "com.mitchellh.ghostty"
+        ).pastingCompactFollowUp()
+
+        XCTAssertEqual(
+            plan.steps,
+            [
+                .text("/compact"),
+                .pressReturn,
+                .pause(milliseconds: 200),
+                .pasteText("and test and clipboard contents"),
+                .pressReturn,
+            ]
+        )
     }
 
     func testPlainDictationOutputPlanDoesNotPerformAction() {
@@ -719,7 +738,7 @@ final class DictationE2ETests: XCTestCase {
                 [
                     .text("/compact"),
                     .pressReturn,
-                    .pause(milliseconds: 400),
+                    .pause(milliseconds: 200),
                     .text("Come back to the notification work"),
                     .pressReturn,
                 ],
@@ -745,7 +764,7 @@ final class DictationE2ETests: XCTestCase {
                 [
                     .text("/compact"),
                     .pressReturn,
-                    .pause(milliseconds: 400),
+                    .pause(milliseconds: 200),
                     .text("Come back to the notification work"),
                     .pressReturn,
                 ],
@@ -804,7 +823,7 @@ final class DictationE2ETests: XCTestCase {
             [
                 .text("/compact"),
                 .pressReturn,
-                .pause(milliseconds: 400),
+                .pause(milliseconds: 200),
                 .text("continue"),
                 .pressReturn,
                 .pause(milliseconds: 400),

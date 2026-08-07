@@ -3,6 +3,7 @@ import Foundation
 struct DictationLiteralOutputPlan: Equatable {
     enum Step: Equatable {
         case text(String)
+        case pasteText(String)
         case pressReturn
         case pause(milliseconds: UInt32)
         case openNextPendingHerdrTab
@@ -37,7 +38,7 @@ struct DictationLiteralOutputPlan: Equatable {
     var actionDescription: String {
         self.steps.compactMap { step -> String? in
             switch step {
-            case let .text(text):
+            case let .text(text), let .pasteText(text):
                 return "Type: \(text)"
             case .pressReturn:
                 return "Press Return"
@@ -52,6 +53,8 @@ struct DictationLiteralOutputPlan: Equatable {
     var plainText: String {
         self.steps.reduce(into: "") { result, step in
             if case let .text(text) = step {
+                result += text
+            } else if case let .pasteText(text) = step {
                 result += text
             }
         }
@@ -91,6 +94,23 @@ struct DictationLiteralOutputPlan: Equatable {
 
     static func plain(_ text: String) -> DictationLiteralOutputPlan {
         DictationLiteralOutputPlan(steps: [.text(text)])
+    }
+
+    func pastingCompactFollowUp() -> DictationLiteralOutputPlan {
+        guard self.steps.count >= 4,
+              case .text("/compact") = self.steps[0],
+              case .pressReturn = self.steps[1],
+              case .pause = self.steps[2],
+              case let .text(message) = self.steps[3]
+        else {
+            return self
+        }
+        var updatedSteps = self.steps
+        updatedSteps[3] = .pasteText(message)
+        return DictationLiteralOutputPlan(
+            steps: updatedSteps,
+            suppressesAutomaticSubmission: self.suppressesAutomaticSubmission
+        )
     }
 
     func submittingWithReturn() -> DictationLiteralOutputPlan {
@@ -359,7 +379,7 @@ private enum DictationLiteralFormatter {
                 steps: [
                     .text("/compact"),
                     .pressReturn,
-                    .pause(milliseconds: 400),
+                    .pause(milliseconds: 200),
                     .text(followUpMessage),
                     .pressReturn,
                     .pause(milliseconds: 400),
@@ -408,7 +428,7 @@ private enum DictationLiteralFormatter {
                 steps: [
                     .text("/compact"),
                     .pressReturn,
-                    .pause(milliseconds: 400),
+                    .pause(milliseconds: 200),
                     .text(followUpMessage),
                     .pressReturn,
                 ]
