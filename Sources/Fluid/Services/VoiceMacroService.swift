@@ -369,6 +369,10 @@ enum VoiceMacroService {
                 "http://outbound-dash-v3.localhost:8766/clients/layers"
             ),
             (
+                ["insured near dash"],
+                "http://outbound-dash-v3.localhost:8766/clients/insured-near"
+            ),
+            (
                 ["outbound farm next dash"],
                 "http://outbound-dash.localhost:8764/clients/outbound-farm-next"
             ),
