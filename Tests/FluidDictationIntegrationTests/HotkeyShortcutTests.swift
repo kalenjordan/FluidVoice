@@ -1170,6 +1170,18 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://outbound-dash-legacy.localhost:8765/clients/outbound-farm")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Layers Dash Old."),
+            URL(string: "http://outbound-dash-legacy.localhost:8765/clients/layers")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Commerce Leak Dash Old."),
+            URL(string: "http://outbound-dash-legacy.localhost:8765/clients/commerce-leak")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "HVAC Dash Old."),
+            URL(string: "http://outbound-dash-legacy.localhost:8765/clients/hvac")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "SignalFlame Site."),
             URL(string: "http://signalflame.localhost:8780")
         )
@@ -1271,11 +1283,11 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Leak Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
+            URL(string: "http://outbound-dash-v3.localhost:8766/clients/commerce-leak")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce leaked Ash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/commerce-leak")
+            URL(string: "http://outbound-dash-v3.localhost:8766/clients/commerce-leak")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound ash."),
@@ -1319,11 +1331,11 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "HVAC Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
+            URL(string: "http://outbound-dash-v3.localhost:8766/clients/hvac")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Layers Dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/layers")
+            URL(string: "http://outbound-dash-v3.localhost:8766/clients/layers")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Dash."),
@@ -1339,7 +1351,7 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "H fact dash."),
-            URL(string: "http://outbound-dash.localhost:8764/clients/hvac")
+            URL(string: "http://outbound-dash-v3.localhost:8766/clients/hvac")
         )
         XCTAssertNil(VoiceMacroService.outboundDashURL(
             transcript: "Open outbound dash"
@@ -1415,7 +1427,14 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "Open layers dash.",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/layers"
+            "http://outbound-dash-v3.localhost:8766/clients/layers"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.chromeURL(
+                transcript: "Open commerce leak dash.",
+                bundleID: "com.google.Chrome"
+            ),
+            "http://outbound-dash-v3.localhost:8766/clients/commerce-leak"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
@@ -1443,7 +1462,7 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "open h fact dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash.localhost:8764/clients/hvac"
+            "http://outbound-dash-v3.localhost:8766/clients/hvac"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
