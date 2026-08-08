@@ -2363,20 +2363,16 @@ struct ContentView: View {
         }
 
         if route == .normal,
-           let replacement = VoiceMacroService.addMappingReplacement(transcript: transcribedText)
+           let mapping = VoiceMacroService.addDictionaryMappingCommand(transcript: transcribedText)
         {
-            let trigger = VoiceMacroService.mappingTrigger(
-                transcriptions: TranscriptionHistoryStore.shared.entries,
-                actions: RecentActionStore.shared.entries,
-                excluding: transcribedText
-            )
             let succeeded: Bool
-            if let trigger {
+            let details: String
+            if VoiceMacroService.isKnownDictionaryMappingAction(mapping.action) {
                 let currentEntries = SettingsStore.shared.customDictionaryEntries
                 let mergedEntries = CustomDictionaryTrainingMerge.mergedEntries(
                     current: currentEntries,
-                    replacement: replacement,
-                    triggers: [trigger]
+                    replacement: mapping.action,
+                    triggers: [mapping.trigger]
                 )
                 succeeded = mergedEntries != currentEntries
                 if succeeded {
@@ -2384,24 +2380,18 @@ struct ContentView: View {
                     ASRService.invalidateDictionaryCache()
                     NotificationCenter.default.post(name: .parakeetVocabularyDidChange, object: nil)
                 }
-                recordAction(
-                    succeeded,
-                    "Action Type: Add dictionary mapping\nTrigger: \(trigger)\nReplacement: \(replacement)"
-                )
+                details = "Action Type: Add dictionary action mapping\nTrigger: \(mapping.trigger)\nAction: \(mapping.action)"
                 VoiceMacroService.showStatusToast(
                     succeeded
-                        ? "Mapped “\(trigger)” to “\(replacement)”."
+                        ? "Mapped “\(mapping.trigger)” to the “\(mapping.action)” action."
                         : "That dictionary mapping already exists."
                 )
             } else {
                 succeeded = false
-                recordAction(false, "Action Type: Add dictionary mapping\nError: No prior transcription")
-                VoiceMacroService.showStatusToast("No prior transcription available to map.")
+                details = "Action Type: Add dictionary action mapping\nError: Unknown action\nAction: \(mapping.action)"
+                VoiceMacroService.showStatusToast("“\(mapping.action)” isn’t a recognized voice action.")
             }
-            DebugLogger.shared.info(
-                "Add dictionary mapping voice command finished: success=\(succeeded)",
-                source: "ContentView"
-            )
+            recordAction(succeeded, details)
             if !didRequestOverlayHideOnStop {
                 self.hideOverlayAfterOutput()
             }

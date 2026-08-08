@@ -883,56 +883,83 @@ enum VoiceMacroService {
         self.normalizedPhrase(transcript) == "add synonym"
     }
 
-    static func addMappingReplacement(transcript: String) -> String? {
-        for command in ["add mapping for", "ad mapping for"] {
-            if let replacement = self.commandArgument(transcript, command: command) {
-                return replacement
-            }
-        }
-        return nil
-    }
-
-    static func mappingTrigger(
-        transcriptions: [TranscriptionHistoryEntry],
-        actions: [RecentActionEntry],
-        excluding commandTranscript: String
-    ) -> String? {
-        let normalizedCommand = self.normalizedPhrase(commandTranscript)
-        let transcription = transcriptions.lazy.compactMap { entry -> (Date, String)? in
-            let rawText = entry.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let processedText = entry.processedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard self.normalizedPhrase(rawText) != normalizedCommand,
-                  self.normalizedPhrase(processedText) != normalizedCommand,
-                  self.addMappingReplacement(transcript: rawText) == nil,
-                  self.addMappingReplacement(transcript: processedText) == nil
-            else {
-                return nil
-            }
-            let text = rawText.isEmpty ? processedText : rawText
-            return text.isEmpty ? nil : (entry.timestamp, text)
-        }.first
-
-        let action = actions.lazy.compactMap { entry -> (Date, String)? in
-            let command = entry.command.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !command.isEmpty,
-                  self.normalizedPhrase(command) != normalizedCommand,
-                  self.addMappingReplacement(transcript: command) == nil
-            else {
-                return nil
-            }
-            return (entry.timestamp, command)
-        }.first
-
-        switch (transcription, action) {
-        case let (transcription?, action?):
-            return action.0 > transcription.0 ? action.1 : transcription.1
-        case let (transcription?, nil):
-            return transcription.1
-        case let (nil, action?):
-            return action.1
-        case (nil, nil):
+    static func addDictionaryMappingCommand(
+        transcript: String
+    ) -> (trigger: String, action: String)? {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"^add[\s\p{P}]+mapping[\s\p{P}]+for[\s\p{P}]+(.+)[\s\p{P}]+to[\s\p{P}]+(.+?)[.!?]*$"#,
+            options: [.caseInsensitive]
+        ) else {
             return nil
         }
+
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = expression.firstMatch(in: trimmed, range: range),
+              match.numberOfRanges == 3,
+              let triggerRange = Range(match.range(at: 1), in: trimmed),
+              let actionRange = Range(match.range(at: 2), in: trimmed)
+        else {
+            return nil
+        }
+
+        let trigger = String(trimmed[triggerRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let action = String(trimmed[actionRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trigger.isEmpty, !action.isEmpty else { return nil }
+        return (trigger, action)
+    }
+
+    static func isKnownDictionaryMappingAction(_ transcript: String) -> Bool {
+        if self.isCopyLastResultCommand(transcript: transcript)
+            || self.isEnterCommand(transcript: transcript)
+            || self.isPlayCommand(transcript: transcript)
+            || self.isWindowScreenshotCommand(transcript: transcript)
+            || self.isDeleteDesktopCommand(transcript: transcript)
+            || self.isSwitchCommand(transcript: transcript)
+            || self.isWindowMiddleAllCommand(transcript: transcript)
+            || self.isWindowMiddleCommand(transcript: transcript)
+            || self.isWindowMaxAllCommand(transcript: transcript)
+            || self.isWindowMaxCommand(transcript: transcript)
+            || self.isWindowTopLeftCommand(transcript: transcript)
+            || self.isQuitApplicationCommand(transcript: transcript)
+            || self.isCloseWindowCommand(transcript: transcript)
+            || self.isCodexStatusCommand(transcript: transcript)
+            || self.isAddSynonymCommand(transcript: transcript)
+            || self.isEDMFocusPlaylistCommand(transcript: transcript)
+            || self.isWritingWorkspaceCommand(transcript: transcript)
+            || self.isNewCodexTabCommand(transcript: transcript)
+            || self.isRunHerdrCommand(transcript: transcript)
+            || self.isNextPendingCommand(transcript: transcript)
+            || self.isNetflixCommand(transcript: transcript)
+            || self.isAirPodsBatteryCommand(transcript: transcript)
+            || self.isRestartFluidVoiceCommand(transcript: transcript)
+            || self.airPodsCommand(transcript: transcript) != nil
+            || self.nudgesEnabledCommand(transcript: transcript) != nil
+            || self.herdrNotificationsEnabledCommand(transcript: transcript) != nil
+            || self.herdrWorkspaceNotificationsEnabledCommand(transcript: transcript) != nil
+            || self.outboundDashURL(transcript: transcript) != nil
+        {
+            return true
+        }
+
+        let chromeBundleID = self.chromeBundleIDs[0]
+        let chatGPTBundleID = self.chatGPTBundleIDs[0]
+        let finderBundleID = self.finderBundleIDs[0]
+        let codexBundleID = self.codexBundleIDs[0]
+        let herdrBundleID = self.herdrBundleIDs[0]
+        return self.isChromeRefreshCommand(transcript: transcript, bundleID: chromeBundleID)
+            || self.isChromeHardRefreshCommand(transcript: transcript, bundleID: chromeBundleID)
+            || self.isChromeCopyURLCommand(transcript: transcript, bundleID: chromeBundleID)
+            || self.isChromeCloseTabCommand(transcript: transcript, bundleID: chromeBundleID)
+            || self.isChatGPTSidebarCommand(transcript: transcript, bundleID: chatGPTBundleID)
+            || self.isFinderDeleteCommand(transcript: transcript, bundleID: finderBundleID)
+            || self.isCodexClearLineCommand(transcript: transcript, bundleID: codexBundleID)
+            || self.isRestartCodexCommand(transcript: transcript, bundleID: herdrBundleID)
+            || self.codexReasoningLevelCommand(transcript: transcript, bundleID: herdrBundleID) != nil
+            || self.tabDirectionCommand(transcript: transcript, bundleID: herdrBundleID) != nil
+            || self.isBackCommand(transcript: transcript, bundleID: herdrBundleID)
+            || self.isDetachHerdrCommand(transcript: transcript, bundleID: herdrBundleID)
+            || self.isCloseTabCommand(transcript: transcript, bundleID: herdrBundleID)
     }
 
     static func isRestartFluidVoiceCommand(transcript: String) -> Bool {

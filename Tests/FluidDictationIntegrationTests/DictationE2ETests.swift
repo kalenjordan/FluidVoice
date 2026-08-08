@@ -362,6 +362,23 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testCustomDictionaryReplacementCanResolveVoiceAction() {
+        defer { ASRService.invalidateDictionaryCache() }
+        let entry = SettingsStore.CustomDictionaryEntry(
+            triggers: ["new tables"],
+            replacement: "new tab"
+        )
+
+        self.withRestoredDefaults(keys: [self.customDictionaryEntriesKey]) {
+            SettingsStore.shared.customDictionaryEntries = [entry]
+            ASRService.invalidateDictionaryCache()
+
+            let command = ASRService.applyCustomDictionary("New tables.")
+            XCTAssertEqual(command, "new tab.")
+            XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(transcript: command))
+        }
+    }
+
     func testSlashCommandFormattingLeavesNonCommandSlashUsageAlone() {
         let text = "Use 1/2 and and/or. Open src slash services. Go to https slash slash example dot com. Slash and burn."
 
