@@ -1213,6 +1213,10 @@ final class HotkeyShortcutTests: XCTestCase {
             VoiceMacroService.outboundDashURL(transcript: "Outbound Farm Site."),
             URL(string: "http://outbound.farm.localhost:8787")
         )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Insured Near."),
+            URL(string: "http://insurednear.com.localhost:8788/")
+        )
         let liveSiteCommands = [
             ("Layers Live Site.", "https://uselayers.com"),
             ("SignalFlame Live Site.", "https://signalflame.net"),

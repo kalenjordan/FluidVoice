@@ -336,6 +336,7 @@ enum VoiceMacroService {
             (["commerce land site", "commerceland site"], "http://commerce-land.localhost:8784"),
             (["matchbook site"], "http://matchbook.localhost:8786"),
             (["outbound farm site"], "http://outbound.farm.localhost:8787"),
+            (["insured near"], "http://insurednear.com.localhost:8788/"),
             (
                 ["signalflame dash", "signal flame dash"],
                 "http://outbound-dash.localhost:8764/clients/signalflame"
