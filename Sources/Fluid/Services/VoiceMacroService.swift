@@ -333,7 +333,10 @@ enum VoiceMacroService {
             (["hvac site"], "http://hvac.localhost:8782"),
             (["commerce leak site"], "http://commerceleak.localhost:8781"),
             (["ordellan site"], "http://ordellan.localhost:8783"),
-            (["commerce land site", "commerceland site"], "http://commerce-land.localhost:8784"),
+            (
+                ["commerce land", "commerceland", "commerce land site", "commerceland site"],
+                "http://commerce-land.localhost:8784"
+            ),
             (["matchbook site"], "http://matchbook.localhost:8786"),
             (["outbound farm site"], "http://outbound.farm.localhost:8787"),
             (["insured near"], "http://insurednear.com.localhost:8788/"),
