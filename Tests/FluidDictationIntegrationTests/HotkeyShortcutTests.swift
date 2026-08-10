@@ -1549,6 +1549,21 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testCopyLastTranscriptionCommandRequiresExactPhrase() {
+        XCTAssertTrue(VoiceMacroService.isCopyLastTranscriptionCommand(
+            transcript: "Copy last transcription."
+        ))
+        XCTAssertTrue(VoiceMacroService.isCopyLastTranscriptionCommand(
+            transcript: "COPY LAST TRANSCRIPTION!"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCopyLastTranscriptionCommand(
+            transcript: "Can you copy last transcription"
+        ))
+        XCTAssertFalse(VoiceMacroService.isCopyLastTranscriptionCommand(
+            transcript: "copy the last transcription"
+        ))
+    }
+
     func testEnterCommandIsExactAndGlobal() {
         XCTAssertTrue(VoiceMacroService.isEnterCommand(
             transcript: "Enter."

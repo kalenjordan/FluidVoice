@@ -2339,6 +2339,28 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           VoiceMacroService.isCopyLastTranscriptionCommand(transcript: transcribedText)
+        {
+            let lastTranscription = TranscriptionHistoryStore.shared.latestClipboardText
+            let succeeded = lastTranscription.map(ClipboardService.copyToClipboard) ?? false
+            recordAction(
+                succeeded,
+                succeeded
+                    ? "Action Type: Copy last transcription"
+                    : "Action Type: Copy last transcription\nError: No recent transcription"
+            )
+            if succeeded, let copiedText = lastTranscription {
+                VoiceMacroService.showCopiedTranscriptionToast(copiedText)
+            } else {
+                VoiceMacroService.showStatusToast("Nothing available to copy.")
+            }
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            VoiceMacroService.isCopyLastResultCommand(transcript: transcribedText)
         {
             // Resolve the result before recording this voice action so the command

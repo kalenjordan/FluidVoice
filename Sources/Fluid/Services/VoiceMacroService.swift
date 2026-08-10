@@ -841,6 +841,10 @@ enum VoiceMacroService {
         return phrase == "copy last result" || phrase == "copy last action"
     }
 
+    static func isCopyLastTranscriptionCommand(transcript: String) -> Bool {
+        self.normalizedPhrase(transcript) == "copy last transcription"
+    }
+
     static func isEnterCommand(transcript: String) -> Bool {
         self.normalizedPhrase(transcript) == "enter"
     }
@@ -914,6 +918,7 @@ enum VoiceMacroService {
 
     static func isKnownDictionaryMappingAction(_ transcript: String) -> Bool {
         if self.isCopyLastResultCommand(transcript: transcript)
+            || self.isCopyLastTranscriptionCommand(transcript: transcript)
             || self.isEnterCommand(transcript: transcript)
             || self.isPlayCommand(transcript: transcript)
             || self.isWindowScreenshotCommand(transcript: transcript)
@@ -1848,6 +1853,15 @@ enum VoiceMacroService {
     static func showCopiedResultToast(_ text: String) {
         VoiceMacroStatusToast.shared.show(
             "Copied last result:\n\n\(text)",
+            maximumLines: 16,
+            textWidth: 420
+        )
+    }
+
+    @MainActor
+    static func showCopiedTranscriptionToast(_ text: String) {
+        VoiceMacroStatusToast.shared.show(
+            "Copied last transcription:\n\n\(text)",
             maximumLines: 16,
             textWidth: 420
         )
