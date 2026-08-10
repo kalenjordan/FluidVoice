@@ -316,7 +316,7 @@ enum VoiceMacroService {
             "yedric": ["yedger", "yedrick"],
         ],
         applications: ["chatgpt": "chatgptclassic"],
-        speechRecognitionWords: ["codex": ["codec", "codecs"]],
+        speechRecognitionWords: ["codex": ["codec", "codecs", "odex"]],
         outboundRoutes: [
             (["outbound dash", "outbound ash"], "http://outbound-dash.localhost:8766/"),
             (["layers live site"], "https://uselayers.com"),
@@ -1810,7 +1810,10 @@ enum VoiceMacroService {
             executable,
             arguments: ["app-server", "--stdio"],
             standardInput: Data(input.utf8),
-            standardInputCloseDelay: 1
+            // The rate-limit response is asynchronous and can arrive more than a
+            // second after initialization. Keep stdin open long enough for Codex
+            // to deliver it before treating EOF as a client disconnect.
+            standardInputCloseDelay: 3
         )
         guard result.status == 0 else { return nil }
 

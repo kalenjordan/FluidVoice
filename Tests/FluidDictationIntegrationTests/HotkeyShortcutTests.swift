@@ -427,6 +427,7 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codex status."))
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codec status"))
         XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Codecs status"))
+        XCTAssertTrue(VoiceMacroService.isCodexStatusCommand(transcript: "Odex status"))
         XCTAssertFalse(VoiceMacroService.isCodexStatusCommand(transcript: "Codex stats"))
     }
 
