@@ -354,7 +354,7 @@ enum VoiceMacroService {
                     "commerce land act", "commerceland dash", "carmer s landash",
                     "carmerce land dash",
                 ],
-                "http://outbound-dash-v2.localhost:8764/clients/commerce-land"
+                "http://outbound-dash.localhost:8766/clients/commerce-land"
             ),
             (
                 ["commerce leak dash", "commerce leaked ash"],
@@ -821,7 +821,10 @@ enum VoiceMacroService {
         if useLegacyDash {
             return "http://outbound-dash-legacy.localhost:8765/"
         }
-        let currentClients = ["commerce-leak", "hvac", "insured-near", "layers", "outbound-farm", "yedric"]
+        let currentClients = [
+            "commerce-land", "commerce-leak", "hvac", "insured-near", "layers", "outbound-farm",
+            "yedric",
+        ]
         return currentClients.contains(slug)
             ? "http://outbound-dash.localhost:8766/"
             : "http://outbound-dash-v2.localhost:8764/"

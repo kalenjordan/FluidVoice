@@ -1268,31 +1268,31 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Dash."),
-            URL(string: "http://outbound-dash-v2.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8766/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Landash."),
-            URL(string: "http://outbound-dash-v2.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8766/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Ash."),
-            URL(string: "http://outbound-dash-v2.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8766/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Land Act."),
-            URL(string: "http://outbound-dash-v2.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8766/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Carmer's Landash."),
-            URL(string: "http://outbound-dash-v2.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8766/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Carmerce Land Dash."),
-            URL(string: "http://outbound-dash-v2.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8766/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerceland Dash."),
-            URL(string: "http://outbound-dash-v2.localhost:8764/clients/commerce-land")
+            URL(string: "http://outbound-dash.localhost:8766/clients/commerce-land")
         )
         XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "Commerce Leak Dash."),
@@ -1465,7 +1465,7 @@ final class HotkeyShortcutTests: XCTestCase {
                 transcript: "open commerce land dash",
                 bundleID: "com.google.Chrome"
             ),
-            "http://outbound-dash-v2.localhost:8764/clients/commerce-land"
+            "http://outbound-dash.localhost:8766/clients/commerce-land"
         )
         XCTAssertEqual(
             VoiceMacroService.chromeURL(
