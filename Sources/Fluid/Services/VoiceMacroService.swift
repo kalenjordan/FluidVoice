@@ -323,7 +323,10 @@ enum VoiceMacroService {
             (["signalflame live site", "signal flame live site"], "https://signalflame.net"),
             (["hvac live site", "hvac bison live site"], "https://hvacbison.com"),
             (["commerce leak live site"], "https://commerceleak.com"),
-            (["commerce land live site", "commerceland live site"], "https://commerceland.app"),
+            (
+                ["commerce land live", "commerce land live site", "commerceland live", "commerceland live site"],
+                "https://commerceland.app"
+            ),
             (["ordellan live site"], "https://ordellan.com"),
             (["matchbook live site"], "https://matchbook.chat"),
             (["outbound farm live site"], "https://outbound.farm"),
