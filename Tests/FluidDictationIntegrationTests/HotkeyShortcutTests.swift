@@ -1635,6 +1635,26 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
+    func testMapLastActionCommandExtractsTrigger() {
+        XCTAssertEqual(
+            VoiceMacroService.mapLastActionCommand(transcript: "Map last phrase to LinkedIn CRM."),
+            "LinkedIn CRM"
+        )
+        XCTAssertEqual(
+            VoiceMacroService.mapLastActionCommand(transcript: "MAP LAST ACTION TO new tables!"),
+            "new tables"
+        )
+    }
+
+    func testMapLastActionCommandRequiresCompleteExactPhrase() {
+        XCTAssertNil(VoiceMacroService.mapLastActionCommand(
+            transcript: "Map last action"
+        ))
+        XCTAssertNil(VoiceMacroService.mapLastActionCommand(
+            transcript: "Please map last action to LinkedIn CRM"
+        ))
+    }
+
     func testDictionaryMappingActionMustResolveToKnownVoiceAction() {
         XCTAssertTrue(VoiceMacroService.isKnownDictionaryMappingAction("new tab"))
         XCTAssertTrue(VoiceMacroService.isKnownDictionaryMappingAction("window middle"))

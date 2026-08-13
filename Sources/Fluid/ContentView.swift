@@ -2421,6 +2421,43 @@ struct ContentView: View {
         }
 
         if route == .normal,
+           let trigger = VoiceMacroService.mapLastActionCommand(transcript: transcribedText)
+        {
+            let previousAction = RecentActionStore.shared.entries.first
+            let succeeded: Bool
+            let details: String
+            if let previousAction, previousAction.succeeded {
+                let currentEntries = SettingsStore.shared.customDictionaryEntries
+                let mergedEntries = CustomDictionaryTrainingMerge.mergedEntries(
+                    current: currentEntries,
+                    replacement: previousAction.command,
+                    triggers: [trigger]
+                )
+                succeeded = mergedEntries != currentEntries
+                if succeeded {
+                    SettingsStore.shared.customDictionaryEntries = mergedEntries
+                    ASRService.invalidateDictionaryCache()
+                    NotificationCenter.default.post(name: .parakeetVocabularyDidChange, object: nil)
+                }
+                details = "Action Type: Map last action\nTrigger: \(trigger)\nAction: \(previousAction.command)"
+                VoiceMacroService.showStatusToast(
+                    succeeded
+                        ? "Mapped “\(trigger)” to the “\(previousAction.command)” action."
+                        : "That dictionary mapping already exists."
+                )
+            } else {
+                succeeded = false
+                details = "Action Type: Map last action\nError: No successful previous action"
+                VoiceMacroService.showStatusToast("No successful previous action is available to map.")
+            }
+            recordAction(succeeded, details)
+            if !didRequestOverlayHideOnStop {
+                self.hideOverlayAfterOutput()
+            }
+            return
+        }
+
+        if route == .normal,
            let targetPID = typingTarget.pid,
            VoiceMacroService.isEnterCommand(transcript: transcribedText)
         {

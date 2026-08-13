@@ -922,6 +922,27 @@ enum VoiceMacroService {
         return (trigger, action)
     }
 
+    static func mapLastActionCommand(transcript: String) -> String? {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"^map[\s\p{P}]+last[\s\p{P}]+(?:phrase|action)[\s\p{P}]+to[\s\p{P}]+(.+?)[.!?]*$"#,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = expression.firstMatch(in: trimmed, range: range),
+              match.numberOfRanges == 2,
+              let triggerRange = Range(match.range(at: 1), in: trimmed)
+        else {
+            return nil
+        }
+
+        let trigger = String(trimmed[triggerRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return trigger.isEmpty ? nil : trigger
+    }
+
     static func isKnownDictionaryMappingAction(_ transcript: String) -> Bool {
         if self.isCopyLastResultCommand(transcript: transcript)
             || self.isCopyLastTranscriptionCommand(transcript: transcript)
