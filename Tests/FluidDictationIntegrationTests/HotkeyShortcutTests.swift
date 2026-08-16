@@ -1191,7 +1191,23 @@ final class HotkeyShortcutTests: XCTestCase {
             URL(string: "http://signalflame.localhost:8780")
         )
         XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "SignalFlame."),
+            URL(string: "http://signalflame.localhost:8780")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Signal Flame."),
+            URL(string: "http://signalflame.localhost:8780")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "Signal flamp."),
+            URL(string: "http://signalflame.localhost:8780")
+        )
+        XCTAssertEqual(
             VoiceMacroService.outboundDashURL(transcript: "HVAC Site."),
+            URL(string: "http://hvac.localhost:8782")
+        )
+        XCTAssertEqual(
+            VoiceMacroService.outboundDashURL(transcript: "HVAC Bison."),
             URL(string: "http://hvac.localhost:8782")
         )
         XCTAssertEqual(

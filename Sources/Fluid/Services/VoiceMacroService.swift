@@ -332,8 +332,11 @@ enum VoiceMacroService {
             (["outbound farm live site"], "https://outbound.farm"),
             (["st3 live site", "s t three live site"], "https://st3aero.com"),
             (["linkedin live site", "linkedin crm live site"], "https://www.linkedin.com"),
-            (["signalflame site", "signal flame site"], "http://signalflame.localhost:8780"),
-            (["hvac site"], "http://hvac.localhost:8782"),
+            (
+                ["signalflame", "signal flame", "signal flamp", "signalflame site", "signal flame site"],
+                "http://signalflame.localhost:8780"
+            ),
+            (["hvac bison", "hvac site"], "http://hvac.localhost:8782"),
             (["commerce leak site"], "http://commerceleak.localhost:8781"),
             (["ordellan site"], "http://ordellan.localhost:8783"),
             (
