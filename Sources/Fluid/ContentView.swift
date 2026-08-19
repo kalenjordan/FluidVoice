@@ -3970,6 +3970,13 @@ struct ContentView: View {
                     openNextPendingTab: clearSubmission.openNextPendingHerdrTab
                 )
             } else if outputAppInfo.bundleId.lowercased() == "com.mitchellh.ghostty",
+                      let compactSubmission = finalOutputPlan.compactSessionSubmission
+            {
+                submittedThroughHerdr = await VoiceMacroService.submitCompactFollowUpInCurrentHerdrPane(
+                    compactSubmission.message,
+                    openNextPendingTab: compactSubmission.openNextPendingHerdrTab
+                )
+            } else if outputAppInfo.bundleId.lowercased() == "com.mitchellh.ghostty",
                       let submittedText = finalOutputPlan.singleSubmittedText
             {
                 submittedThroughHerdr = await VoiceMacroService.submitInCurrentHerdrPane(submittedText)

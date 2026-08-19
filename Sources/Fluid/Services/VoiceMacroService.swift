@@ -2483,6 +2483,15 @@ enum VoiceMacroService {
         agent?.lowercased() == "codex" && agentStatus?.lowercased() == "idle"
     }
 
+    static func isCodexInputPromptAvailable(in paneText: String) -> Bool {
+        paneText.split(separator: "\n", omittingEmptySubsequences: false)
+            .reversed()
+            .prefix(6)
+            .contains { line in
+                line.trimmingCharacters(in: .whitespaces).hasPrefix("›")
+            }
+    }
+
     static func codexSessionHasUserMessage(_ contents: String) -> Bool {
         contents.split(separator: "\n").contains { line in
             line.contains(#""type":"event_msg""#)
@@ -2623,6 +2632,31 @@ enum VoiceMacroService {
         _ message: String,
         openNextPendingTab: Bool
     ) async -> Bool {
+        await self.submitCodexCommandFollowUpInCurrentHerdrPane(
+            command: "/clear",
+            message: message,
+            openNextPendingTab: openNextPendingTab
+        )
+    }
+
+    @MainActor
+    static func submitCompactFollowUpInCurrentHerdrPane(
+        _ message: String,
+        openNextPendingTab: Bool
+    ) async -> Bool {
+        await self.submitCodexCommandFollowUpInCurrentHerdrPane(
+            command: "/compact",
+            message: message,
+            openNextPendingTab: openNextPendingTab
+        )
+    }
+
+    @MainActor
+    private static func submitCodexCommandFollowUpInCurrentHerdrPane(
+        command: String,
+        message: String,
+        openNextPendingTab: Bool
+    ) async -> Bool {
         let logSource = "VoiceMacroService"
         guard let executable = self.herdrExecutableURL() else { return false }
         let currentResult = await self.runProcess(
@@ -2643,24 +2677,24 @@ enum VoiceMacroService {
         let startedAt = Date()
         let previousSessionID = currentPane.agentSession?.value
         DebugLogger.shared.info(
-            "Clear follow-up started: pane=\(currentPane.paneID) session=\(previousSessionID ?? "none")",
+            "Command follow-up started: command=\(command) pane=\(currentPane.paneID) session=\(previousSessionID ?? "none")",
             source: logSource
         )
 
-        let clearResult = await self.runProcess(
+        let commandResult = await self.runProcess(
             executable,
-            arguments: ["pane", "run", currentPane.paneID, "/clear"]
+            arguments: ["pane", "run", currentPane.paneID, command]
         )
-        guard clearResult.status == 0 else {
+        guard commandResult.status == 0 else {
             DebugLogger.shared.warning(
-                "Clear follow-up failed to submit /clear: pane=\(currentPane.paneID) status=\(clearResult.status)",
+                "Command follow-up failed to submit \(command): pane=\(currentPane.paneID) status=\(commandResult.status)",
                 source: logSource
             )
             return false
         }
 
         DebugLogger.shared.info(
-            "Clear follow-up submitted /clear: pane=\(currentPane.paneID)",
+            "Command follow-up submitted \(command): pane=\(currentPane.paneID)",
             source: logSource
         )
         try? await Task.sleep(for: .milliseconds(300))
@@ -2676,17 +2710,35 @@ enum VoiceMacroService {
                       from: paneResult.output
                   ).result.pane
                 : nil
+            let inputPromptAvailable: Bool
+            if command == "/compact" {
+                let paneTextResult = await self.runProcess(
+                    executable,
+                    arguments: [
+                        "pane", "read", currentPane.paneID,
+                        "--source", "visible", "--lines", "8", "--format", "text",
+                    ]
+                )
+                inputPromptAvailable = paneTextResult.status == 0
+                    && self.isCodexInputPromptAvailable(
+                        in: String(decoding: paneTextResult.output, as: UTF8.self)
+                    )
+            } else {
+                inputPromptAvailable = false
+            }
             let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
             DebugLogger.shared.info(
-                "Clear follow-up readiness poll: pane=\(currentPane.paneID) attempt=\(attempt + 1) elapsedMs=\(elapsedMilliseconds) commandStatus=\(paneResult.status) agent=\(updatedPane?.agent ?? "none") agentStatus=\(updatedPane?.agentStatus ?? "none") previousSession=\(previousSessionID ?? "none") currentSession=\(updatedPane?.agentSession?.value ?? "none")",
+                "Command follow-up readiness poll: command=\(command) pane=\(currentPane.paneID) attempt=\(attempt + 1) elapsedMs=\(elapsedMilliseconds) commandStatus=\(paneResult.status) agent=\(updatedPane?.agent ?? "none") agentStatus=\(updatedPane?.agentStatus ?? "none") inputPromptAvailable=\(inputPromptAvailable) previousSession=\(previousSessionID ?? "none") currentSession=\(updatedPane?.agentSession?.value ?? "none")",
                 source: logSource
             )
 
             guard let updatedPane,
-                  self.isCodexPaneReady(
-                      agent: updatedPane.agent,
-                      agentStatus: updatedPane.agentStatus
-                  )
+                  command == "/compact"
+                    ? updatedPane.agent?.lowercased() == "codex" && inputPromptAvailable
+                    : self.isCodexPaneReady(
+                        agent: updatedPane.agent,
+                        agentStatus: updatedPane.agentStatus
+                    )
             else {
                 if attempt < 17 {
                     try? await Task.sleep(for: .milliseconds(100))
@@ -2700,14 +2752,14 @@ enum VoiceMacroService {
             )
             guard followUpResult.status == 0 else {
                 DebugLogger.shared.warning(
-                    "Clear follow-up submission failed: pane=\(currentPane.paneID) status=\(followUpResult.status)",
+                    "Command follow-up submission failed: command=\(command) pane=\(currentPane.paneID) status=\(followUpResult.status)",
                     source: logSource
                 )
-                self.showStatusToast("New session is ready, but the follow-up was not submitted.")
+                self.showStatusToast("Codex is ready, but the follow-up was not submitted.")
                 return true
             }
             DebugLogger.shared.info(
-                "Clear follow-up submitted: pane=\(currentPane.paneID) elapsedMs=\(Int(Date().timeIntervalSince(startedAt) * 1_000))",
+                "Command follow-up submitted: command=\(command) pane=\(currentPane.paneID) elapsedMs=\(Int(Date().timeIntervalSince(startedAt) * 1_000))",
                 source: logSource
             )
             if openNextPendingTab, !(await self.openNextPendingHerdrTab()) {
@@ -2716,7 +2768,7 @@ enum VoiceMacroService {
             return true
         }
         DebugLogger.shared.warning(
-            "Clear follow-up timed out waiting for Codex idle: pane=\(currentPane.paneID) elapsedMs=\(Int(Date().timeIntervalSince(startedAt) * 1_000))",
+            "Command follow-up timed out waiting for Codex idle: command=\(command) pane=\(currentPane.paneID) elapsedMs=\(Int(Date().timeIntervalSince(startedAt) * 1_000))",
             source: logSource
         )
         self.showStatusToast("Codex did not become ready. Follow-up was not submitted.")

@@ -92,6 +92,28 @@ struct DictationLiteralOutputPlan: Equatable {
         return (message, true)
     }
 
+    var compactSessionSubmission: (message: String, openNextPendingHerdrTab: Bool)? {
+        guard self.steps.count == 5 || self.steps.count == 7,
+              case .text("/compact") = self.steps[0],
+              case .pressReturn = self.steps[1],
+              case .pause = self.steps[2],
+              case let .text(message) = self.steps[3],
+              case .pressReturn = self.steps[4]
+        else {
+            return nil
+        }
+
+        if self.steps.count == 5 {
+            return (message, false)
+        }
+        guard case .pause = self.steps[5],
+              case .openNextPendingHerdrTab = self.steps[6]
+        else {
+            return nil
+        }
+        return (message, true)
+    }
+
     static func plain(_ text: String) -> DictationLiteralOutputPlan {
         DictationLiteralOutputPlan(steps: [.text(text)])
     }

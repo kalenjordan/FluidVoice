@@ -698,6 +698,8 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertTrue(plan.performsAction)
         XCTAssertTrue(plan.actionDescription.contains("Type: /compact"))
         XCTAssertTrue(plan.actionDescription.contains("Press Return"))
+        XCTAssertEqual(plan.compactSessionSubmission?.message, "Come back to the notification work")
+        XCTAssertEqual(plan.compactSessionSubmission?.openNextPendingHerdrTab, false)
     }
 
     func testSpokenPasteUsesAtomicPasteForCompactFollowUp() {
@@ -847,6 +849,8 @@ final class DictationE2ETests: XCTestCase {
                 .openNextPendingHerdrTab,
             ]
         )
+        XCTAssertEqual(plan.compactSessionSubmission?.message, "continue")
+        XCTAssertEqual(plan.compactSessionSubmission?.openNextPendingHerdrTab, true)
     }
 
     func testAndNextRunsInHerdrTerminal() {
@@ -996,6 +1000,23 @@ final class DictationE2ETests: XCTestCase {
         ))
     }
 
+    func testCodexInputPromptAvailabilityDoesNotRequireIdleStatus() {
+        XCTAssertTrue(VoiceMacroService.isCodexInputPromptAvailable(in: """
+        • Context compacted
+
+        › Follow-up message
+        """))
+        XCTAssertTrue(VoiceMacroService.isCodexInputPromptAvailable(in: """
+        • Working (9s)
+
+        ›
+        """))
+        XCTAssertFalse(VoiceMacroService.isCodexInputPromptAvailable(in: """
+        • Compacting context
+        Press esc to interrupt
+        """))
+    }
+
     func testClearWithFollowUpExposesNativeHerdrSubmission() {
         let plan = ASRService.makeDictationLiteralOutputPlan(
             for: "/clear and investigate the nudge tabs",
@@ -1026,6 +1047,7 @@ final class DictationE2ETests: XCTestCase {
         )
 
         XCTAssertNil(plan.clearSessionSubmission)
+        XCTAssertEqual(plan.compactSessionSubmission?.message, "and continue")
     }
 
     func testClearCommitNextRunsReviewSequenceThenOpensNextPendingTab() {
