@@ -1045,6 +1045,52 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(dayFour.elapsedDays, 4)
     }
 
+    func testCodexWeeklyStatusDailyProgressTracksCurrentDailyAllowance() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(
+            year: 2027, month: 1, day: 15, hour: 12
+        ))!
+        let status = VoiceMacroService.CodexWeeklyStatus(
+            usedPercent: 50,
+            windowDurationMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+            usedPercentAtStartOfDay: 50 - (100.0 / 7 * 0.5)
+        )
+
+        let progress = status.dailyProgress(now: now, calendar: calendar)!
+        XCTAssertEqual(progress.usageFraction, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(progress.elapsedFraction, 0.5, accuracy: 0.0001)
+    }
+
+    func testCodexWeeklyStatusDailyProgressIsNormalized() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(
+            year: 2027, month: 1, day: 15, hour: 12
+        ))!
+        let status = VoiceMacroService.CodexWeeklyStatus(
+            usedPercent: 80,
+            windowDurationMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+            usedPercentAtStartOfDay: 50
+        )
+
+        let progress = status.dailyProgress(now: now, calendar: calendar)!
+        XCTAssertEqual(progress.usageFraction, 1)
+        XCTAssertEqual(progress.elapsedFraction, 0.5, accuracy: 0.0001)
+    }
+
+    func testCodexWeeklyStatusOmitsDailyProgressWithoutMidnightBaseline() {
+        let status = VoiceMacroService.CodexWeeklyStatus(
+            usedPercent: 50,
+            windowDurationMinutes: 7 * 24 * 60,
+            resetsAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+
+        XCTAssertNil(status.dailyProgress())
+    }
+
     func testWorkspaceInvocationSeparatesWorkspaceFromTrailingDictation() {
         let workspaces = [
             VoiceMacroService.HerdrWorkspace(label: "herdr", workspaceID: "w1"),

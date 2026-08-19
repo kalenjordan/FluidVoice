@@ -83,9 +83,43 @@ enum VoiceMacroService {
         let usedPercent: Double
         let windowDurationMinutes: Double
         let resetsAt: Date
+        let usedPercentAtStartOfDay: Double?
+
+        init(
+            usedPercent: Double,
+            windowDurationMinutes: Double,
+            resetsAt: Date,
+            usedPercentAtStartOfDay: Double? = nil
+        ) {
+            self.usedPercent = usedPercent
+            self.windowDurationMinutes = windowDurationMinutes
+            self.resetsAt = resetsAt
+            self.usedPercentAtStartOfDay = usedPercentAtStartOfDay
+        }
 
         var usageFraction: Double {
             min(max(self.usedPercent / 100, 0), 1)
+        }
+
+        func dailyProgress(
+            now: Date = Date(),
+            calendar: Calendar = .current
+        ) -> (usageFraction: Double, elapsedFraction: Double)? {
+            guard let usedPercentAtStartOfDay else { return nil }
+            let startOfDay = calendar.startOfDay(for: now)
+            guard let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+                return nil
+            }
+            let dayDuration = startOfTomorrow.timeIntervalSince(startOfDay)
+            guard dayDuration > 0 else { return nil }
+
+            let windowDays = max(1, self.windowDurationMinutes / (24 * 60))
+            let dailyAllowancePercent = 100 / windowDays
+            let usedTodayPercent = max(0, self.usedPercent - usedPercentAtStartOfDay)
+            return (
+                min(max(usedTodayPercent / dailyAllowancePercent, 0), 1),
+                min(max(now.timeIntervalSince(startOfDay) / dayDuration, 0), 1)
+            )
         }
 
         func pacing(now: Date = Date()) -> (allowedUsageFraction: Double, elapsedDays: Int, windowDays: Int) {
@@ -111,6 +145,13 @@ enum VoiceMacroService {
                 + "Resets \(formatter.string(from: self.resetsAt))"
         }
     }
+
+    private static var codexDailyBaselineCache: (
+        startOfDay: Date,
+        windowDurationMinutes: Double,
+        resetsAt: Date,
+        usedPercent: Double?
+    )?
 
     private struct HerdrWorkspaceListResponse: Decodable {
         struct Result: Decodable {
@@ -1859,13 +1900,111 @@ enum VoiceMacroService {
             else {
                 continue
             }
+            let resetDate = Date(timeIntervalSince1970: resetsAt)
+            let usedPercentAtStartOfDay = self.codexUsedPercentAtStartOfDay(
+                windowDurationMinutes: windowMinutes,
+                resetsAt: resetDate
+            )
             return CodexWeeklyStatus(
                 usedPercent: usedPercent,
                 windowDurationMinutes: windowMinutes,
-                resetsAt: Date(timeIntervalSince1970: resetsAt)
+                resetsAt: resetDate,
+                usedPercentAtStartOfDay: usedPercentAtStartOfDay
             )
         }
         return nil
+    }
+
+    private static func codexUsedPercentAtStartOfDay(
+        windowDurationMinutes: Double,
+        resetsAt: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Double? {
+        let startOfDay = calendar.startOfDay(for: now)
+        if let cache = self.codexDailyBaselineCache,
+           cache.startOfDay == startOfDay,
+           abs(cache.windowDurationMinutes - windowDurationMinutes) < 1,
+           abs(cache.resetsAt.timeIntervalSince(resetsAt)) < 60
+        {
+            return cache.usedPercent
+        }
+        let windowStart = resetsAt.addingTimeInterval(-windowDurationMinutes * 60)
+        let candidateCutoff = calendar.date(byAdding: .day, value: -1, to: startOfDay) ?? windowStart
+        let fileManager = FileManager.default
+        let codexDirectory = fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
+        let roots = [
+            codexDirectory.appendingPathComponent("sessions"),
+            codexDirectory.appendingPathComponent("archived_sessions"),
+        ]
+        let keys: [URLResourceKey] = [
+            .creationDateKey,
+            .contentModificationDateKey,
+            .isRegularFileKey,
+        ]
+        var candidateFiles: [(url: URL, modifiedAt: Date)] = []
+
+        for root in roots {
+            guard let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: keys,
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+            for case let url as URL in enumerator where url.pathExtension == "jsonl" {
+                guard let values = try? url.resourceValues(forKeys: Set(keys)),
+                      values.isRegularFile == true,
+                      let createdAt = values.creationDate,
+                      createdAt <= startOfDay,
+                      let modifiedAt = values.contentModificationDate,
+                      modifiedAt >= candidateCutoff
+                else { continue }
+                candidateFiles.append((url, modifiedAt))
+            }
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var latestSnapshot: (date: Date, usedPercent: Double)?
+        for candidate in candidateFiles.sorted(by: { $0.modifiedAt > $1.modifiedAt }) {
+            if let latestSnapshot, candidate.modifiedAt <= latestSnapshot.date {
+                break
+            }
+            guard let data = try? Data(contentsOf: candidate.url),
+                  let contents = String(data: data, encoding: .utf8)
+            else { continue }
+            for line in contents.split(separator: "\n") {
+                guard let object = try? JSONSerialization.jsonObject(
+                    with: Data(line.utf8)
+                ) as? [String: Any],
+                    let timestamp = object["timestamp"] as? String,
+                    let snapshotDate = formatter.date(from: timestamp),
+                    snapshotDate <= startOfDay,
+                    snapshotDate >= windowStart,
+                    (latestSnapshot?.date ?? .distantPast) < snapshotDate,
+                    let payload = object["payload"] as? [String: Any],
+                    let rateLimits = payload["rate_limits"] as? [String: Any]
+                else { continue }
+
+                for key in ["primary", "secondary"] {
+                    guard let limit = rateLimits[key] as? [String: Any],
+                          let usedPercent = (limit["used_percent"] as? NSNumber)?.doubleValue,
+                          let windowMinutes = (limit["window_minutes"] as? NSNumber)?.doubleValue,
+                          let resetTimestamp = (limit["resets_at"] as? NSNumber)?.doubleValue,
+                          abs(windowMinutes - windowDurationMinutes) < 1,
+                          abs(resetTimestamp - resetsAt.timeIntervalSince1970) < 60
+                    else { continue }
+                    latestSnapshot = (snapshotDate, usedPercent)
+                }
+            }
+        }
+        let usedPercent = latestSnapshot?.usedPercent
+        self.codexDailyBaselineCache = (
+            startOfDay,
+            windowDurationMinutes,
+            resetsAt,
+            usedPercent
+        )
+        return usedPercent
     }
 
     @MainActor
@@ -1912,12 +2051,27 @@ enum VoiceMacroService {
     static func showCodexStatusToast(_ status: CodexWeeklyStatus) {
         let now = Date()
         let pacing = status.pacing(now: now)
-        VoiceMacroStatusToast.shared.show(
-            status.summary(now: now),
-            progress: status.usageFraction,
-            pacingProgress: pacing.allowedUsageFraction,
-            isOnPace: status.usageFraction <= pacing.allowedUsageFraction
-        )
+        if let dailyProgress = status.dailyProgress(now: now) {
+            VoiceMacroStatusToast.shared.show(
+                status.summary(now: now),
+                progress: dailyProgress.usageFraction,
+                pacingProgress: dailyProgress.elapsedFraction,
+                isOnPace: dailyProgress.usageFraction <= dailyProgress.elapsedFraction,
+                progressLabel: "Daily",
+                secondaryProgress: status.usageFraction,
+                secondaryPacingProgress: pacing.allowedUsageFraction,
+                secondaryIsOnPace: status.usageFraction <= pacing.allowedUsageFraction,
+                secondaryProgressLabel: "Weekly"
+            )
+        } else {
+            VoiceMacroStatusToast.shared.show(
+                status.summary(now: now),
+                progress: status.usageFraction,
+                pacingProgress: pacing.allowedUsageFraction,
+                isOnPace: status.usageFraction <= pacing.allowedUsageFraction,
+                progressLabel: "Weekly"
+            )
+        }
     }
 
     static func resolveWorkspace(query: String, workspaces: [HerdrWorkspace]) -> HerdrWorkspace? {
@@ -3915,7 +4069,10 @@ private final class VoiceMacroStatusToast {
 
     private let panel: NSPanel
     private let label = NSTextField(labelWithString: "")
+    private let progressLabel = NSTextField(labelWithString: "")
     private let progressBar = VoiceMacroUsageProgressBar()
+    private let secondaryProgressLabel = NSTextField(labelWithString: "")
+    private let secondaryProgressBar = VoiceMacroUsageProgressBar()
     private lazy var labelWidthConstraint = self.label.widthAnchor.constraint(equalToConstant: 260)
     private var hideTask: Task<Void, Never>?
 
@@ -3943,9 +4100,26 @@ private final class VoiceMacroStatusToast {
         self.label.lineBreakMode = .byWordWrapping
         self.label.translatesAutoresizingMaskIntoConstraints = false
 
+        for progressLabel in [self.progressLabel, self.secondaryProgressLabel] {
+            progressLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+            progressLabel.textColor = .secondaryLabelColor
+        }
         self.progressBar.isHidden = true
+        self.secondaryProgressBar.isHidden = true
 
-        let stack = NSStackView(views: [self.label, self.progressBar])
+        let progressStack = NSStackView(views: [self.progressLabel, self.progressBar])
+        progressStack.orientation = .vertical
+        progressStack.alignment = .leading
+        progressStack.spacing = 4
+        progressStack.isHidden = true
+
+        let secondaryProgressStack = NSStackView(views: [self.secondaryProgressLabel, self.secondaryProgressBar])
+        secondaryProgressStack.orientation = .vertical
+        secondaryProgressStack.alignment = .leading
+        secondaryProgressStack.spacing = 4
+        secondaryProgressStack.isHidden = true
+
+        let stack = NSStackView(views: [self.label, progressStack, secondaryProgressStack])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -3958,6 +4132,7 @@ private final class VoiceMacroStatusToast {
             stack.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -14),
             self.labelWidthConstraint,
             self.progressBar.widthAnchor.constraint(equalTo: self.label.widthAnchor),
+            self.secondaryProgressBar.widthAnchor.constraint(equalTo: self.label.widthAnchor),
         ])
         self.panel.contentView = background
     }
@@ -3967,6 +4142,11 @@ private final class VoiceMacroStatusToast {
         progress: Double? = nil,
         pacingProgress: Double? = nil,
         isOnPace: Bool? = nil,
+        progressLabel: String? = nil,
+        secondaryProgress: Double? = nil,
+        secondaryPacingProgress: Double? = nil,
+        secondaryIsOnPace: Bool? = nil,
+        secondaryProgressLabel: String? = nil,
         automaticallyHides: Bool = true,
         maximumLines: Int = 3,
         textWidth: CGFloat = 260
@@ -3975,6 +4155,8 @@ private final class VoiceMacroStatusToast {
         self.label.maximumNumberOfLines = maximumLines
         self.labelWidthConstraint.constant = textWidth
         self.label.stringValue = text
+        let progressStack = self.progressBar.superview
+        let secondaryProgressStack = self.secondaryProgressBar.superview
         if let progress {
             let normalizedProgress = min(max(progress, 0), 1)
             self.progressBar.progress = normalizedProgress
@@ -3985,10 +4167,33 @@ private final class VoiceMacroStatusToast {
             case false: .systemOrange
             case nil: .controlAccentColor
             }
+            self.progressLabel.stringValue = progressLabel ?? ""
+            self.progressLabel.isHidden = progressLabel == nil
             self.progressBar.isHidden = false
+            progressStack?.isHidden = false
         } else {
             self.progressBar.pacingProgress = nil
             self.progressBar.isHidden = true
+            progressStack?.isHidden = true
+        }
+        if let secondaryProgress {
+            let normalizedProgress = min(max(secondaryProgress, 0), 1)
+            self.secondaryProgressBar.progress = normalizedProgress
+            self.secondaryProgressBar.pacingProgress = secondaryPacingProgress
+            self.secondaryProgressBar.fillColor = switch secondaryIsOnPace {
+            case true: .systemGreen
+            case false where normalizedProgress >= 0.9: .systemRed
+            case false: .systemOrange
+            case nil: .controlAccentColor
+            }
+            self.secondaryProgressLabel.stringValue = secondaryProgressLabel ?? ""
+            self.secondaryProgressLabel.isHidden = secondaryProgressLabel == nil
+            self.secondaryProgressBar.isHidden = false
+            secondaryProgressStack?.isHidden = false
+        } else {
+            self.secondaryProgressBar.pacingProgress = nil
+            self.secondaryProgressBar.isHidden = true
+            secondaryProgressStack?.isHidden = true
         }
         self.panel.contentView?.layoutSubtreeIfNeeded()
         let size = self.panel.contentView?.fittingSize ?? NSSize(width: 296, height: 84)
