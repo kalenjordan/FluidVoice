@@ -1081,6 +1081,41 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(progress.elapsedFraction, 0.5, accuracy: 0.0001)
     }
 
+    func testCodexWeeklyStatusDailyProgressStartsAtZeroAfterWeeklyResetToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(
+            year: 2027, month: 1, day: 15, hour: 12
+        ))!
+        let status = VoiceMacroService.CodexWeeklyStatus(
+            usedPercent: 3,
+            windowDurationMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(6.9 * 24 * 60 * 60),
+            usedPercentAtStartOfDay: 0
+        )
+
+        let progress = status.dailyProgress(now: now, calendar: calendar)!
+        XCTAssertEqual(progress.usageFraction, 0.21, accuracy: 0.0001)
+        XCTAssertEqual(progress.elapsedFraction, 0.5, accuracy: 0.0001)
+    }
+
+    func testCodexDailyBaselineIsZeroWhenWeeklyWindowStartsToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(
+            year: 2027, month: 1, day: 15, hour: 12
+        ))!
+
+        let baseline = VoiceMacroService.codexUsedPercentAtStartOfDay(
+            windowDurationMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(6.9 * 24 * 60 * 60),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(baseline, 0)
+    }
+
     func testCodexWeeklyStatusOmitsDailyProgressWithoutMidnightBaseline() {
         let status = VoiceMacroService.CodexWeeklyStatus(
             usedPercent: 50,

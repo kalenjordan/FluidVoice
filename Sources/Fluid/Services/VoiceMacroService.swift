@@ -1915,13 +1915,17 @@ enum VoiceMacroService {
         return nil
     }
 
-    private static func codexUsedPercentAtStartOfDay(
+    static func codexUsedPercentAtStartOfDay(
         windowDurationMinutes: Double,
         resetsAt: Date,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Double? {
         let startOfDay = calendar.startOfDay(for: now)
+        let windowStart = resetsAt.addingTimeInterval(-windowDurationMinutes * 60)
+        if windowStart >= startOfDay, windowStart <= now {
+            return 0
+        }
         if let cache = self.codexDailyBaselineCache,
            cache.startOfDay == startOfDay,
            abs(cache.windowDurationMinutes - windowDurationMinutes) < 1,
@@ -1929,7 +1933,6 @@ enum VoiceMacroService {
         {
             return cache.usedPercent
         }
-        let windowStart = resetsAt.addingTimeInterval(-windowDurationMinutes * 60)
         let candidateCutoff = calendar.date(byAdding: .day, value: -1, to: startOfDay) ?? windowStart
         let fileManager = FileManager.default
         let codexDirectory = fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
