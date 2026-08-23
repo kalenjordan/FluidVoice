@@ -30,6 +30,12 @@ final class NotchOverlayManager {
         NotchCompactTrailingView,
         NotchCompactBottomView
     >
+    private typealias CommandOutputNotch = DynamicNotch<
+        NotchCommandOutputExpandedView,
+        NotchCompactLeadingView,
+        NotchCompactTrailingView,
+        EmptyView
+    >
 
     struct NotchPresentationPolicy: Equatable {
         let usesCompactPresentation: Bool
@@ -42,14 +48,15 @@ final class NotchOverlayManager {
     }
 
     private var notch: RecordingNotch?
+    // DynamicNotchKit installs a screen-change observation task for every notch
+    // instance and does not cancel it. Reuse the instance after its window has
+    // finished closing so repeated dictations do not accumulate retained SwiftUI
+    // graphs and AppKit windows for the lifetime of the process.
+    private var reusableNotches: [RecordingNotch] = []
     private var presentationTask: Task<Void, Never>?
     private var nextPresentationCommittedAction: (@MainActor () -> Void)?
-    private var commandOutputNotch: DynamicNotch<
-        NotchCommandOutputExpandedView,
-        NotchCompactLeadingView,
-        NotchCompactTrailingView,
-        EmptyView
-    >?
+    private var commandOutputNotch: CommandOutputNotch?
+    private var reusableCommandOutputNotches: [CommandOutputNotch] = []
     private var currentMode: OverlayMode = .dictation
 
     /// Store last audio publisher for re-showing during processing
@@ -303,25 +310,33 @@ final class NotchOverlayManager {
         let presentation = shouldUseCompactPresentation ? "compact" : "expanded"
         let latencyMeasurement = OverlayPresentationBenchmark.shared.currentToken()
 
-        // Create notch with SwiftUI views
-        let newNotch = DynamicNotch(
-            hoverBehavior: [], // Recording overlays should dismiss even if hover state gets stale.
-            style: .auto
-        ) {
-            NotchExpandedView(audioPublisher: audioLevelPublisher)
-        } compactLeading: {
-            NotchCompactLeadingView()
-        } compactTrailing: {
-            NotchCompactTrailingView(audioPublisher: audioLevelPublisher)
-        } compactBottom: {
-            NotchCompactBottomView()
+        let newNotch: RecordingNotch
+        if let reusableNotch = self.reusableNotches.popLast() {
+            newNotch = reusableNotch
+            Self.overlayBench("notch_instance_reused")
+        } else {
+            // Create notch with SwiftUI views. The audio publisher belongs to the
+            // app-wide ASR service, so it remains valid across presentations.
+            newNotch = DynamicNotch(
+                hoverBehavior: [], // Recording overlays should dismiss even if hover state gets stale.
+                style: .auto
+            ) {
+                NotchExpandedView(audioPublisher: audioLevelPublisher)
+            } compactLeading: {
+                NotchCompactLeadingView()
+            } compactTrailing: {
+                NotchCompactTrailingView(audioPublisher: audioLevelPublisher)
+            } compactBottom: {
+                NotchCompactBottomView()
+            }
+            newNotch.transitionConfiguration = .init(
+                openingAnimation: .linear(duration: 0),
+                closingAnimation: .linear(duration: 0),
+                conversionAnimation: .linear(duration: 0),
+                skipIntermediateHides: true
+            )
+            Self.overlayBench("notch_instance_created")
         }
-        newNotch.transitionConfiguration = .init(
-            openingAnimation: .linear(duration: 0),
-            closingAnimation: .linear(duration: 0),
-            conversionAnimation: .linear(duration: 0),
-            skipIntermediateHides: true
-        )
 
         self.notch = newNotch
         Self.overlayBench("notch_task_scheduled mode=\(self.currentMode.rawValue) presentation=\(presentation) screen=\(targetScreen.localizedName)")
@@ -493,7 +508,7 @@ final class NotchOverlayManager {
                 existingNotch.windowController?.window?.orderOut(nil)
                 await activePresentationTask?.value
                 existingNotch.windowController?.window?.orderOut(nil)
-                Task { await existingNotch.hide() }
+                self.recycleAfterHide(existingNotch)
             }
             guard self.generation == currentGeneration else { return }
             self.notch = nil
@@ -507,7 +522,7 @@ final class NotchOverlayManager {
         currentNotch.windowController?.window?.orderOut(nil)
         await activePresentationTask?.value
         currentNotch.windowController?.window?.orderOut(nil)
-        Task { await currentNotch.hide() }
+        self.recycleAfterHide(currentNotch)
         Self.overlayBench("hide_immediate_complete elapsedMs=\(Self.elapsedMs(since: startedAt))")
         // Only clear if we're still the active operation
         guard self.generation == currentGeneration else { return }
@@ -540,11 +555,24 @@ final class NotchOverlayManager {
         await activePresentationTask?.value
         existingNotch?.windowController?.window?.orderOut(nil)
         if let existingNotch {
-            Task { await existingNotch.hide() }
+            self.recycleAfterHide(existingNotch)
         }
         self.notch = nil
         self.state = .idle
         Self.overlayBench("cleanup_complete elapsedMs=\(Self.elapsedMs(since: startedAt))")
+    }
+
+    private func recycleAfterHide(_ notch: RecordingNotch) {
+        Task { @MainActor [weak self] in
+            await notch.hide()
+            guard let self else { return }
+            if self.notch !== notch,
+               !self.reusableNotches.contains(where: { $0 === notch })
+            {
+                self.reusableNotches.append(notch)
+                Self.overlayBench("notch_instance_recycled")
+            }
+        }
     }
 
     func setMode(_ mode: OverlayMode) {
@@ -658,51 +686,56 @@ final class NotchOverlayManager {
 
         let publisher = self.lastAudioPublisher ?? Empty<CGFloat, Never>().eraseToAnyPublisher()
 
-        let newNotch = DynamicNotch(
-            hoverBehavior: [], // No keepVisible - allows closing with X/Escape even when cursor is on notch
-            style: .auto
-        ) {
-            NotchCommandOutputExpandedView(
-                audioPublisher: publisher,
-                onDismiss: { [weak self] in
-                    Task { @MainActor in
-                        self?.hideExpandedCommandOutput()
-                        self?.onCommandOutputDismiss?()
-                    }
-                },
-                onSubmit: { [weak self] text in
-                    guard let self, self.allowsCommandNotchActions else { return }
-                    await self.onCommandFollowUp?(text)
-                },
-                onNewChat: { [weak self] in
-                    Task { @MainActor in
+        let newNotch: CommandOutputNotch
+        if let reusableNotch = self.reusableCommandOutputNotches.popLast() {
+            newNotch = reusableNotch
+        } else {
+            newNotch = DynamicNotch(
+                hoverBehavior: [], // No keepVisible - allows closing with X/Escape even when cursor is on notch
+                style: .auto
+            ) {
+                NotchCommandOutputExpandedView(
+                    audioPublisher: publisher,
+                    onDismiss: { [weak self] in
+                        Task { @MainActor in
+                            self?.hideExpandedCommandOutput()
+                            self?.onCommandOutputDismiss?()
+                        }
+                    },
+                    onSubmit: { [weak self] text in
                         guard let self, self.allowsCommandNotchActions else { return }
-                        self.onNewChat?()
-                        // Refresh recent chats in notch state
-                        NotchContentState.shared.refreshRecentChats()
+                        await self.onCommandFollowUp?(text)
+                    },
+                    onNewChat: { [weak self] in
+                        Task { @MainActor in
+                            guard let self, self.allowsCommandNotchActions else { return }
+                            self.onNewChat?()
+                            // Refresh recent chats in notch state
+                            NotchContentState.shared.refreshRecentChats()
+                        }
+                    },
+                    onSwitchChat: { [weak self] chatID in
+                        Task { @MainActor in
+                            guard let self, self.allowsCommandNotchActions else { return }
+                            self.onSwitchChat?(chatID)
+                            // Refresh recent chats in notch state
+                            NotchContentState.shared.refreshRecentChats()
+                        }
+                    },
+                    onClearChat: { [weak self] in
+                        Task { @MainActor in
+                            guard let self, self.allowsCommandNotchActions else { return }
+                            self.onClearChat?()
+                        }
                     }
-                },
-                onSwitchChat: { [weak self] chatID in
-                    Task { @MainActor in
-                        guard let self, self.allowsCommandNotchActions else { return }
-                        self.onSwitchChat?(chatID)
-                        // Refresh recent chats in notch state
-                        NotchContentState.shared.refreshRecentChats()
-                    }
-                },
-                onClearChat: { [weak self] in
-                    Task { @MainActor in
-                        guard let self, self.allowsCommandNotchActions else { return }
-                        self.onClearChat?()
-                    }
-                }
-            )
-        } compactLeading: {
-            NotchCompactLeadingView()
-        } compactTrailing: {
-            NotchCompactTrailingView(audioPublisher: publisher)
-        } compactBottom: {
-            EmptyView()
+                )
+            } compactLeading: {
+                NotchCompactLeadingView()
+            } compactTrailing: {
+                NotchCompactTrailingView(audioPublisher: publisher)
+            } compactBottom: {
+                EmptyView()
+            }
         }
 
         self.commandOutputNotch = newNotch
@@ -762,7 +795,13 @@ final class NotchOverlayManager {
         Task { [weak self] in
             // Try to hide gracefully, but we've already removed our reference
             await notchToHide.hide()
-            guard let self = self, self.commandOutputGeneration == currentGeneration else { return }
+            guard let self else { return }
+            if self.commandOutputNotch !== notchToHide,
+               !self.reusableCommandOutputNotches.contains(where: { $0 === notchToHide })
+            {
+                self.reusableCommandOutputNotches.append(notchToHide)
+            }
+            guard self.commandOutputGeneration == currentGeneration else { return }
             self.commandOutputState = .idle
         }
     }

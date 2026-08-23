@@ -2691,9 +2691,7 @@ struct ContentView: View {
            VoiceMacroService.isWindowMiddleCommand(transcript: transcribedText)
         {
             DebugLogger.shared.info("Running window middle voice command", source: "ContentView")
-            let succeeded = VoiceMacroService.requestKeymapperWindowAction(
-                "middle", targetPID: targetPID
-            )
+            let succeeded = VoiceMacroService.moveWindowToMiddle(targetPID: targetPID)
             self.recordWindowAction(
                 command: "window middle",
                 succeeded: succeeded,

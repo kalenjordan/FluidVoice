@@ -1279,6 +1279,24 @@ enum VoiceMacroService {
     private static let windowMiddleTopLeftInset = NSPoint(x: 396, y: 103)
     private static let windowMiddleReferenceScreenSize = NSSize(width: 1920, height: 1080)
 
+    static func moveWindowToMiddle(targetPID: pid_t) -> Bool {
+        guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
+              let primaryScreen = NSScreen.screens.first
+        else {
+            return false
+        }
+        return self.moveFocusedWindow(
+            operation: "middle",
+            targetPID: targetPID,
+            to: self.windowMiddleFrame(
+                in: screen.visibleFrame,
+                screenFrame: screen.frame
+            ),
+            screen: screen,
+            primaryScreenMaxY: primaryScreen.frame.maxY
+        )
+    }
+
     static func moveAllApplicationWindowsToMiddle() -> WindowOperationResult {
         guard let screen = OverlayScreenResolver.screenForCurrentPointer(),
               let primaryScreen = NSScreen.screens.first
@@ -2064,7 +2082,8 @@ enum VoiceMacroService {
                 secondaryProgress: status.usageFraction,
                 secondaryPacingProgress: pacing.allowedUsageFraction,
                 secondaryIsOnPace: status.usageFraction <= pacing.allowedUsageFraction,
-                secondaryProgressLabel: "Weekly"
+                secondaryProgressLabel: "Weekly",
+                secondaryProgressSegmentCount: 7
             )
         } else {
             VoiceMacroStatusToast.shared.show(
@@ -2072,7 +2091,8 @@ enum VoiceMacroService {
                 progress: status.usageFraction,
                 pacingProgress: pacing.allowedUsageFraction,
                 isOnPace: status.usageFraction <= pacing.allowedUsageFraction,
-                progressLabel: "Weekly"
+                progressLabel: "Weekly",
+                progressSegmentCount: 7
             )
         }
     }
@@ -4034,6 +4054,10 @@ private final class VoiceMacroUsageProgressBar: NSView {
         didSet { self.needsDisplay = true }
     }
 
+    var segmentCount = 1 {
+        didSet { self.needsDisplay = true }
+    }
+
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: 6)
     }
@@ -4062,6 +4086,19 @@ private final class VoiceMacroUsageProgressBar: NSView {
             )
             NSColor.labelColor.setFill()
             markerPath.fill()
+        }
+
+        if self.segmentCount > 1 {
+            NSColor.labelColor.withAlphaComponent(0.55).setFill()
+            for segment in 1 ..< self.segmentCount {
+                let tickCenter = self.bounds.width * CGFloat(segment) / CGFloat(self.segmentCount)
+                let tickPath = NSBezierPath(
+                    roundedRect: NSRect(x: tickCenter - 1, y: 1, width: 2, height: self.bounds.height - 2),
+                    xRadius: 1,
+                    yRadius: 1
+                )
+                tickPath.fill()
+            }
         }
     }
 }
@@ -4146,10 +4183,12 @@ private final class VoiceMacroStatusToast {
         pacingProgress: Double? = nil,
         isOnPace: Bool? = nil,
         progressLabel: String? = nil,
+        progressSegmentCount: Int = 1,
         secondaryProgress: Double? = nil,
         secondaryPacingProgress: Double? = nil,
         secondaryIsOnPace: Bool? = nil,
         secondaryProgressLabel: String? = nil,
+        secondaryProgressSegmentCount: Int = 1,
         automaticallyHides: Bool = true,
         maximumLines: Int = 3,
         textWidth: CGFloat = 260
@@ -4164,6 +4203,7 @@ private final class VoiceMacroStatusToast {
             let normalizedProgress = min(max(progress, 0), 1)
             self.progressBar.progress = normalizedProgress
             self.progressBar.pacingProgress = pacingProgress
+            self.progressBar.segmentCount = max(progressSegmentCount, 1)
             self.progressBar.fillColor = switch isOnPace {
             case true: .systemGreen
             case false where normalizedProgress >= 0.9: .systemRed
@@ -4176,6 +4216,7 @@ private final class VoiceMacroStatusToast {
             progressStack?.isHidden = false
         } else {
             self.progressBar.pacingProgress = nil
+            self.progressBar.segmentCount = 1
             self.progressBar.isHidden = true
             progressStack?.isHidden = true
         }
@@ -4183,6 +4224,7 @@ private final class VoiceMacroStatusToast {
             let normalizedProgress = min(max(secondaryProgress, 0), 1)
             self.secondaryProgressBar.progress = normalizedProgress
             self.secondaryProgressBar.pacingProgress = secondaryPacingProgress
+            self.secondaryProgressBar.segmentCount = max(secondaryProgressSegmentCount, 1)
             self.secondaryProgressBar.fillColor = switch secondaryIsOnPace {
             case true: .systemGreen
             case false where normalizedProgress >= 0.9: .systemRed
@@ -4195,6 +4237,7 @@ private final class VoiceMacroStatusToast {
             secondaryProgressStack?.isHidden = false
         } else {
             self.secondaryProgressBar.pacingProgress = nil
+            self.secondaryProgressBar.segmentCount = 1
             self.secondaryProgressBar.isHidden = true
             secondaryProgressStack?.isHidden = true
         }
