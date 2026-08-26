@@ -273,11 +273,6 @@ private enum DictationLiteralFormatter {
         options: []
     )
 
-    private static let nextSuffixRegex = try? NSRegularExpression(
-        pattern: #"(?is)^(.+?)[,;]?\s+(?:and\s+)?next\s*[.!?]*\s*$"#,
-        options: []
-    )
-
     private static let mentionRejectedTokens: Set<String> = [
         "a", "an", "airport", "breakfast", "brunch", "class", "dinner", "home",
         "hotel", "house", "lunch", "meeting", "night", "noon", "office", "place",
@@ -373,57 +368,6 @@ private enum DictationLiteralFormatter {
             bundleID: bundleID,
             windowTitle: windowTitle
         )
-        if self.isClearCommitNextCommand(
-            formattedText,
-            appName: appName,
-            bundleID: bundleID,
-            windowTitle: windowTitle
-        ) {
-            return DictationLiteralOutputPlan(
-                steps: [
-                    .text("/clear"),
-                    .pressReturn,
-                    .pause(milliseconds: 400),
-                    .text("review modified files for commit"),
-                    .pressReturn,
-                    .pause(milliseconds: 400),
-                    .openNextPendingHerdrTab,
-                ]
-            )
-        }
-        if let followUpMessage = self.compactNextMessage(
-            in: formattedText,
-            appName: appName,
-            bundleID: bundleID,
-            windowTitle: windowTitle
-        ) {
-            return DictationLiteralOutputPlan(
-                steps: [
-                    .text("/compact"),
-                    .pressReturn,
-                    .pause(milliseconds: 200),
-                    .text(followUpMessage),
-                    .pressReturn,
-                    .pause(milliseconds: 400),
-                    .openNextPendingHerdrTab,
-                ]
-            )
-        }
-        if let message = self.andNextMessage(
-            in: formattedText,
-            appName: appName,
-            bundleID: bundleID,
-            windowTitle: windowTitle
-        ) {
-            return DictationLiteralOutputPlan(
-                steps: [
-                    .text(message),
-                    .pressReturn,
-                    .pause(milliseconds: 400),
-                    .openNextPendingHerdrTab,
-                ]
-            )
-        }
         if let followUpMessage = self.clearFollowUpMessage(
             in: formattedText,
             appName: appName,
@@ -486,29 +430,6 @@ private enum DictationLiteralFormatter {
         )
     }
 
-    private static func isClearCommitNextCommand(
-        _ text: String,
-        appName: String?,
-        bundleID: String?,
-        windowTitle: String?
-    ) -> Bool {
-        let isCodexLikeApp = self.isSlashCommandAutocompleteApp(
-            appName: appName,
-            bundleID: bundleID,
-            windowTitle: windowTitle
-        )
-        let isHerdrTerminal = bundleID?.lowercased() == "com.mitchellh.ghostty"
-        guard isCodexLikeApp || isHerdrTerminal else {
-            return false
-        }
-
-        let command = text
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
-            .lowercased()
-        return command == "/clear commit next"
-    }
-
     private static func standaloneSubmittingSlashCommand(
         _ text: String,
         appName: String?,
@@ -528,71 +449,6 @@ private enum DictationLiteralFormatter {
             .trimmingCharacters(in: CharacterSet(charactersIn: ".!?"))
             .lowercased()
         return ["/clear", "/compact"].contains(command) ? command : nil
-    }
-
-    private static func andNextMessage(
-        in text: String,
-        appName: String?,
-        bundleID: String?,
-        windowTitle: String?
-    ) -> String? {
-        let haystack = [appName, bundleID, windowTitle]
-            .compactMap { $0?.lowercased() }
-            .joined(separator: " ")
-        let isCodexOrHerdr = haystack.contains("codex")
-            || bundleID?.lowercased() == "com.mitchellh.ghostty"
-        guard isCodexOrHerdr,
-              let regex = self.nextSuffixRegex
-        else {
-            return nil
-        }
-
-        let range = NSRange(location: 0, length: (text as NSString).length)
-        guard let match = regex.firstMatch(in: text, range: range),
-              match.numberOfRanges > 1
-        else {
-            return nil
-        }
-        let message = (text as NSString)
-            .substring(with: match.range(at: 1))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return message.isEmpty ? nil : message
-    }
-
-    private static func compactNextMessage(
-        in text: String,
-        appName: String?,
-        bundleID: String?,
-        windowTitle: String?
-    ) -> String? {
-        guard let messageBeforeNext = self.andNextMessage(
-            in: text,
-            appName: appName,
-            bundleID: bundleID,
-            windowTitle: windowTitle
-        ) else {
-            return nil
-        }
-
-        let prefix = "/compact"
-        guard messageBeforeNext.count > prefix.count,
-              messageBeforeNext.prefix(prefix.count).lowercased() == prefix
-        else {
-            return nil
-        }
-        let boundaryIndex = messageBeforeNext.index(
-            messageBeforeNext.startIndex,
-            offsetBy: prefix.count
-        )
-        guard messageBeforeNext[boundaryIndex].isWhitespace else { return nil }
-
-        var continuation = messageBeforeNext[boundaryIndex...]
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if continuation.lowercased().hasPrefix("and ") {
-            continuation = continuation.dropFirst(4)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return continuation.isEmpty ? nil : continuation
     }
 
     private static func clearFollowUpMessage(

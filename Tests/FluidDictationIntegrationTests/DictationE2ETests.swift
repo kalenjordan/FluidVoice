@@ -803,7 +803,7 @@ final class DictationE2ETests: XCTestCase {
         )
     }
 
-    func testNextSuffixSubmitsMessageBeforeOpeningNextPendingTab() {
+    func testNextSuffixRemainsLiteral() {
         for transcript in [
             "Fix the login bug next",
             "Fix the login bug, next.",
@@ -817,20 +817,11 @@ final class DictationE2ETests: XCTestCase {
                 bundleID: "com.openai.codex"
             )
 
-            XCTAssertEqual(
-                plan.steps,
-                [
-                    .text("Fix the login bug"),
-                    .pressReturn,
-                    .pause(milliseconds: 400),
-                    .openNextPendingHerdrTab,
-                ],
-                transcript
-            )
+            XCTAssertEqual(plan.steps, [.text(transcript)], transcript)
         }
     }
 
-    func testCompactFollowUpNextRunsAllThreeActionsSeparately() {
+    func testCompactFollowUpKeepsTrailingNextInMessage() {
         let plan = ASRService.makeDictationLiteralOutputPlan(
             for: "/compact and continue next",
             appName: "Codex",
@@ -843,32 +834,22 @@ final class DictationE2ETests: XCTestCase {
                 .text("/compact"),
                 .pressReturn,
                 .pause(milliseconds: 200),
-                .text("continue"),
+                .text("and continue next"),
                 .pressReturn,
-                .pause(milliseconds: 400),
-                .openNextPendingHerdrTab,
             ]
         )
-        XCTAssertEqual(plan.compactSessionSubmission?.message, "continue")
-        XCTAssertEqual(plan.compactSessionSubmission?.openNextPendingHerdrTab, true)
+        XCTAssertEqual(plan.compactSessionSubmission?.message, "and continue next")
+        XCTAssertEqual(plan.compactSessionSubmission?.openNextPendingHerdrTab, false)
     }
 
-    func testAndNextRunsInHerdrTerminal() {
+    func testAndNextRemainsLiteralInHerdrTerminal() {
         let plan = ASRService.makeDictationLiteralOutputPlan(
             for: "Review these changes and next.",
             appName: "Ghostty",
             bundleID: "com.mitchellh.ghostty"
         )
 
-        XCTAssertEqual(
-            plan.steps,
-            [
-                .text("Review these changes"),
-                .pressReturn,
-                .pause(milliseconds: 400),
-                .openNextPendingHerdrTab,
-            ]
-        )
+        XCTAssertEqual(plan.steps, [.text("Review these changes and next.")])
     }
 
     func testAndNextRemainsLiteralOutsideCodexAndHerdr() {
@@ -1028,15 +1009,15 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertEqual(plan.clearSessionSubmission?.openNextPendingHerdrTab, false)
     }
 
-    func testClearCommitNextExposesNativeHerdrSubmissionAndNextTab() {
+    func testClearCommitNextKeepsNextInFollowUp() {
         let plan = ASRService.makeDictationLiteralOutputPlan(
             for: "/clear commit next",
             appName: "Ghostty",
             bundleID: "com.mitchellh.ghostty"
         )
 
-        XCTAssertEqual(plan.clearSessionSubmission?.message, "review modified files for commit")
-        XCTAssertEqual(plan.clearSessionSubmission?.openNextPendingHerdrTab, true)
+        XCTAssertEqual(plan.clearSessionSubmission?.message, "commit next")
+        XCTAssertEqual(plan.clearSessionSubmission?.openNextPendingHerdrTab, false)
     }
 
     func testCompactFollowUpDoesNotExposeClearSessionSubmission() {
@@ -1050,7 +1031,7 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertEqual(plan.compactSessionSubmission?.message, "and continue")
     }
 
-    func testClearCommitNextRunsReviewSequenceThenOpensNextPendingTab() {
+    func testClearCommitNextRunsLiteralFollowUp() {
         for bundleID in ["com.openai.codex", "com.mitchellh.ghostty"] {
             XCTAssertEqual(
                 ASRService.makeDictationLiteralOutputPlan(
@@ -1062,10 +1043,8 @@ final class DictationE2ETests: XCTestCase {
                     .text("/clear"),
                     .pressReturn,
                     .pause(milliseconds: 400),
-                    .text("review modified files for commit"),
+                    .text("commit next."),
                     .pressReturn,
-                    .pause(milliseconds: 400),
-                    .openNextPendingHerdrTab,
                 ]
             )
         }
