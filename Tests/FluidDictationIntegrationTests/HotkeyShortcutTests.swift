@@ -772,32 +772,28 @@ final class HotkeyShortcutTests: XCTestCase {
             ),
             "review the current changes."
         )
-        XCTAssertTrue(VoiceMacroService.isNewCodexTabCommand(
+        XCTAssertFalse(VoiceMacroService.isNewCodexTabCommand(
             transcript: "Investigate the focus issue. New tab."
         ))
-        XCTAssertEqual(
+        XCTAssertNil(
             VoiceMacroService.newCodexTabPrompt(
                 transcript: "Investigate the focus issue. New tab."
-            ),
-            "Investigate the focus issue."
+            )
         )
-        XCTAssertEqual(
+        XCTAssertNil(
             VoiceMacroService.newCodexTabPrompt(
                 transcript: "Review the current changes, Codex new tab."
-            ),
-            "Review the current changes"
+            )
         )
-        XCTAssertEqual(
+        XCTAssertNil(
             VoiceMacroService.newCodexTabPrompt(
                 transcript: "Investigate the focus issue new Codex tab"
-            ),
-            "Investigate the focus issue"
+            )
         )
-        XCTAssertEqual(
+        XCTAssertNil(
             VoiceMacroService.newCodexTabPrompt(
                 transcript: "Investigate the focus issue new tap"
-            ),
-            "Investigate the focus issue"
+            )
         )
         XCTAssertNil(VoiceMacroService.newCodexTabPrompt(transcript: "New tab."))
         XCTAssertFalse(VoiceMacroService.isNewCodexTabCommand(

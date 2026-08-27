@@ -3866,27 +3866,7 @@ enum VoiceMacroService {
                 trailingText: trailingText.isEmpty ? nil : trailingText
             )
         }
-
-        let trailingPattern = #"^(.*?)\b(new codex (?:tab|tap)|codex new (?:tab|tap)|new (?:tab|tap))[\s\p{P}]*$"#
-        guard let trailingExpression = try? NSRegularExpression(
-            pattern: trailingPattern,
-            options: [.caseInsensitive]
-        ),
-        let match = trailingExpression.firstMatch(in: transcript, range: range),
-        let precedingRange = Range(match.range(at: 1), in: transcript)
-        else {
-            return nil
-        }
-
-        let commandSeparators = CharacterSet.whitespacesAndNewlines.union(
-            CharacterSet(charactersIn: ",;:")
-        )
-        let precedingText = String(transcript[precedingRange])
-            .trimmingCharacters(in: commandSeparators)
-        guard self.normalizedPhrase(precedingText) != "open a" else { return nil }
-        return NewCodexTabInvocation(
-            trailingText: precedingText.isEmpty ? nil : precedingText
-        )
+        return nil
     }
 
     private static func canonicalProjectName(for spokenName: String) -> String? {
