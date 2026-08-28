@@ -1283,7 +1283,7 @@ enum VoiceMacroService {
     }
 
     private static let windowMiddlePreferredSize = NSSize(width: 1294, height: 901)
-    private static let windowMiddleTopLeftInset = NSPoint(x: 396, y: 103)
+    private static let windowMiddleTopLeftInset = NSPoint(x: 504, y: 100)
     private static let windowMiddleReferenceScreenSize = NSSize(width: 1920, height: 1080)
 
     static func moveWindowToMiddle(targetPID: pid_t) -> Bool {

@@ -610,13 +610,13 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
-    func testWindowMiddleFrameMatchesLargeChromeLayoutOnSelectedScreen() {
+    func testWindowMiddleFrameMatchesGhosttyLayoutOnSelectedScreen() {
         let frame = VoiceMacroService.windowMiddleFrame(
             in: NSRect(x: 1440, y: -148, width: 1920, height: 1050),
             screenFrame: NSRect(x: 1440, y: -148, width: 1920, height: 1080)
         )
 
-        XCTAssertEqual(frame, NSRect(x: 1836, y: -102, width: 1294, height: 901))
+        XCTAssertEqual(frame, NSRect(x: 1944, y: -99, width: 1294, height: 901))
     }
 
     func testWindowMiddleFrameScalesProportionallyOnLaptopScreen() {
@@ -625,8 +625,8 @@ final class HotkeyShortcutTests: XCTestCase {
             screenFrame: NSRect(x: 0, y: 0, width: 1440, height: 932)
         )
 
-        XCTAssertEqual(frame.origin.x, 297, accuracy: 0.001)
-        XCTAssertEqual(frame.origin.y, 150, accuracy: 0.001)
+        XCTAssertEqual(frame.origin.x, 378, accuracy: 0.001)
+        XCTAssertEqual(frame.origin.y, 152.25, accuracy: 0.001)
         XCTAssertEqual(frame.width, 970.5, accuracy: 0.001)
         XCTAssertEqual(frame.height, 675.75, accuracy: 0.001)
     }
