@@ -122,14 +122,20 @@ enum VoiceMacroService {
             )
         }
 
-        func pacing(now: Date = Date()) -> (allowedUsageFraction: Double, elapsedDays: Int, windowDays: Int) {
+        func pacing(now: Date = Date()) -> (allowedUsageFraction: Double, elapsed: TimeInterval, remaining: TimeInterval) {
+            let windowDuration = max(60, self.windowDurationMinutes * 60)
             let windowStart = self.resetsAt.addingTimeInterval(-self.windowDurationMinutes * 60)
-            let windowDays = max(1, Int(ceil(self.windowDurationMinutes / (24 * 60))))
-            let elapsedDays = max(
-                1,
-                min(windowDays, Int(ceil(now.timeIntervalSince(windowStart) / (24 * 60 * 60))))
-            )
-            return (Double(elapsedDays) / Double(windowDays), elapsedDays, windowDays)
+            let elapsed = min(max(now.timeIntervalSince(windowStart), 0), windowDuration)
+            return (elapsed / windowDuration, elapsed, windowDuration - elapsed)
+        }
+
+        private func durationDescription(_ duration: TimeInterval) -> String {
+            let totalHours = max(0, Int((duration / (60 * 60)).rounded()))
+            let days = totalHours / 24
+            let hours = totalHours % 24
+            if days == 0 { return "\(hours)h" }
+            if hours == 0 { return "\(days)d" }
+            return "\(days)d \(hours)h"
         }
 
         func summary(now: Date = Date()) -> String {
@@ -141,8 +147,9 @@ enum VoiceMacroService {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "EEE 'at' h:mm a"
             return "Codex weekly: \(Int(remainingPercent.rounded()))% remaining\n"
-                + "\(pace) · day \(pacing.elapsedDays) of \(pacing.windowDays)\n"
-                + "Resets \(formatter.string(from: self.resetsAt))"
+                + "\(pace) · \(self.durationDescription(pacing.elapsed)) into weekly period\n"
+                + "Resets \(formatter.string(from: self.resetsAt)) · "
+                + "\(self.durationDescription(pacing.remaining)) remaining"
         }
     }
 

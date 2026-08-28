@@ -992,7 +992,7 @@ final class HotkeyShortcutTests: XCTestCase {
         ))
     }
 
-    func testCodexWeeklyStatusSummaryReportsWholeDayPacing() {
+    func testCodexWeeklyStatusSummaryReportsElapsedAndRemainingTime() {
         let reset = Date(timeIntervalSince1970: 1_800_000_000)
         let now = reset.addingTimeInterval(-6.5 * 24 * 60 * 60)
         let summary = VoiceMacroService.CodexWeeklyStatus(
@@ -1002,9 +1002,10 @@ final class HotkeyShortcutTests: XCTestCase {
         ).summary(now: now)
 
         XCTAssertTrue(summary.contains("90% remaining"))
-        XCTAssertTrue(summary.contains("On pace"))
-        XCTAssertTrue(summary.contains("day 1 of 7"))
+        XCTAssertTrue(summary.contains("Behind pace"))
+        XCTAssertTrue(summary.contains("12h into weekly period"))
         XCTAssertTrue(summary.contains("Resets"))
+        XCTAssertTrue(summary.contains("6d 12h remaining"))
     }
 
     func testCodexWeeklyStatusUsageFractionIsNormalized() {
@@ -1023,7 +1024,7 @@ final class HotkeyShortcutTests: XCTestCase {
         XCTAssertEqual(status(usedPercent: 105).usageFraction, 1)
     }
 
-    func testCodexWeeklyStatusPacingTracksElapsedDaysInWeek() {
+    func testCodexWeeklyStatusPacingTracksExactElapsedTimeInWeek() {
         let reset = Date(timeIntervalSince1970: 1_800_000_000)
         let status = VoiceMacroService.CodexWeeklyStatus(
             usedPercent: 20,
@@ -1032,13 +1033,12 @@ final class HotkeyShortcutTests: XCTestCase {
         )
 
         let dayOne = status.pacing(now: reset.addingTimeInterval(-6.5 * 24 * 60 * 60))
-        XCTAssertEqual(dayOne.allowedUsageFraction, 1.0 / 7.0, accuracy: 0.0001)
-        XCTAssertEqual(dayOne.elapsedDays, 1)
-        XCTAssertEqual(dayOne.windowDays, 7)
+        XCTAssertEqual(dayOne.allowedUsageFraction, 0.5 / 7.0, accuracy: 0.0001)
+        XCTAssertEqual(dayOne.elapsed, 0.5 * 24 * 60 * 60, accuracy: 0.0001)
+        XCTAssertEqual(dayOne.remaining, 6.5 * 24 * 60 * 60, accuracy: 0.0001)
 
         let dayFour = status.pacing(now: reset.addingTimeInterval(-3.5 * 24 * 60 * 60))
-        XCTAssertEqual(dayFour.allowedUsageFraction, 4.0 / 7.0, accuracy: 0.0001)
-        XCTAssertEqual(dayFour.elapsedDays, 4)
+        XCTAssertEqual(dayFour.allowedUsageFraction, 3.5 / 7.0, accuracy: 0.0001)
     }
 
     func testCodexWeeklyStatusDailyProgressTracksCurrentDailyAllowance() {
