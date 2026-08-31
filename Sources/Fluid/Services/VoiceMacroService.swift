@@ -2087,7 +2087,6 @@ enum VoiceMacroService {
                 isOnPace: dailyProgress.usageFraction <= dailyProgress.elapsedFraction,
                 progressLabel: "Daily",
                 secondaryProgress: status.usageFraction,
-                secondaryPacingProgress: pacing.allowedUsageFraction,
                 secondaryIsOnPace: status.usageFraction <= pacing.allowedUsageFraction,
                 secondaryProgressLabel: "Weekly",
                 secondaryProgressSegmentCount: 7
@@ -2096,7 +2095,6 @@ enum VoiceMacroService {
             VoiceMacroStatusToast.shared.show(
                 status.summary(now: now),
                 progress: status.usageFraction,
-                pacingProgress: pacing.allowedUsageFraction,
                 isOnPace: status.usageFraction <= pacing.allowedUsageFraction,
                 progressLabel: "Weekly",
                 progressSegmentCount: 7
