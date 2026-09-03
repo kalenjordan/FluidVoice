@@ -459,6 +459,16 @@ final class HotkeyShortcutTests: XCTestCase {
         )
         XCTAssertEqual(
             VoiceMacroService.textBeforeTrailingPasteCommand(
+                transcript: "Here is the context. Paste it."
+            ),
+            "Here is the context."
+        )
+        XCTAssertEqual(
+            VoiceMacroService.textBeforeTrailingPasteCommand(transcript: "Paste it."),
+            ""
+        )
+        XCTAssertEqual(
+            VoiceMacroService.textBeforeTrailingPasteCommand(
                 transcript: "Add this and PASTE! "
             ),
             "Add this and"
