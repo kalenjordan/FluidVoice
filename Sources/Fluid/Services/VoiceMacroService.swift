@@ -1225,7 +1225,7 @@ enum VoiceMacroService {
 
     static func textBeforeTrailingPasteCommand(transcript: String) -> String? {
         guard let expression = try? NSRegularExpression(
-            pattern: #"\bpaste(?:\s+it)?[\s\p{P}]*$"#,
+            pattern: #"\b(?:paste|past|paced|peace|pasteur)(?:\s+it)?[\s\p{P}]*$"#,
             options: [.caseInsensitive]
         ) else {
             return nil

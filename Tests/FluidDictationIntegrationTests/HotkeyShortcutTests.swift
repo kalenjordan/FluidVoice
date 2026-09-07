@@ -473,11 +473,31 @@ final class HotkeyShortcutTests: XCTestCase {
             ),
             "Add this and"
         )
+        XCTAssertEqual(
+            VoiceMacroService.textBeforeTrailingPasteCommand(
+                transcript: "Here is the context. Past."
+            ),
+            "Here is the context."
+        )
+        for alias in ["paced", "peace", "pasteur"] {
+            XCTAssertEqual(
+                VoiceMacroService.textBeforeTrailingPasteCommand(
+                    transcript: "Here is the context. \(alias)."
+                ),
+                "Here is the context."
+            )
+            XCTAssertNil(VoiceMacroService.textBeforeTrailingPasteCommand(
+                transcript: "Use \(alias) in the middle of the sentence"
+            ))
+        }
         XCTAssertNil(VoiceMacroService.textBeforeTrailingPasteCommand(
             transcript: "paste that"
         ))
         XCTAssertNil(VoiceMacroService.textBeforeTrailingPasteCommand(
             transcript: "paste this in the middle of the sentence"
+        ))
+        XCTAssertNil(VoiceMacroService.textBeforeTrailingPasteCommand(
+            transcript: "past this in the middle of the sentence"
         ))
     }
 
