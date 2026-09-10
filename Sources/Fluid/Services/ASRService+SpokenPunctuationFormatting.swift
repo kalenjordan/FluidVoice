@@ -7,6 +7,7 @@ extension ASRService {
         bundleID: String? = nil,
         windowTitle: String? = nil
     ) -> String {
+        let text = self.applyWholeMessageCorrections(text)
         let settings = SettingsStore.shared
         guard settings.autoConvertPunctuationEnabled else { return text }
         return SpokenPunctuationFormatter.apply(
@@ -17,6 +18,15 @@ extension ASRService {
             bundleID: bundleID,
             windowTitle: windowTitle
         )
+    }
+
+    private static func applyWholeMessageCorrections(_ text: String) -> String {
+        switch text {
+        case "Come in", "Come in.":
+            return "commit"
+        default:
+            return text
+        }
     }
 }
 

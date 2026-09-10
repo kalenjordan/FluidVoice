@@ -458,6 +458,19 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    func testWholeMessageComeInCorrection() {
+        self.withRestoredDefaults(keys: self.punctuationFormattingDefaultsKeys) {
+            UserDefaults.standard.set(false, forKey: self.autoConvertPunctuationEnabledKey)
+
+            XCTAssertEqual(ASRService.applySpokenPunctuationFormatting("Come in"), "commit")
+            XCTAssertEqual(ASRService.applySpokenPunctuationFormatting("Come in."), "commit")
+            XCTAssertEqual(
+                ASRService.applySpokenPunctuationFormatting("Please come in."),
+                "Please come in."
+            )
+        }
+    }
+
     func testSpokenPunctuationFormattingConvertsCodeAndContactPunctuationWithPrefix() {
         self.withRestoredDefaults(keys: self.punctuationFormattingDefaultsKeys) {
             UserDefaults.standard.set(true, forKey: self.autoConvertPunctuationEnabledKey)
