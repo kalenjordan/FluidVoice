@@ -3,7 +3,7 @@ import Foundation
 actor CodexCLIService {
     static let shared = CodexCLIService()
     static let providerID = "codex-cli"
-    static let defaultModel = "gpt-5.6-luna"
+    static let defaultModel = "gpt-6-luna"
 
     enum ServiceError: LocalizedError {
         case executableNotFound
